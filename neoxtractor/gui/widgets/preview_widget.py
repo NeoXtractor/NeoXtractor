@@ -4,7 +4,7 @@ from typing import cast
 
 from PySide6 import QtCore, QtWidgets
 
-from neoxtractor.core.npk.class_types import NPKEntry, NPKEntryDataFlags
+from neoxtractor.core.packages.npk.class_types import NPKEntry, NPKEntryDataFlags
 from neoxtractor.core.utils import format_bytes
 from neoxtractor.gui.utils.viewer import ALL_VIEWERS, find_best_viewer
 from neoxtractor.gui.widgets.viewer import Viewer

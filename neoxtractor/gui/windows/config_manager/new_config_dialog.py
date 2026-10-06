@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from neoxtractor.core.config import Config
-from neoxtractor.core.npk.class_types import NPKReadOptions
+from neoxtractor.core.packages.npk.class_types import NPKReadOptions
 
 
 class NewConfigDialog(QDialog):

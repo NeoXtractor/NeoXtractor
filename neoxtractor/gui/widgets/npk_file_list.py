@@ -6,7 +6,7 @@ from typing import cast
 from PySide6 import QtCore, QtWidgets
 
 from neoxtractor.core.config import Config
-from neoxtractor.core.npk.class_types import NPKEntry, State
+from neoxtractor.core.packages.npk.class_types import NPKEntry, State
 from neoxtractor.gui.models.npk_file_model import NPKFileModel
 from neoxtractor.gui.utils.config import save_config_manager_to_settings
 from neoxtractor.gui.utils.npk import get_npk_file

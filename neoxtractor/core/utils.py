@@ -4,7 +4,7 @@ import os
 import sys
 
 from neoxtractor.core.config import Config
-from neoxtractor.core.npk.npk_file import NPKFile
+from neoxtractor.core.packages.npk.npk_file import NPKFile
 
 
 def get_application_path():

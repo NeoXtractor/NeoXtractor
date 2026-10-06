@@ -8,10 +8,10 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from neoxtractor.core.config import Config
 from neoxtractor.core.logger import get_logger
-from neoxtractor.core.npk.class_types import NPKEntry, NPKEntryDataFlags, NPKReadOptions
-from neoxtractor.core.npk.enums import NPKEntryFileCategories
-from neoxtractor.core.npk.npk_file import NPKFile
-from neoxtractor.core.wpk.wpk_file import IDXWPKFile
+from neoxtractor.core.packages.npk.class_types import NPKEntry, NPKEntryDataFlags, NPKReadOptions
+from neoxtractor.core.packages.npk.enums import NPKEntryFileCategories
+from neoxtractor.core.packages.npk.npk_file import NPKFile
+from neoxtractor.core.packages.wpk.wpk_file import IDXWPKFile
 from neoxtractor.gui.config_manager import ConfigManager
 from neoxtractor.gui.models.npk_file_model import NPKFileModel
 from neoxtractor.gui.npk_entry_filter import NPKEntryFilter

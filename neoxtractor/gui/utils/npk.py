@@ -5,7 +5,7 @@ from typing import cast
 from PySide6 import QtCore
 
 from neoxtractor.core.logger import get_logger
-from neoxtractor.core.npk.npk_file import NPKFile
+from neoxtractor.core.packages.npk.npk_file import NPKFile
 
 
 def get_npk_file() -> NPKFile | None:

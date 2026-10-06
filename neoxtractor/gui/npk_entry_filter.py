@@ -2,8 +2,8 @@
 
 from enum import IntFlag, auto
 
-from neoxtractor.core.npk.class_types import NPKEntryDataFlags
-from neoxtractor.core.npk.enums import NPKEntryFileCategories
+from neoxtractor.core.packages.npk.class_types import NPKEntryDataFlags
+from neoxtractor.core.packages.npk.enums import NPKEntryFileCategories
 from neoxtractor.gui.utils.npk import get_npk_file, ransack_agent
 from neoxtractor.gui.widgets.npk_file_list import NPKFileList
 

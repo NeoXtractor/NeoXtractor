@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, cast
 
 from PySide6 import QtCore, QtWidgets
 
-from neoxtractor.core.mesh_converter import FORMATS, convert_mesh
+from neoxtractor.core.resources.mesh.converter import FORMATS, convert_mesh
 from neoxtractor.gui.widgets.managed_rhi_widget import ManagedRhiWidget
 
 if TYPE_CHECKING:

@@ -4,8 +4,8 @@ from typing import Any
 
 from PySide6 import QtCore, QtGui
 
-from neoxtractor.core.images import bgra_to_rgba, compblks_convert, image_to_qimage
-from neoxtractor.core.npk.class_types import NPKEntry, State
+from neoxtractor.core.resources.images import bgra_to_rgba, compblks_convert, image_to_qimage
+from neoxtractor.core.packages.npk.class_types import NPKEntry, State
 from neoxtractor.gui.utils.npk import get_npk_file
 
 from .cocos_parser import CocosParser

@@ -8,7 +8,7 @@ from typing import cast
 import numpy as np
 from PySide6 import QtGui, QtWidgets
 
-from neoxtractor.core.mesh_loader import MeshData
+from neoxtractor.core.resources.mesh.loader import MeshData
 from neoxtractor.core.utils import get_application_path
 from neoxtractor.gui.renderers.point_renderer import PointRenderer
 from neoxtractor.gui.utils.rendering import is_d3d, static_uniform_buffer_type

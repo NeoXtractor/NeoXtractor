@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from neoxtractor.core.npk.class_types import NPKReadOptions
+from neoxtractor.core.packages.npk.class_types import NPKReadOptions
 
 
 @dataclass

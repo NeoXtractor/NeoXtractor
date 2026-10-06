@@ -5,8 +5,8 @@ from typing import Any, cast
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from neoxtractor.core.config import Config
-from neoxtractor.core.npk.class_types import NPKEntryDataFlags, State
-from neoxtractor.core.npk.npk_file import NPKFile
+from neoxtractor.core.packages.npk.class_types import NPKEntryDataFlags, State
+from neoxtractor.core.packages.npk.npk_file import NPKFile
 from neoxtractor.core.utils import get_filename_in_config
 from neoxtractor.gui.theme import ThemeManager
 

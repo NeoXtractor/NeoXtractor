@@ -8,8 +8,8 @@ from typing import cast, overload
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from neoxtractor.core.mesh_loader import MeshData
-from neoxtractor.core.mesh_loader.loader import MeshLoader
+from neoxtractor.core.resources.mesh.loader import MeshData
+from neoxtractor.core.resources.mesh.loader.loader import MeshLoader
 from neoxtractor.core.utils import get_application_path
 from neoxtractor.gui.renderers.mesh_renderer import MeshRenderer, ProcessedMeshData
 from neoxtractor.gui.renderers.point_renderer import PointRenderer

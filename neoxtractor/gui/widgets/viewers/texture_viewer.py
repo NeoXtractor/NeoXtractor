@@ -7,7 +7,7 @@ from PIL import Image, ImageFile
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from neoxtractor.core.file import IFile
-from neoxtractor.core.images import convert_image, image_to_png_data
+from neoxtractor.core.resources.images import convert_image, image_to_png_data
 from neoxtractor.gui.widgets.tab_window_ui.texture_viewer import setup_texture_viewer_tab_window
 from neoxtractor.gui.widgets.viewer import Viewer
 from neoxtractor.gui.windows.viewer_tab_window import ICustomTabWindow

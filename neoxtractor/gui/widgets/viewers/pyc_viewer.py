@@ -140,7 +140,7 @@ class PycViewer(Viewer):
     def _init_parser(self) -> bool:
         """Initialize BindictParser"""
         try:
-            from neoxtractor.core.bindict.parser import BindictParser
+            from neoxtractor.core.resources.bindict.parser import BindictParser
 
             self._parser = BindictParser()
         except ImportError as e:
