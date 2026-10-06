@@ -1,0 +1,30 @@
+# Normalize line endings in the repository to LF for every contributor,
+# regardless of their local core.autocrlf setting. This keeps the tracked
+# text files (Python/JSON/TOML/etc.) byte-identical across platforms and
+# prevents the mixed CRLF/LF commits seen when autocrlf differs per person.
+* text=auto eol=lf
+
+# Binary assets must never be line-ending converted.
+*.qsb binary
+*.ttf binary
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ttc binary
+*.otf binary
+
+# Explicitly text (redundant with text=auto but self-documenting).
+*.py text
+*.json text
+*.toml text
+*.qss text
+*.yml text
+*.yaml text
+*.md text
+*.txt text
+*.spec text
+*.vert text
+*.frag text
