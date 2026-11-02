@@ -7,6 +7,7 @@ from typing import List, Optional, Union
 
 from core.logger import get_logger
 from core.mesh_loader.parsers import (
+    EggPartyMeshParser,
     MeshParser0,
 )
 from core.mesh_loader.types import BaseMeshParser, MeshData
@@ -30,8 +31,13 @@ class MeshLoader:
         self._parsers = self._initialize_parsers()
 
     def _initialize_parsers(self) -> List[BaseMeshParser]:
-        """Initialize the list of available parsers in order of preference."""
-        return [MeshParser0()]
+        """Initialize the list of available parsers in order of preference.
+
+        `EggPartyMeshParser` handles the 115-bits-per-vertex v4 layout that
+        `MeshParser0` does not know about; it is tried second so files that
+        already parse keep taking the original path.
+        """
+        return [MeshParser0(), EggPartyMeshParser()]
 
     def load_from_bytes(self, data: bytes) -> Optional[MeshData]:
         """
