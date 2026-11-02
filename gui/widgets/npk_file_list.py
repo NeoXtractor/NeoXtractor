@@ -202,6 +202,27 @@ class NPKFileList(QtWidgets.QListView):
             entry = npk_file.find_entry_by_id(row)
             self.open_entry_with.emit(row, entry, viewer, i)
 
+    @staticmethod
+    def _export_relative_path(filename: str, row_index: int) -> str:
+        """Keep the restored directory tree and drop unsafe path segments."""
+        parts = [
+            part
+            for part in filename.replace("\\", "/").split("/")
+            if part not in ("", ".", "..")
+        ]
+        if not parts:
+            return f"unknown_file_{row_index}"
+        return os.path.join(*parts)
+
+    @staticmethod
+    def _write_entry(entry: NPKEntry, file_path: str, decoded: bool) -> None:
+        """Write one entry to disk, creating the restored directory tree."""
+        parent = os.path.dirname(file_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(file_path, "wb") as handle:
+            handle.write(entry.get_export_data(decoded=decoded))
+
     def _selection_has_decoded_entries(self, indexes: list[QtCore.QModelIndex]) -> bool:
         npk_file = get_npk_file()
         if npk_file is None:
@@ -223,32 +244,44 @@ class NPKFileList(QtWidgets.QListView):
             return
 
         if len(indexes) == 1:
-            # For single file, show file save dialog with filename pre-filled
             index = indexes[0]
             row_index = index.row()
 
             # Get the entry data first so the detected extension is reflected in the filename.
             entry = npk_file.find_entry_by_id(row_index)
-            filename = os.path.basename(
+            filename = (
                 entry.get_export_filename(decoded=decoded)
-            ) or self.model().get_filename(index)
-
-            # Show save file dialog
-            file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-                self, "Extract File", filename, "All Files (*.*)"
+                or self.model().get_filename(index)
             )
+            relative = self._export_relative_path(filename, row_index)
 
-            if file_path:
-                try:
-                    with open(file_path, "wb") as f:
-                        f.write(entry.get_export_data(decoded=decoded))
-                    QtWidgets.QMessageBox.information(
-                        self, "Success", f"File extracted to {file_path}"
-                    )
-                except Exception as e:
-                    QtWidgets.QMessageBox.critical(
-                        self, "Error", f"Failed to extract file: {str(e)}"
-                    )
+            if os.path.dirname(relative):
+                # Restored path: keep the original directory tree under a chosen folder.
+                dir_path = QtWidgets.QFileDialog.getExistingDirectory(
+                    self,
+                    "Select Directory to Extract File",
+                    "",
+                    QtWidgets.QFileDialog.Option.ShowDirsOnly,
+                )
+                if not dir_path:
+                    return
+                file_path = os.path.join(dir_path, relative)
+            else:
+                file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                    self, "Extract File", relative, "All Files (*.*)"
+                )
+                if not file_path:
+                    return
+
+            try:
+                self._write_entry(entry, file_path, decoded)
+                QtWidgets.QMessageBox.information(
+                    self, "Success", f"File extracted to {file_path}"
+                )
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(
+                    self, "Error", f"Failed to extract file: {str(e)}"
+                )
         else:
             # For multiple files, show directory selection dialog
             dir_path = QtWidgets.QFileDialog.getExistingDirectory(
@@ -268,20 +301,18 @@ class NPKFileList(QtWidgets.QListView):
 
                         # Get the entry data first so the detected extension is reflected in the filename.
                         entry = npk_file.find_entry_by_id(row_index)
-                        filename = os.path.basename(
+                        filename = (
                             entry.get_export_filename(decoded=decoded)
-                        ) or self.model().get_filename(index)
+                            or self.model().get_filename(index)
+                        )
 
-                        # Create safe filename
-                        safe_filename = os.path.basename(filename)
-                        if not safe_filename:
-                            safe_filename = f"unknown_file_{row_index}"
+                        # Restored paths carry the original directory tree; keep it.
+                        relative = self._export_relative_path(filename, row_index)
 
-                        file_path = os.path.join(dir_path, safe_filename)
+                        file_path = os.path.join(dir_path, relative)
 
                         try:
-                            with open(file_path, "wb") as f:
-                                f.write(entry.get_export_data(decoded=decoded))
+                            self._write_entry(entry, file_path, decoded)
                             success_count += 1
                         except Exception:
                             fail_count += 1

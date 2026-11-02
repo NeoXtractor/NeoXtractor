@@ -118,5 +118,19 @@ class NPKFileModel(QtCore.QAbstractListModel):
         filename = get_filename_in_config(
             self._game_config, index.row(), self._npk_file
         )
+
+        wwise_index = self._wwise_index()
+        if wwise_index is not None:
+            md5 = getattr(self._npk_file.indices[index.row()], "raw_hash_hex", None)
+            label = wwise_index.label_for_md5(md5) if md5 else None
+            if label:
+                filename = label
+
         self._file_names_cache[index.row()] = filename
         return filename
+
+    @staticmethod
+    def _wwise_index():
+        """Active Wwise event mapping, if the user built one."""
+        app = cast(QtCore.QCoreApplication, QtWidgets.QApplication.instance())
+        return app.property("wwise_event_index")

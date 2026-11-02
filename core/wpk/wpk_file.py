@@ -16,6 +16,7 @@ from core.npk.class_types import (
 )
 from core.npk.detection import get_ext, get_file_category, is_binary
 from core.wpk.decryption import try_decode_payload_stage1
+from id5mapping.paths import restore_archive_paths
 
 from .constants import (
     EMBEDDED_MAGIC,
@@ -36,6 +37,35 @@ from .standalone import (
 
 class MissingIndexedResourceError(EOFError):
     """Entry exists in IDX, but the actual data cannot be read from the current resource set."""
+
+
+def _read_idx_records(idx_path: str) -> List[dict]:
+    """Read the fixed-size SKPW records of another IDX (metadata only)."""
+    records: List[dict] = []
+    with open(idx_path, "rb") as file:
+        if file.read(4) != b"SKPW":
+            raise ValueError(f"Not a valid WPKS (.idx) file: {idx_path}")
+        file.seek(0x0C)
+        count = int.from_bytes(file.read(4), "little")
+        file.seek(IDX_HEAD_SIZE)
+        for _ in range(count):
+            rec = file.read(IDX_REC_SIZE)
+            if len(rec) != IDX_REC_SIZE:
+                break
+            raw_hash = rec[0x00:0x10]
+            hdr_size = int.from_bytes(rec[0x20:0x22], "little")
+            payload_size = int.from_bytes(rec[0x1C:0x20], "little")
+            records.append(
+                {
+                    "raw_hash_hex": raw_hash.hex(),
+                    "pkg_id": rec[0x14],
+                    "file_offset": int.from_bytes(rec[0x18:0x1C], "little"),
+                    "file_length": hdr_size + payload_size,
+                    "hdr_size": hdr_size,
+                    "payload_size": payload_size,
+                }
+            )
+    return records
 
 class IDXWPKFile:
     """
@@ -59,15 +89,25 @@ class IDXWPKFile:
     EMBEDDED_MAGIC = EMBEDDED_MAGIC
     MIN_EMBEDDED_HEADER_SIZE = MIN_EMBEDDED_HEADER_SIZE
 
-    def __init__(self, file_path: str, options: NPKReadOptions | None = None):
+    def __init__(
+        self,
+        file_path: str,
+        options: NPKReadOptions | None = None,
+        merge_counterpart: bool = False,
+        restore_paths: bool = False,
+    ):
         self.file_path = file_path
         self.options = options if options is not None else NPKReadOptions()
+        self.merge_counterpart = merge_counterpart
+        self.restore_paths = restore_paths
 
         self.entries: Dict[int, NPKEntry] = {}
         self.indices: List[NPKIndex] = []
         self.file_count: int = 0
         self._wpk_cache: Dict[int, BinaryIO | None] = {}
         self._wpk_paths: Dict[int, str] = {}
+        self._alt_handle_cache: Dict[tuple[str, int], BinaryIO | None] = {}
+        self.counterpart_idx_path: str | None = None
 
         self._missing_entry_count: int = 0
         self._partial_entry_count: int = 0
@@ -93,6 +133,8 @@ class IDXWPKFile:
             with open(self.idx_path, "rb") as file:
                 self._read_idx_header(file)
                 self._read_idx_indices(file)
+            if self.merge_counterpart:
+                self._merge_counterpart_idx()
         elif magic == self.WPK_MAGIC:
             self.mode = "wpk"
             self.wpk_path = file_path
@@ -102,6 +144,19 @@ class IDXWPKFile:
                 self._scan_wpk_indices(file)
         else:
             raise ValueError(f"Unsupported IDX/WPK file type: {file_path}")
+
+        if self.mode == "idx" and self.restore_paths:
+            restore_archive_paths(self)
+
+    def apply_path_mapping(self, thy_paths: list[str] | None = None) -> int:
+        """Re-run path restoration with the given `.thy` tables (base first)."""
+        if self.mode != "idx":
+            return 0
+        restored = restore_archive_paths(self, thy_paths)
+        for index, entry in self.entries.items():
+            if index < len(self.indices):
+                entry.filename = self.indices[index].filename
+        return restored
 
     def __enter__(self):
         return self
@@ -117,6 +172,111 @@ class IDXWPKFile:
                 except Exception:
                     pass
         self._wpk_cache.clear()
+        for handle in self._alt_handle_cache.values():
+            if handle is not None:
+                try:
+                    handle.close()
+                except Exception:
+                    pass
+        self._alt_handle_cache.clear()
+
+    # ------------------------------------------------------------------
+    # Base / hot update overlay
+    # ------------------------------------------------------------------
+    def _merge_counterpart_idx(self) -> None:
+        """Overlay this IDX with its counterpart (base `<root>/res` <-> hot `<root>/Documents/res`).
+
+        Hot update packages only carry the files that changed, so opening one
+        alone hides every base resource. Merging both record lists (hot rows
+        win on identical md5) keeps the full listing while every row still
+        points at its own WPK through `_alt_dir`.
+        """
+        idx_dir = os.path.dirname(os.path.abspath(self.idx_path or self.file_path))
+        name = os.path.basename(self.idx_path or self.file_path)
+        parent = os.path.dirname(idx_dir)
+        is_hot = os.path.basename(parent).lower() == "documents"
+        if is_hot:
+            counterpart_dir = os.path.join(os.path.dirname(parent), os.path.basename(idx_dir))
+        else:
+            counterpart_dir = os.path.join(parent, "Documents", os.path.basename(idx_dir))
+        counterpart = os.path.join(counterpart_dir, name)
+        if not os.path.exists(counterpart):
+            return
+
+        try:
+            records = _read_idx_records(counterpart)
+        except Exception:  # noqa: BLE001
+            get_logger().exception("Failed to read counterpart IDX %s", counterpart)
+            return
+
+        current = {index.raw_hash_hex: index for index in self.indices}
+        added = 0
+        replaced = 0
+        for rec in records:
+            md5_hex = rec["raw_hash_hex"]
+            index = current.get(md5_hex)
+            if index is not None:
+                if not is_hot:
+                    # Counterpart is the hot package: its version wins.
+                    index.pkg_id = rec["pkg_id"]
+                    index.file_offset = rec["file_offset"]
+                    index.file_length = rec["file_length"]
+                    index.file_original_length = rec["file_length"]
+                    index.hdr_size = rec["hdr_size"]
+                    index.payload_size = rec["payload_size"]
+                    index._alt_dir = counterpart_dir
+                    replaced += 1
+                continue
+            index = NPKIndex()
+            index.file_signature = int.from_bytes(bytes.fromhex(md5_hex), "little")
+            index.file_offset = rec["file_offset"]
+            index.file_length = rec["file_length"]
+            index.file_original_length = rec["file_length"]
+            index.filename = md5_hex
+            index.pkg_id = rec["pkg_id"]
+            index.hdr_size = rec["hdr_size"]
+            index.payload_size = rec["payload_size"]
+            index.raw_hash_hex = md5_hex
+            index._alt_dir = counterpart_dir
+            self.indices.append(index)
+            current[md5_hex] = index
+            added += 1
+
+        self.file_count = len(self.indices)
+        self.counterpart_idx_path = counterpart
+        get_logger().info(
+            "IDX overlay: merged %s (%d added, %d replaced, %d rows total)",
+            counterpart,
+            added,
+            replaced,
+            len(self.indices),
+        )
+
+    def _get_alt_wpk_handle(self, alt_dir: str, pkg_id: int) -> BinaryIO | None:
+        key = (alt_dir, pkg_id)
+        if key in self._alt_handle_cache:
+            return self._alt_handle_cache[key]
+        handle = None
+        candidates = [
+            os.path.join(alt_dir, f"{self.base_stem}{pkg_id}.wpk"),
+            os.path.join(alt_dir, f"{self.base_stem}_{pkg_id}.wpk"),
+        ]
+        try:
+            for entry in os.listdir(alt_dir):
+                low = entry.lower()
+                if low.endswith(".wpk") and low.startswith(self.base_stem.lower()) and str(pkg_id) in low:
+                    candidates.append(os.path.join(alt_dir, entry))
+        except OSError:
+            pass
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                try:
+                    handle = open(candidate, "rb")
+                except OSError:
+                    handle = None
+                break
+        self._alt_handle_cache[key] = handle
+        return handle
 
     def get_load_error_summary(self) -> dict:
         return {
@@ -149,8 +309,8 @@ class IDXWPKFile:
     def _is_slot_file_pkg(self, pkg_id: int) -> bool:
         return self._path_resolver.is_slot_file_pkg(pkg_id)
 
-    def _get_slot_file_dir(self):
-        return self._path_resolver.get_slot_file_dir()
+    def _get_slot_file_dir(self, base_dir: str | None = None):
+        return self._path_resolver.get_slot_file_dir(base_dir)
 
     def _read_slot_file_data(self, entry: NPKEntry) -> bytes | None:
         return self._slot_file_resolver.read_slot_file_data(entry)
@@ -336,6 +496,7 @@ class IDXWPKFile:
         raw_data: bytes | None
         payload: bytes
 
+        alt_dir = getattr(entry, "_alt_dir", None)
         if self.mode == "idx" and self._is_slot_file_pkg(pkg_id):
             raw_data = self._read_slot_file_data(entry)
             if raw_data is None:
@@ -357,9 +518,15 @@ class IDXWPKFile:
             else:
                 payload = raw_data
         else:
-            handle = self._get_wpk_handle(pkg_id)
+            handle = (
+                self._get_alt_wpk_handle(alt_dir, pkg_id)
+                if alt_dir
+                else self._get_wpk_handle(pkg_id)
+            )
             if handle is None:
-                raise FileNotFoundError(f"Missing WPK for pkg_id={pkg_id}")
+                raise FileNotFoundError(
+                    f"Missing WPK for pkg_id={pkg_id} in {alt_dir or self.base_dir}"
+                )
 
             hdr_size = getattr(entry, "hdr_size", 0)
             payload_size = getattr(entry, "payload_size", 0)

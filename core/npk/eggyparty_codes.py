@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""EggParty indice_encrypt=3 的 mode3 解密实现。"""
+"""Mode 3 decryption implementation for EggParty indice_encrypt=3."""
 
 from __future__ import annotations
 

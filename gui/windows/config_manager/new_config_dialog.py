@@ -1,6 +1,7 @@
 """Dialog for creating a new game configuration."""
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -51,6 +52,12 @@ class NewConfigDialog(QDialog):
         self.key_edit.setValue(0)  # Default value
         self.form_layout.addRow("Decryption Key (Use 0 for no key):", self.key_edit)
 
+        # Identity V special mode
+        self.wwise_check = QCheckBox(
+            "Identity V special mode (dual IDX merge, path restore, bank expansion, Wwise event names)"
+        )
+        self.form_layout.addRow("", self.wwise_check)
+
         # Buttons
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -85,5 +92,6 @@ class NewConfigDialog(QDialog):
                 if self.info_size_edit.value() == 0
                 else self.info_size_edit.value(),
             ),
+            wwise_event_map=self.wwise_check.isChecked(),
         )
         return config

@@ -1,6 +1,7 @@
 """Dialog for editing an existing game configuration."""
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -66,6 +67,13 @@ class EditConfigDialog(QDialog):
         else:
             self.key_edit.setValue(config.read_options.decryption_key)
         self.form_layout.addRow("Decryption Key (Use 0 for no key):", self.key_edit)
+
+        # Identity V special mode
+        self.wwise_check = QCheckBox(
+            "Identity V special mode (dual IDX merge, path restore, bank expansion, Wwise event names)"
+        )
+        self.wwise_check.setChecked(bool(config.wwise_event_map))
+        self.form_layout.addRow("", self.wwise_check)
 
         # Entry signature name map section
         map_label = QLabel("Entry Signature Name Map:")
@@ -181,6 +189,7 @@ class EditConfigDialog(QDialog):
                 else self.info_size_edit.value(),
             ),
             entry_signature_name_map=entry_signature_name_map,
+            wwise_event_map=self.wwise_check.isChecked(),
         )
 
         return new_config

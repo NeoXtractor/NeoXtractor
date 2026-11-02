@@ -1,7 +1,22 @@
 """Utilities for file format detection in NPK files."""
 
+import re
+
 from core.npk.class_types import NPKEntryDataFlags
 from core.npk.enums import NPKEntryFileCategories
+
+_SRT_TIMING = re.compile(
+    rb"\d{1,3}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*\d{1,3}:\d{2}:\d{2}[,.]\d{3}"
+)
+
+
+def _looks_like_srt(data: bytes) -> bool:
+    """SRT subtitles: optional UTF-8 BOM, an index line, then a timing line."""
+    head = data[3:] if data[:3] == b"\xef\xbb\xbf" else data
+    head = head[:1200].lstrip(b"\r\n \t")
+    if not head[:1].isdigit():
+        return False
+    return bool(_SRT_TIMING.search(head))
 
 
 def is_binary(data: bytes):
@@ -26,6 +41,18 @@ def is_binary(data: bytes):
 
 def _get_binary_ext(data: bytes, flags: NPKEntryDataFlags):
     """Check for binary file signatures."""
+    # NBS: the first three bytes stay below 0x80, the fourth byte is 0x00,
+    # and the header mentions "loop" within the first 100 bytes. Checked early
+    # because the broad animation heuristic below also matches NBS payloads.
+    if (
+        len(data) >= 4
+        and data[0] < 0x80
+        and data[1] < 0x80
+        and data[2] < 0x80
+        and data[3] == 0x00
+        and b"loop" in data[:100].lower()
+    ):
+        return "nbs"
     if (
         data[:4] == bytes([0xE3, 0x00, 0x00, 0x00])
         or data[:4] == bytes([0x63, 0x00, 0x00, 0x00])
@@ -44,10 +71,12 @@ def _get_binary_ext(data: bytes, flags: NPKEntryDataFlags):
     if data[1:4] == b"KTX":
         return "ktx"
     if data[:4] == b"RIFF":
+        # A RIFF/WAVE container is a Wwise media file; any "FEV" bytes inside
+        # are just compressed audio data, not an FMOD event header.
+        if data[8:12] == b"WAVE":
+            return "wem"
         if b"FEV" in data:
             return "fev"
-        if b"WAVE" in data:
-            return "wem"
     if data[0x34:0x3B] == b"2.1.0.0" or data[:8] == bytes(
         [0x38, 0x00, 0x00, 0x00, 0x34, 0x00, 0x64, 0x00]
     ):
@@ -277,6 +306,9 @@ def get_ext(data: bytes, flags: NPKEntryDataFlags):
 
     if len(data) == 0:
         return "empty"
+
+    if _looks_like_srt(data):
+        return "srt"
 
     if flags & NPKEntryDataFlags.TEXT:
         ext = _get_text_ext(data, flags)

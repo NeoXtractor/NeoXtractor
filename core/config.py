@@ -14,6 +14,9 @@ class Config:
     name: str = "Default"
     read_options: NPKReadOptions | None = None
     entry_signature_name_map: dict[str, str] = field(default_factory=dict)
+    # Identity V special: merge base/hot IDX, expand banks, and label media
+    # with Wwise event names.
+    wwise_event_map: bool = False
 
     def __post_init__(self):
         """Post-initialization to ensure read_options is initialized."""

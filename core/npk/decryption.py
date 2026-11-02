@@ -8,7 +8,7 @@ from .eggyparty_codes import decrypt_mode3_block
 
 
 def decrypt_eggparty_index(index_data: bytes | bytearray):
-    """按 16 字节块批量解密，尾部不足 16 字节部分保持原样。"""
+    """Decrypt in 16-byte blocks; a trailing block shorter than 16 bytes is kept as is."""
     round_keys = [
         1466294906,
         1460669224,

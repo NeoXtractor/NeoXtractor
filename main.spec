@@ -18,7 +18,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('configs', 'configs'), ('data', 'data')],
+    datas=[('configs', 'configs'), ('data', 'data'), ('id5mapping', 'id5mapping')],
     hiddenimports=[],
     hookspath=['hooks'],
     hooksconfig={},

@@ -28,6 +28,7 @@ def read_idx_indices(reader, file) -> None:
     """Read all fixed-size IDX records into NPKIndex entries."""
     reader.indices = []
     file.seek(IDX_HEAD_SIZE)
+    logger = get_logger()
 
     for i in range(reader.file_count):
         rec = file.read(IDX_REC_SIZE)
@@ -58,7 +59,7 @@ def read_idx_indices(reader, file) -> None:
         index.raw_hash_hex = raw_hash.hex()
 
         reader.indices.append(index)
-        get_logger().debug(
+        logger.debug(
             "IDX record %d: pkg=%d off=0x%X hdr=%d payload=%d name=%s",
             i,
             pkg_id,

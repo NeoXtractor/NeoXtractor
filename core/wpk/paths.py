@@ -70,10 +70,10 @@ class WPKPathResolver:
     def is_slot_file_pkg(self, pkg_id: int) -> bool:
         return not (0 <= int(pkg_id) <= 15)
 
-    def get_slot_file_dir(self) -> Path:
+    def get_slot_file_dir(self, base_dir: str | None = None) -> Path:
         stem = self.reader.base_stem
         slot_name = re.sub(r"\d+$", "", stem) or stem
-        return Path(self.reader.base_dir) / slot_name
+        return Path(base_dir or self.reader.base_dir) / slot_name
 
     def get_wpk_handle(self, pkg_id: int) -> BinaryIO | None:
         if pkg_id in self.reader._wpk_cache:

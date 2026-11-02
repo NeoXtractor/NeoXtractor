@@ -13,6 +13,7 @@ from gui.settings_manager import SettingsManager
 from gui.theme import ThemeManager
 from gui.utils.config import (
     load_config_manager_from_settings,
+    merge_default_configs,
     save_config_manager_to_settings,
 )
 from gui.windows.main_window import MainWindow
@@ -68,6 +69,11 @@ def run():
         save_config_manager_to_settings(config_manager, settings_manager)
     else:
         load_config_manager_from_settings(settings_manager, config_manager)
+        merge_default_configs(
+            settings_manager,
+            config_manager,
+            os.path.join(get_application_path(), "configs"),
+        )
 
     get_logger().debug("Showing main window.")
     main_window = MainWindow()

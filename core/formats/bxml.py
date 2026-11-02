@@ -99,7 +99,7 @@ def parse_bxml_bytes(data: bytes) -> str:
     if len(total_size_raw) != 8:
         raise ValueError("Truncated BXML header.")
     _total_size = struct.unpack("<Q", total_size_raw)[0]
-    ## 校验total_size
+    ## Validate total_size
     # if _total_size != len(data):
     #     raise ValueError(f"Header size mismatch: {_total_size} != {len(data)}")
     # payload_start = buf.tell()
@@ -120,7 +120,7 @@ def parse_bxml_bytes(data: bytes) -> str:
         tag_name = tag_names[tag_idx] if 0 <= tag_idx < len(tag_names) else f"node_{i}"
         nodes_info.append({"tag": tag_name, "relation_count": relation_count})
 
-    ## 校验元数据区和数据区切分点
+    ## Validate the metadata/data split point
     # meta_end = buf.tell()
     # expected_data_start = payload_start + attr_data_offset
     # if meta_end != expected_data_start:
@@ -153,7 +153,7 @@ def parse_bxml_bytes(data: bytes) -> str:
         node_type_tag = node_type_tag_raw[0]
         nodes_info[i]["value"] = _read_bxml_value(buf, node_type_tag)
 
-    # 先创建所有节点对象
+    # Create all node objects first
     elements: list[ET.Element] = []
     for info in nodes_info:
         elem = ET.Element(str(info["tag"]), info.get("attrs", {}))
@@ -162,8 +162,8 @@ def parse_bxml_bytes(data: bytes) -> str:
             elem.text = str(value)
         elements.append(elem)
 
-    # 按“连续子节点区间”分配孩子
-    # 假设节点 0 是根，后续节点按层次/顺序排列
+    # Assign children from contiguous child ranges
+    # Assume node 0 is the root; the rest follow in level/order
     cursor = 1
     for i in range(node_count):
         child_count = int(nodes_info[i].get("relation_count", 0))
@@ -179,13 +179,13 @@ def parse_bxml_bytes(data: bytes) -> str:
         nodes_info[i]["child_ids"] = list(range(cursor, cursor + child_count))
         cursor += child_count
 
-    # 连通树应满足：总孩子数 = node_count - 1
+    # A connected tree must satisfy: total children = node_count - 1
     if cursor != node_count:
         raise ValueError(
             f"Tree layout mismatch: cursor={cursor}, expected={node_count}"
         )
 
-    # 真正挂接子节点
+    # Attach the children
     for i, info in enumerate(nodes_info):
         for child_id in info.get("child_ids", []):
             elements[i].append(elements[child_id])

@@ -26,7 +26,11 @@ class SlotFileResolver:
         self._dir_index_cache: dict[Path, SlotDirectoryIndex] = {}
 
     def read_slot_file_data(self, entry: NPKEntry) -> bytes | None:
-        slot_dir = self.reader._get_slot_file_dir()
+        # Entries merged from the other (base / hot-update) IDX keep their own
+        # directory, so their slot files must be resolved next to that package.
+        slot_dir = self.reader._get_slot_file_dir(
+            getattr(entry, "_alt_dir", None)
+        )
         if not slot_dir.is_dir():
             return None
 

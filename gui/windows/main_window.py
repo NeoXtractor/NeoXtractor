@@ -24,12 +24,23 @@ from gui.windows.about_window import AboutWindow
 from gui.windows.config_manager import ConfigManagerWindow
 from gui.windows.settings_window import SettingsWindow
 from gui.windows.viewer_tab_window import ViewerTabWindow
+from gui.windows.id5_path_mapping_window import (
+    Id5PathMappingWindow,
+    is_wwise_archive,
+)
+from id5mapping.wwise import (
+    WwiseEventIndex,
+    apply_bank_labels,
+    expand_banks,
+    mount_archive_banks,
+)
 
 
 class MainWindow(QtWidgets.QMainWindow):
     """Main window class."""
 
     _loading_cancelled = False
+    _loading_in_progress = False
 
     # Custom signals for thread-safe UI updates
     update_progress_signal = QtCore.Signal(int)
@@ -344,6 +355,16 @@ class MainWindow(QtWidgets.QMainWindow):
                     lambda v=viewer: self._get_tab_window_for_viewer(v).show(),
                 )
 
+            menu.addSeparator()
+            id5_mapping = menu.addAction("ID5 Path Mapping...")
+            id5_mapping.setStatusTip(
+                "Identity V only: restore vfs paths from the two .thy name tables "
+                "(and label Wwise events for wwise.idx)."
+            )
+            id5_mapping.setEnabled(self._wwise_enabled())
+            id5_mapping.triggered.connect(self.open_id5_path_mapping)
+            self.id5_mapping_action = id5_mapping
+
             return menu
 
         self.menuBar().addMenu(tools_menu())
@@ -358,6 +379,85 @@ class MainWindow(QtWidgets.QMainWindow):
         if viewer not in self._viewer_windows:
             self._viewer_windows[viewer] = ViewerTabWindow(viewer)
         return self._viewer_windows[viewer]
+
+    def _wwise_enabled(self) -> bool:
+        """Identity V special features are only active with the matching config."""
+        return bool(self.config is not None and getattr(self.config, "wwise_event_map", False))
+
+    def _update_mapping_action(self) -> None:
+        """Keep the Tools entry in sync with the selected config."""
+        action = getattr(self, "id5_mapping_action", None)
+        if action is not None:
+            action.setEnabled(self._wwise_enabled())
+
+    def _auto_wwise_index(self, archive_file):
+        """Activate the bundled hash index and mount the wwise package's banks."""
+        if not self._wwise_enabled():
+            return None
+        idx_path = getattr(archive_file, "idx_path", None)
+        if not is_wwise_archive(idx_path):
+            return None
+        index = WwiseEventIndex()
+        if not index.load_bundled_index():
+            return None
+
+        index.autodetect_thy(idx_path)
+        mount_archive_banks(archive_file, index)
+        self.app.setProperty("wwise_event_index", index)
+        get_logger().info(
+            "Wwise event index auto-enabled: %d names, %d mounted shortIDs, %d md5 entries",
+            len(index.name_by_hash),
+            len(index.short_id_events),
+            len(index.md5_events),
+        )
+        return index
+
+    def open_id5_path_mapping(self):
+        """Apply the ID5 name tables to the opened package."""
+        if not self._wwise_enabled():
+            QtWidgets.QMessageBox.information(
+                self,
+                "ID5 Path Mapping",
+                "Select the \"Identity V\" config in Active Config to use this feature.",
+            )
+            return
+
+        archive_file = self.app.property("npk_file")
+        idx_path = getattr(archive_file, "idx_path", None)
+        if archive_file is None or not idx_path:
+            QtWidgets.QMessageBox.information(
+                self,
+                "ID5 Path Mapping",
+                "Open an IDX package first.",
+            )
+            return
+        if self._loading_in_progress:
+            QtWidgets.QMessageBox.information(
+                self,
+                "ID5 Path Mapping",
+                "Wait for the package to finish loading, then open this dialog.",
+            )
+            return
+
+        dialog = Id5PathMappingWindow(self, idx_path=idx_path, archive_file=archive_file)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        if dialog.index is not None:
+            self.app.setProperty("wwise_event_index", dialog.index)
+            if is_wwise_archive(idx_path):
+                expand_banks(archive_file, dialog.index)
+            apply_bank_labels(archive_file, dialog.index)
+
+        NPKFileModel._file_names_cache.clear()
+        self.list_widget.refresh_npk_file()
+        self.filter.apply_filter()
+
+        get_logger().info(
+            "ID5 path mapping applied: %d entries restored, %d events labelled.",
+            dialog.restored,
+            len(dialog.index.events) if dialog.index else 0,
+        )
 
     def get_tab_windows(self) -> list[ViewerTabWindow]:
         """Get all viewer tab windows."""
@@ -396,6 +496,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setWindowTitle("NeoXtractor")
         self.app.setProperty("npk_file", None)
+        self.app.setProperty("wwise_event_index", None)
+        self._loading_in_progress = False
+        NPKFileModel._file_names_cache.clear()
         self.list_widget.refresh_npk_file()
         self.extract_button_widget.setVisible(False)
         self.preview_widget.clear()
@@ -457,10 +560,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.unload_npk()
 
             self.app.setProperty("game_config", self.config)
+            if not self._wwise_enabled():
+                self.app.setProperty("wwise_event_index", None)
+                NPKFileModel._file_names_cache.clear()
 
             get_logger().info(
                 "Config changed to: %s", self.config.name if self.config else "None"
             )
+
+        self._update_mapping_action()
 
     def load_npk(self, path: str):
         """Load an NPK file and populate the list widget."""
@@ -468,6 +576,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.unload_npk()
 
         self._loading_cancelled = False
+        self._loading_in_progress = True
 
         self.setWindowTitle(f"NeoXtractor - {os.path.basename(path)}")
 
@@ -489,7 +598,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if ext in (".npk", ".expk"):
             archive_file = NPKFile(path, read_options)
         elif ext in (".idx", ".wpk"):
-            archive_file = IDXWPKFile(path, read_options)
+            archive_file = IDXWPKFile(
+                path,
+                read_options,
+                merge_counterpart=self._wwise_enabled(),
+                restore_paths=self._wwise_enabled(),
+            )
         else:
             raise ValueError(f"Unsupported archive type: {path}")
 
@@ -531,6 +645,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _loading_complete(self):
         """Handle completion of loading from the signal."""
+        self._loading_in_progress = False
         # Restore normal selection behavior and style when loading is complete
         self.list_widget.setDisabled(False)
         self.open_file_action.setEnabled(True)
@@ -543,6 +658,25 @@ class MainWindow(QtWidgets.QMainWindow):
             self.unload_npk()
         else:
             archive_file = self.app.property("npk_file")
+
+            if (
+                archive_file is not None
+                and self._wwise_enabled()
+                and is_wwise_archive(getattr(archive_file, "idx_path", None))
+            ):
+                # Rebuild the index from the fully loaded package: an index
+                # built while the entries were still loading only sees part of
+                # the banks, which would leave most media unnamed.
+                wwise_index = self._auto_wwise_index(archive_file)
+                expanded = expand_banks(archive_file, wwise_index)
+                renamed = (
+                    apply_bank_labels(archive_file, wwise_index)
+                    if wwise_index is not None
+                    else 0
+                )
+                if expanded or renamed:
+                    NPKFileModel._file_names_cache.clear()
+                    self.list_widget.refresh_npk_file()
 
             if archive_file is not None and hasattr(archive_file, "get_load_error_summary"):
                 summary = archive_file.get_load_error_summary()

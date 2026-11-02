@@ -50,6 +50,38 @@ Within the file list area, you can right click to operate on the selected entrie
 
   New name of the entry is bind to entry's file signature. All names are saved in current active config.
 
+### Wwise event names (Identity V)
+
+This is a special Identity V mode: it only runs when the **Identity V** config
+is selected in **Active Config**. All of its code and the bundled hash index
+live in `id5mapping/wwise/`.
+
+The bundled hash index (`id5mapping/wwise/wwise_event_hash_index.bin`) stores only
+`FNV-1(event name) -> event name`, which is exactly how Wwise ids its event
+objects. It is a compact binary (magic `NXWE`, zlib-compressed sorted hash table
+plus a shared name pool) and about four times smaller than the old JSON.
+
+When a package is loaded the tool:
+
+1. overlays the base and hot-update IDX files (`<root>/res` + `<root>/Documents/res`,
+   hot rows win on identical md5) so one listing covers both,
+2. finds the `.bnk` banks inside the package and mounts them, turning every
+   event id into its readable name,
+3. lists the wem media embedded in those banks as individual `.wem` files,
+4. resolves the external wems through the local `wwise.thy` + `wwise.idx`
+   (shortID → `xxh32("<shortID>.wem", 163)` → md5 → entry) and labels the
+   package entries with the event name only.
+
+Offsets, md5 names and media ids are never shipped: they differ between
+installations and are computed at runtime.
+
+If a game update adds event names, rebuild the index from the event name list
+(**Rebuild index...** in the dialog, or the CLI):
+
+```bash
+python -m id5mapping.wwise.index_builder --events wwise_audio_length_ex.py --out id5mapping/wwise/wwise_event_hash_index.bin
+```
+
 ### CLI
 
 Command-line interface is still being worked on.
