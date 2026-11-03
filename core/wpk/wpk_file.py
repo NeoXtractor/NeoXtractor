@@ -25,7 +25,13 @@ from .constants import (
     MIN_EMBEDDED_HEADER_SIZE,
     WPK_MAGIC,
 )
-from .idx_reader import log_idx_split_summary, read_idx_header, read_idx_indices
+from .idx_reader import (
+    detect_idx_rec_size,
+    log_idx_split_summary,
+    parse_idx_record,
+    read_idx_header,
+    read_idx_indices,
+)
 from .paths import WPKPathResolver
 from .payload import WPKPayloadProcessor
 from .slot_file import SlotFileResolver
@@ -47,19 +53,20 @@ def _read_idx_records(idx_path: str) -> List[dict]:
             raise ValueError(f"Not a valid WPKS (.idx) file: {idx_path}")
         file.seek(0x0C)
         count = int.from_bytes(file.read(4), "little")
+        rec_size = detect_idx_rec_size(file, count)
         file.seek(IDX_HEAD_SIZE)
         for _ in range(count):
-            rec = file.read(IDX_REC_SIZE)
-            if len(rec) != IDX_REC_SIZE:
+            rec = file.read(rec_size)
+            if len(rec) != rec_size:
                 break
-            raw_hash = rec[0x00:0x10]
-            hdr_size = int.from_bytes(rec[0x20:0x22], "little")
-            payload_size = int.from_bytes(rec[0x1C:0x20], "little")
+            raw_hash, pkg_id, file_offset, payload_size, hdr_size = parse_idx_record(
+                rec, rec_size
+            )
             records.append(
                 {
                     "raw_hash_hex": raw_hash.hex(),
-                    "pkg_id": rec[0x14],
-                    "file_offset": int.from_bytes(rec[0x18:0x1C], "little"),
+                    "pkg_id": pkg_id,
+                    "file_offset": file_offset,
                     "file_length": hdr_size + payload_size,
                     "hdr_size": hdr_size,
                     "payload_size": payload_size,
