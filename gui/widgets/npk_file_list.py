@@ -6,9 +6,11 @@ from typing import cast
 from PySide6 import QtCore, QtWidgets
 
 from core.config import Config
+from core.newbasis import parse as parse_nbs, to_ivf, to_mkv
 from core.npk.class_types import NPKEntry, State
 from gui.models.npk_file_model import NPKFileModel
 from gui.utils.audio_export import build_outputs, get_export_target, is_audio_entry
+from gui.utils.nbs_export import get_export_target as get_nbs_export_target
 from gui.utils.config import save_config_manager_to_settings
 from gui.utils.npk import get_npk_file
 from gui.utils.viewer import ALL_VIEWERS
@@ -180,6 +182,17 @@ class NPKFileList(QtWidgets.QListView):
             extract_audio = menu.addAction("Extract Audio (transcode)")
             extract_audio.triggered.connect(lambda: self.extract_audio(indexes))
 
+        if any(
+            self.model().get_filename(index).lower().endswith(".nbs")
+            for index in indexes
+        ):
+            extract_video = menu.addAction("Extract Video")
+            extract_video.triggered.connect(lambda: self.extract_video(indexes))
+            extract_mp3 = menu.addAction("Extract Audio (MP3)")
+            extract_mp3.triggered.connect(
+                lambda: self.extract_video(indexes, "mp3")
+            )
+
         menu.addSeparator()
         for viewer in ALL_VIEWERS:
             viewer_action = menu.addAction("Open in " + viewer.name)
@@ -241,6 +254,15 @@ class NPKFileList(QtWidgets.QListView):
                 os.makedirs(parent, exist_ok=True)
             with open(file_path, "wb") as handle:
                 handle.write(content)
+
+    @staticmethod
+    def _write_bytes(file_path: str, content: bytes) -> None:
+        """Write one generated file, creating its parent directory."""
+        parent = os.path.dirname(file_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(file_path, "wb") as handle:
+            handle.write(content)
 
     def _audio_requested(self, filename: str, decoded: bool) -> bool:
         """Whether the export setting asks for transcoded audio for this entry."""
@@ -514,6 +536,84 @@ class NPKFileList(QtWidgets.QListView):
             if len(failures) > 10:
                 message += f"\n... and {len(failures) - 10} more"
         QtWidgets.QMessageBox.information(self, "Audio Extraction", message)
+
+    def extract_video(self, indexes: list[QtCore.QModelIndex], target: str | None = None):
+        """Export selected ``.nbs`` archives using the configured format."""
+        npk_file = get_npk_file()
+        if not self.model() or npk_file is None:
+            return
+
+        if target is None:
+            target = get_nbs_export_target()
+
+        dir_path = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory to Extract Video",
+            "",
+            QtWidgets.QFileDialog.Option.ShowDirsOnly,
+        )
+        if not dir_path:
+            return
+
+        success_count = 0
+        skipped_count = 0
+        failures: list[str] = []
+
+        progress_bar = self._begin_progress(
+            "Exporting video... (%v/%m)", len(indexes)
+        )
+        for position, index in enumerate(indexes, start=1):
+            self._advance_progress(
+                progress_bar,
+                position - 1,
+                "Exporting video... (%v/%m)",
+            )
+
+            row_index = index.row()
+            entry = npk_file.find_entry_by_id(row_index)
+            filename = (
+                entry.get_export_filename(decoded=True)
+                or self.model().get_filename(index)
+            )
+            if not filename.lower().endswith(".nbs"):
+                continue
+
+            relative = self._export_relative_path(filename, row_index)
+            try:
+                data = entry.get_export_data(decoded=True)
+                video = parse_nbs(data)
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{filename}: {exc}")
+                continue
+
+            base = os.path.join(dir_path, os.path.splitext(relative)[0])
+            try:
+                if target == "origin":
+                    self._write_bytes(os.path.join(dir_path, relative), data)
+                elif target == "mkv":
+                    self._write_bytes(base + ".mkv", to_mkv(video))
+                elif target == "mp3":
+                    if video.audio is None:
+                        skipped_count += 1
+                        continue
+                    self._write_bytes(base + ".mp3", video.audio.mp3)
+                else:
+                    self._write_bytes(base + ".ivf", to_ivf(video))
+                success_count += 1
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{filename}: {exc}")
+
+        self._advance_progress(progress_bar, len(indexes))
+        self._end_progress(progress_bar)
+
+        message = f"Exported {success_count} video file(s) to {dir_path}"
+        if skipped_count:
+            message += f"\n{skipped_count} archive(s) without an audio track skipped"
+        if failures:
+            message += "\n\n" + "\n".join(failures[:10])
+            if len(failures) > 10:
+                message += f"\n... and {len(failures) - 10} more"
+        QtWidgets.QMessageBox.information(self, "Video Extraction", message)
 
     def show_rename_dialog(self, index: QtCore.QModelIndex):
         """

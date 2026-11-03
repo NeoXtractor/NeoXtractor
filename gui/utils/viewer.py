@@ -7,6 +7,7 @@ from gui.widgets.viewers.cocos_viewer.cocos_viewer import CocosViewer
 from gui.widgets.viewers.code_editor import CodeEditor
 from gui.widgets.viewers.hex_viewer import HexViewer
 from gui.widgets.viewers.mesh_viewer.viewer_widget import MeshViewer
+from gui.widgets.viewers.nbs_viewer import NbsViewer
 from gui.widgets.viewers.pyc_viewer import PycViewer
 from gui.widgets.viewers.texture_viewer import TextureViewer
 
@@ -17,6 +18,7 @@ ALL_VIEWERS: list[type[Viewer]] = [
     MeshViewer,
     BnkViewer,
     AudioViewer,
+    NbsViewer,
     CocosViewer,
     PycViewer,
 ]
