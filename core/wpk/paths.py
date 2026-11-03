@@ -85,6 +85,6 @@ class WPKPathResolver:
             self.reader._wpk_cache[pkg_id] = None
             return None
 
-        handle = open(wpk_path, "rb")
+        handle = self.reader._open_wpk_mapped(wpk_path)
         self.reader._wpk_cache[pkg_id] = handle
         return handle

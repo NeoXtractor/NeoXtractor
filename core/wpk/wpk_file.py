@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import mmap
 import os
 from typing import BinaryIO, Dict, List
 
@@ -114,6 +115,8 @@ class IDXWPKFile:
         self._wpk_cache: Dict[int, BinaryIO | None] = {}
         self._wpk_paths: Dict[int, str] = {}
         self._alt_handle_cache: Dict[tuple[str, int], BinaryIO | None] = {}
+        self._wpk_files: List[BinaryIO] = []
+        self._prefetched: Dict[tuple, bytes] | None = None
         self.counterpart_idx_path: str | None = None
 
         self._missing_entry_count: int = 0
@@ -178,14 +181,41 @@ class IDXWPKFile:
                     handle.close()
                 except Exception:
                     pass
-        self._wpk_cache.clear()
         for handle in self._alt_handle_cache.values():
             if handle is not None:
                 try:
                     handle.close()
                 except Exception:
                     pass
+        for file in self._wpk_files:
+            try:
+                file.close()
+            except Exception:
+                pass
+        self._wpk_cache.clear()
         self._alt_handle_cache.clear()
+        self._wpk_files.clear()
+
+    def _open_wpk_mapped(self, wpk_path: str) -> BinaryIO | None:
+        """Open a WPK file and return a memory-mapped read view of it.
+
+        Mapping the package into memory turns per-entry seek+read syscalls
+        into cheap slice copies and lets the OS page cache serve repeated
+        random access, which is the dominant cost when loading whole packs.
+        The underlying file object is tracked for later closing.
+        """
+        try:
+            file = open(wpk_path, "rb")
+        except OSError:
+            return None
+        self._wpk_files.append(file)
+        size = os.fstat(file.fileno()).st_size
+        if size == 0:
+            return file
+        try:
+            return mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+        except ValueError:
+            return file
 
     # ------------------------------------------------------------------
     # Base / hot update overlay
@@ -277,10 +307,7 @@ class IDXWPKFile:
             pass
         for candidate in candidates:
             if os.path.exists(candidate):
-                try:
-                    handle = open(candidate, "rb")
-                except OSError:
-                    handle = None
+                handle = self._open_wpk_mapped(candidate)
                 break
         self._alt_handle_cache[key] = handle
         return handle
@@ -378,6 +405,46 @@ class IDXWPKFile:
     # ------------------------------------------------------------------
     # Unified entry API
     # ------------------------------------------------------------------
+    def prefetch_entry_data(self) -> None:
+        """Slice every indexed entry's raw bytes from the mapped packages up front.
+
+        Ordering entries by offset within each package turns thousands of
+        independent seek+read calls into one sequential pass per package, and
+        every subsequent load_entry() reuses the prefetched bytes instead of
+        touching the file again.
+        """
+        if self.mode != "idx":
+            return
+        self._prefetched = {}
+        groups: Dict[tuple, List[NPKIndex]] = {}
+        for index in self.indices:
+            if self._is_slot_file_pkg(index.pkg_id):
+                continue
+            key = (index.pkg_id, getattr(index, "_alt_dir", None))
+            groups.setdefault(key, []).append(index)
+
+        for (pkg_id, alt_dir), items in groups.items():
+            handle = (
+                self._get_alt_wpk_handle(alt_dir, pkg_id)
+                if alt_dir
+                else self._get_wpk_handle(pkg_id)
+            )
+            if handle is None:
+                continue
+            items.sort(key=lambda idx: idx.file_offset)
+            for index in items:
+                off = index.file_offset
+                ln = index.hdr_size + index.payload_size
+                if ln <= 0:
+                    continue
+                if isinstance(handle, mmap.mmap):
+                    data = handle[off : off + ln]
+                else:
+                    handle.seek(off)
+                    data = handle.read(ln)
+                if data:
+                    self._prefetched[(pkg_id, alt_dir, off)] = data
+
     def is_entry_loaded(self, index: int) -> bool:
         return index in self.entries
 
@@ -541,8 +608,16 @@ class IDXWPKFile:
                 entry.file_length if entry.file_length > 0 else hdr_size + payload_size
             )
 
-            handle.seek(entry.file_offset)
-            raw_data = handle.read(total_size)
+            prefetched = (
+                self._prefetched.get((pkg_id, alt_dir, entry.file_offset))
+                if self._prefetched is not None
+                else None
+            )
+            if prefetched is not None:
+                raw_data = prefetched
+            else:
+                handle.seek(entry.file_offset)
+                raw_data = handle.read(total_size)
 
             if len(raw_data) == 0:
                 raise MissingIndexedResourceError(
