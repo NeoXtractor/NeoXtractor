@@ -5,6 +5,23 @@ import re
 from core.npk.class_types import NPKEntryDataFlags
 from core.npk.enums import NPKEntryFileCategories
 
+# Detection is called twice per entry (source extension + final extension) and
+# the same signature bytes repeat across entries of one pack, so cache results
+# keyed on everything the heuristics actually inspect: the SRT window (1200B),
+# the binary-signature head and the trailing TGA footer.
+_EXT_CACHE: dict[tuple, str] = {}
+_EXT_CACHE_MAX = 262144
+
+
+def _ext_cache_key(data: bytes, flags) -> tuple:
+    return (int(flags), data[:1200], data[-18:] if len(data) >= 18 else data[-18:])
+
+
+def _cache_ext(key: tuple, ext: str) -> str:
+    if len(_EXT_CACHE) < _EXT_CACHE_MAX:
+        _EXT_CACHE[key] = ext
+    return ext
+
 _SRT_TIMING = re.compile(
     rb"\d{1,3}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*\d{1,3}:\d{2}:\d{2}[,.]\d{3}"
 )
@@ -306,6 +323,17 @@ def get_ext(data: bytes, flags: NPKEntryDataFlags):
 
     if len(data) == 0:
         return "empty"
+
+    key = _ext_cache_key(data, flags)
+    cached = _EXT_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    return _cache_ext(key, _get_ext_uncached(data, flags))
+
+
+def _get_ext_uncached(data: bytes, flags: NPKEntryDataFlags) -> str:
+    """Uncached core of get_ext (pure signature detection)."""
 
     if _looks_like_srt(data):
         return "srt"

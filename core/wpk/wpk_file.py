@@ -493,8 +493,7 @@ class IDXWPKFile:
         entry.stage1_tag = None
 
         # Copy index attributes to entry
-        for attr in vars(idx):
-            setattr(entry, attr, getattr(idx, attr))
+        entry.__dict__.update(vars(idx))
 
         try:
             self._load_entry_data(entry)
@@ -700,13 +699,20 @@ class IDXWPKFile:
         if not is_binary(entry.data):
             entry.data_flags |= NPKEntryDataFlags.TEXT
 
-        entry.source_extension = get_ext(entry.data, entry.data_flags)
+        data_before_process = entry.data
+        source_ext = get_ext(entry.data, entry.data_flags)
+        entry.source_extension = source_ext
 
         processed = process_entry_with_processors(entry)
         if processed and not is_binary(entry.data):
             entry.data_flags |= NPKEntryDataFlags.TEXT
 
-        entry.extension = entry.extension or get_ext(entry.data, entry.data_flags)
+        if entry.data is data_before_process:
+            # Processors left the payload untouched: reuse the detection done
+            # above instead of running the same heuristics a second time.
+            entry.extension = entry.extension or source_ext
+        else:
+            entry.extension = entry.extension or get_ext(entry.data, entry.data_flags)
         entry.category = get_file_category(entry.extension)
 
         get_logger().debug(

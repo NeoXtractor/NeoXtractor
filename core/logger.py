@@ -48,15 +48,16 @@ qInstallMessageHandler(custom_logging_handler)
 
 
 @functools.lru_cache(maxsize=512)
-def _module_name_of_call_site(code):
-    """Resolve a call-site code object to its module name, cached.
+def _logger_of_call_site(code):
+    """Resolve a call-site code object to its logger instance, cached.
 
     Inspecting the stack is expensive (each frame triggers an os.path
     existence check); caching per call-site avoids paying it on every
     get_logger() call.
     """
     module = inspect.getmodule(code)
-    return module.__name__ if module else "unknown"
+    module_name = module.__name__ if module else "unknown"
+    return logging.getLogger(module_name)
 
 
 def get_logger(module_name=None):
@@ -67,7 +68,7 @@ def get_logger(module_name=None):
     :return: A logger instance with the specified name.
     """
     if module_name is None:
-        module_name = _module_name_of_call_site(sys._getframe(1).f_code)
+        return _logger_of_call_site(sys._getframe(1).f_code)
 
     if module_name == "__main__":
         return default_logger
