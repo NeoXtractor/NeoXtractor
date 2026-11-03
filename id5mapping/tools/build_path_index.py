@@ -10,7 +10,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ROOT = os.path.dirname(os.path.dirname(HERE))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 if HERE not in sys.path:
@@ -41,13 +41,16 @@ def cstr(buf: bytes, off: int) -> bytes:
 
 
 def build(map_path: str, out_path: str) -> None:
-    t0 = time.time()
     vmap = json.load(open(map_path, encoding="utf-8"))
+    build_from_paths(list(vmap.values()), out_path)
+
+
+def build_from_paths(paths: list[str], out_path: str) -> None:
+    t0 = time.time()
     groups: dict[int, set[str]] = {}
-    for _, path in vmap.items():
+    for path in paths:
         key = h32(rel_of(path).encode(), SEED_KEY)
         groups.setdefault(key, set()).add(path)
-    del vmap
     keys = list(groups.keys())
     n = len(keys)
     npath = sum(len(v) for v in groups.values())
