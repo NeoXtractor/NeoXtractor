@@ -1,6 +1,7 @@
 """Viewer utility functions for viewers."""
 
 from gui.widgets.viewer import Viewer
+from gui.widgets.viewers.audio_viewer import AudioViewer
 from gui.widgets.viewers.bnk_viewer import BnkViewer
 from gui.widgets.viewers.cocos_viewer.cocos_viewer import CocosViewer
 from gui.widgets.viewers.code_editor import CodeEditor
@@ -15,6 +16,7 @@ ALL_VIEWERS: list[type[Viewer]] = [
     TextureViewer,
     MeshViewer,
     BnkViewer,
+    AudioViewer,
     CocosViewer,
     PycViewer,
 ]

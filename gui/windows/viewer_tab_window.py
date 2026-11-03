@@ -45,18 +45,7 @@ class ViewerTabWindow(QtWidgets.QMainWindow):
         self.tab_widget = QtWidgets.QTabWidget(self)
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.setVisible(False)
-        self.tab_widget.tabCloseRequested.connect(
-            lambda index: (
-                self.tab_widget.removeTab(index),
-                (
-                    self.setWindowTitle(self._viewer_name),
-                    self.tab_widget.setVisible(False),
-                    self.no_tab_label.setVisible(True),
-                )
-                if self.tab_widget.count() == 0
-                else None,
-            )
-        )
+        self.tab_widget.tabCloseRequested.connect(self._close_tab)
         self.tab_widget.currentChanged.connect(
             lambda index: self.setWindowTitle(
                 f"{self.tab_widget.tabText(index)} - {self._viewer_name}"
@@ -119,6 +108,19 @@ class ViewerTabWindow(QtWidgets.QMainWindow):
 
         if issubclass(self._viewer_factory, ICustomTabWindow):
             self._viewer_factory.setup_tab_window(self)
+
+    def _close_tab(self, index: int):
+        """Release the viewer resources before dropping its tab."""
+        widget = self.tab_widget.widget(index)
+        self.tab_widget.removeTab(index)
+        if widget is not None:
+            if isinstance(widget, Viewer):
+                widget.unload_file()
+            widget.deleteLater()
+        if self.tab_widget.count() == 0:
+            self.setWindowTitle(self._viewer_name)
+            self.tab_widget.setVisible(False)
+            self.no_tab_label.setVisible(True)
 
     def load_file(self, file: IFile, take_focus=True):
         """

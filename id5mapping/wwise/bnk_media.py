@@ -11,44 +11,11 @@ Names are resolved through the active :class:`WwiseEventIndex` when available
 from __future__ import annotations
 
 import os
-import struct
 
 from core.logger import get_logger
 from core.npk.class_types import NPKEntry, NPKEntryDataFlags, State
 from core.npk.detection import get_file_category
-
-
-def extract_wem_media(bank_data: bytes) -> list[tuple[int, bytes]]:
-    """Return `(shortID, wem bytes)` for every inline media of a bank."""
-    if len(bank_data) < 8 or bank_data[:4] != b"BKHD":
-        return []
-
-    didx: tuple[int, int] | None = None
-    data_chunk: tuple[int, int] | None = None
-    offset = 0
-    while offset + 8 <= len(bank_data):
-        tag = bank_data[offset:offset + 4]
-        size = struct.unpack_from("<I", bank_data, offset + 4)[0]
-        payload = offset + 8
-        if tag == b"DIDX" and size >= 12:
-            didx = (payload, size)
-        elif tag == b"DATA":
-            data_chunk = (payload, size)
-        offset = payload + size
-
-    if didx is None or data_chunk is None:
-        return []
-
-    data_start, data_size = data_chunk
-    media: list[tuple[int, bytes]] = []
-    for index in range(didx[1] // 12):
-        record = didx[0] + 12 * index
-        sid, rel_offset, length = struct.unpack_from("<III", bank_data, record)
-        if not length or rel_offset + length > data_size:
-            continue
-        start = data_start + rel_offset
-        media.append((sid, bank_data[start:start + length]))
-    return media
+from core.wem.bnk import extract_wem_media  # noqa: F401  (re-exported)
 
 
 def expand_banks(archive_file, wwise_index=None) -> int:

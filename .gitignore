@@ -4,9 +4,15 @@
 *.pyc
 *__pycache__
 
-# Pyinstaller Build Results
+# Pyinstaller / Nuitka Build Results
 /build
 /dist
+/dist_nuitka
+/.nuitka_cache
+nuitka-crash-report.xml
+
+# Index build inputs (100+ MB, not distributable)
+/tools/vfs_path_map.json
 
 /out/
 

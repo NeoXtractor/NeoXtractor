@@ -16,6 +16,7 @@ dependencies = [
     "pyside6<6.10.0",
     "zstandard>=0.25.0",
     "texture2ddecoder>=1.0.6",
+    "xxhash>=4.0.0",
     "cryptography>=46.0.7",
     "flatbuffers>=25.12.19",
 ]

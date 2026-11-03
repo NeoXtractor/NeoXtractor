@@ -35,6 +35,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         layout.addWidget(self._create_appearance_settings())
         layout.addWidget(self._create_graphics_settings())
+        layout.addWidget(self._create_audio_settings())
 
         layout.addStretch()
 
@@ -190,6 +191,37 @@ class SettingsWindow(QtWidgets.QDialog):
 
         return graphics_group
 
+    def _create_audio_settings(self):
+        """Create the audio export settings section."""
+        audio_group = QtWidgets.QGroupBox("Audio Settings", self)
+        audio_layout = QtWidgets.QVBoxLayout(audio_group)
+
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel("Wwise audio export:", self))
+
+        self.audio_export_combobox = QtWidgets.QComboBox(self)
+        self.audio_export_combobox.addItem("Keep original (.wem)", "origin")
+        self.audio_export_combobox.addItem("Ogg Vorbis (.ogg)", "ogg")
+        self.audio_export_combobox.currentIndexChanged.connect(
+            lambda idx: self._pending_changes.__setitem__(
+                "audio.wwise_export", self.audio_export_combobox.itemData(idx)
+            )
+        )
+        row.addWidget(self.audio_export_combobox)
+        row.addStretch()
+        audio_layout.addLayout(row)
+
+        description = QtWidgets.QLabel(
+            "Keep original leaves .wem files untouched. Ogg transcodes every "
+            "extracted WEM, including the audio embedded in .bnk files.",
+            self,
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("color: gray; font-style: italic;")
+        audio_layout.addWidget(description)
+
+        return audio_group
+
     def _load_settings(self):
         """
         Load settings from the settings manager.
@@ -235,6 +267,11 @@ class SettingsWindow(QtWidgets.QDialog):
         msaa_combo_item = self.msaa_combobox.findData(msaa)
         if msaa_combo_item != -1:
             self.msaa_combobox.setCurrentIndex(msaa_combo_item)
+
+        audio_export = self._settings_manager.get("audio.wwise_export", "origin")
+        audio_index = self.audio_export_combobox.findData(audio_export)
+        if audio_index != -1:
+            self.audio_export_combobox.setCurrentIndex(audio_index)
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
         """
