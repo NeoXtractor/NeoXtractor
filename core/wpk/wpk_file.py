@@ -116,7 +116,6 @@ class IDXWPKFile:
         self._wpk_paths: Dict[int, str] = {}
         self._alt_handle_cache: Dict[tuple[str, int], BinaryIO | None] = {}
         self._wpk_files: List[BinaryIO] = []
-        self._prefetched: Dict[tuple, bytes] | None = None
         self.counterpart_idx_path: str | None = None
 
         self._missing_entry_count: int = 0
@@ -195,7 +194,6 @@ class IDXWPKFile:
         self._wpk_cache.clear()
         self._alt_handle_cache.clear()
         self._wpk_files.clear()
-        self._prefetched = None
 
     def _open_wpk_mapped(self, wpk_path: str) -> BinaryIO | None:
         """Open a WPK file and return a memory-mapped read view of it.
@@ -407,16 +405,17 @@ class IDXWPKFile:
     # Unified entry API
     # ------------------------------------------------------------------
     def prefetch_entry_data(self) -> None:
-        """Slice every indexed entry's raw bytes from the mapped packages up front.
+        """Warm the OS page cache by reading every entry's bytes sequentially.
 
         Ordering entries by offset within each package turns thousands of
-        independent seek+read calls into one sequential pass per package, and
-        every subsequent load_entry() reuses the prefetched bytes instead of
-        touching the file again.
+        independent seek+read calls into one sequential pass per package,
+        which lets the OS readahead populate the page cache. Bytes are not
+        retained in a dict -- load_entry() slices them from the mmap on
+        demand, keeping memory proportional to accessed entries rather than
+        the whole package.
         """
         if self.mode != "idx":
             return
-        self._prefetched = {}
         groups: Dict[tuple, List[NPKIndex]] = {}
         for index in self.indices:
             if self._is_slot_file_pkg(index.pkg_id):
@@ -439,12 +438,10 @@ class IDXWPKFile:
                 if ln <= 0:
                     continue
                 if isinstance(handle, mmap.mmap):
-                    data = handle[off : off + ln]
+                    _ = handle[off : off + ln]  # warm page cache, drop immediately
                 else:
                     handle.seek(off)
-                    data = handle.read(ln)
-                if data:
-                    self._prefetched[(pkg_id, alt_dir, off)] = data
+                    _ = handle.read(ln)
 
     def is_entry_loaded(self, index: int) -> bool:
         return index in self.entries
@@ -608,13 +605,8 @@ class IDXWPKFile:
                 entry.file_length if entry.file_length > 0 else hdr_size + payload_size
             )
 
-            prefetched = (
-                self._prefetched.get((pkg_id, alt_dir, entry.file_offset))
-                if self._prefetched is not None
-                else None
-            )
-            if prefetched is not None:
-                raw_data = prefetched
+            if isinstance(handle, mmap.mmap):
+                raw_data = handle[entry.file_offset : entry.file_offset + total_size]
             else:
                 handle.seek(entry.file_offset)
                 raw_data = handle.read(total_size)
