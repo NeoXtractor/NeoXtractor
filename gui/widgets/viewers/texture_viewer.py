@@ -56,7 +56,7 @@ class ImageDecodeTask(QtCore.QRunnable):
                 )
             except Exception as e:
                 self.signals.load_failed.emit(str(e))
-                raise e
+                return
 
         if self.cancelled:
             return

@@ -92,11 +92,19 @@ class NPKFileList(QtWidgets.QListView):
 
         npk_file = get_npk_file()
 
+        # The old model is parented to this view, so `setModel(None)` alone keeps
+        # it (and its NPKFile with every decompressed entry) alive in memory.
+        old_model = super().model()
+        self.setModel(None)
+        if old_model is not None:
+            old_model.setParent(None)
+            old_model.deleteLater()
+
         if npk_file is None:
-            self.setModel(None)
-        else:
-            self.setModel(NPKFileModel(npk_file, self))
-            self.selectionModel().currentChanged.connect(self.on_current_changed)
+            return
+
+        self.setModel(NPKFileModel(npk_file, self))
+        self.selectionModel().currentChanged.connect(self.on_current_changed)
 
     def on_current_changed(
         self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex
