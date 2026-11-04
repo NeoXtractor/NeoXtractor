@@ -1,20 +1,22 @@
 """Utilities for file format detection in NPK files."""
 
+import hashlib
 import re
 
 from core.npk.class_types import NPKEntryDataFlags
 from core.npk.enums import NPKEntryFileCategories
 
-# Detection is called twice per entry (source extension + final extension) and
-# the same signature bytes repeat across entries of one pack, so cache results
-# keyed on everything the heuristics actually inspect: the SRT window (1200B),
-# the binary-signature head and the trailing TGA footer.
+# Detection is called twice per entry (source extension + final extension).
+# Several heuristics search the entire payload, so prefix/suffix excerpts cannot
+# identify a file safely. Cache on a full-content digest without retaining the
+# payload itself.
 _EXT_CACHE: dict[tuple, str] = {}
 _EXT_CACHE_MAX = 262144
 
 
 def _ext_cache_key(data: bytes, flags) -> tuple:
-    return (int(flags), data[:1200], data[-18:] if len(data) >= 18 else data[-18:])
+    digest = hashlib.blake2b(data, digest_size=32).digest()
+    return (int(flags), len(data), digest)
 
 
 def _cache_ext(key: tuple, ext: str) -> str:
