@@ -195,6 +195,7 @@ class IDXWPKFile:
         self._wpk_cache.clear()
         self._alt_handle_cache.clear()
         self._wpk_files.clear()
+        self._prefetched = None
 
     def _open_wpk_mapped(self, wpk_path: str) -> BinaryIO | None:
         """Open a WPK file and return a memory-mapped read view of it.
