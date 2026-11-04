@@ -33,12 +33,24 @@ class WPKPathResolver:
         if custom:
             yield from push(custom)
 
+        # Some packs name the 10th+ payload with hex digits (chr_playera.wpk),
+        # so both the decimal and hex spellings must be probed.
+        index = int(pkg_id)
+        names = [str(index)]
+        hex_name = f"{index:x}"
+        if hex_name != str(index):
+            names.append(hex_name)
+
         stem = re.escape(self.reader.base_stem)
-        regex = re.compile(rf"^{stem}_?0*{int(pkg_id)}\.wpk$", re.IGNORECASE)
+        alternation = "|".join(names)
+        regex = re.compile(rf"^{stem}_?0*(?:{alternation})\.wpk$", re.IGNORECASE)
 
         direct_candidates = [
-            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}{pkg_id}.wpk"),
-            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}_{pkg_id}.wpk"),
+            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}{name}.wpk")
+            for name in names
+        ] + [
+            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}_{name}.wpk")
+            for name in names
         ]
         for candidate in direct_candidates:
             yield from push(candidate)
