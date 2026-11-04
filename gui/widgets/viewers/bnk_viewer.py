@@ -1,59 +1,12 @@
-from bitstring import ConstBitStream
+import os
+
 from PySide6 import QtCore, QtWidgets
 
-from core.file import IFile
+from core.file import IFile, SimpleFile
+from core.wem.bnk import BnkContainer
 from gui.widgets.viewer import Viewer
-
-
-class BNKExtractor:
-    """A class to extract WEM files from a BNK file."""
-
-    files = []
-
-    def __init__(self, data: bytes):
-        self.files.clear()
-        try:
-            f = ConstBitStream(data)
-            # BNKH
-            f.pos = 32
-            f.pos += int(f.read("uintle:32")) * 8 + 32
-
-            extract_list = []
-
-            # THIS ONE HAS WEM FILES
-            if f.read("bytes:4") == b"DIDX":
-                didx_len = f.read("uintle32")
-                files = didx_len // 12
-                for x in range(files):
-                    extract_list.append(f.readlist("3*uintle32"))
-
-                # DATA
-                f.pos += 64
-                start_of_data = f.pos
-
-                for id, offset, len in extract_list:
-                    f.pos = start_of_data + (offset * 8)
-                    self.files.append((str(id), f.read(f"bytes{len}")))
-            else:
-                self.clear_files()
-
-        except Exception:
-            self.clear_files()
-
-    def clear_files(self):
-        """Clear the list of files."""
-        self.files.clear()
-
-    def list_files(self):
-        """List the IDs of the files in the BNK."""
-        return [_id for _id, _ in self.files]
-
-    def get_file_content(self, id):
-        """Get the content of a file by its ID."""
-        for _id, content in self.files:
-            if _id == id:
-                return content
-        return None
+from gui.widgets.viewers.audio_viewer import AudioViewer
+from gui.windows.viewer_tab_window import ViewerTabWindow
 
 
 class BnkViewer(Viewer):
@@ -66,6 +19,7 @@ class BnkViewer(Viewer):
         super().__init__()
 
         self._file: IFile | None = None
+        self._wem_window: ViewerTabWindow | None = None
 
         # self.setWindowTitle("BNK Viewer")
         # self.resize(400, 300)
@@ -88,7 +42,11 @@ class BnkViewer(Viewer):
         self.v_layout.addLayout(hlayout)
         self.v_layout.addWidget(self.list_widget)
 
-        self.list_widget.itemDoubleClicked.connect(self.save_wem_file)
+        self.list_widget.itemDoubleClicked.connect(self.open_wem_file)
+        self.list_widget.setContextMenuPolicy(
+            QtCore.Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
 
     def read_bnk(self, data: bytes, extension: str):
         """Read a BNK file and populate the list widget with WEM files."""
@@ -97,7 +55,7 @@ class BnkViewer(Viewer):
         if extension.lower() not in self.accepted_extensions:
             raise ValueError(f"Unsupported file extension: {extension}")
 
-        self.container = BNKExtractor(data)
+        self.container = BnkContainer(data)
 
         if self.container.files:
             self.msg_box.setText(f"{len(self.container.files)} WEM files.")
@@ -131,17 +89,53 @@ class BnkViewer(Viewer):
             for fname in self.container.list_files():
                 self.list_widget.addItem(fname)
 
+    def _get_wem_content(self, item: QtWidgets.QListWidgetItem) -> bytes | None:
+        if not self.container:
+            return None
+        return self.container.get_file_content(item.text())
+
+    def open_wem_file(self, item: QtWidgets.QListWidgetItem):
+        """Open the selected WEM in the audio viewer on double-click."""
+        content = self._get_wem_content(item)
+        if content is None:
+            QtWidgets.QMessageBox.critical(
+                self, "Not found", "File content not found."
+            )
+            return
+
+        if self._wem_window is None:
+            self._wem_window = ViewerTabWindow(AudioViewer, self.window())
+
+        self._wem_window.load_file(SimpleFile(item.text() + ".wem", content))
+        self._wem_window.show()
+        self._wem_window.raise_()
+        self._wem_window.activateWindow()
+
+    def show_context_menu(self, position: QtCore.QPoint):
+        """Offer saving the WEM under the cursor."""
+        item = self.list_widget.itemAt(position)
+        if item is None:
+            return
+
+        menu = QtWidgets.QMenu(self)
+        open_action = menu.addAction("Open in Audio Viewer")
+        open_action.triggered.connect(lambda: self.open_wem_file(item))
+        save_action = menu.addAction("Save WEM File...")
+        save_action.triggered.connect(lambda: self.save_wem_file(item))
+        menu.exec(self.list_widget.viewport().mapToGlobal(position))
+
     def save_wem_file(self, item):
-        """Save a WEM file to disk when an item is double-clicked."""
+        """Save a WEM file to disk."""
         if self.container:
             content = self.container.get_file_content(item.text())
             if content is not None:
-                open(
-                    QtWidgets.QFileDialog.getSaveFileName(
-                        self, "Save WEM File", item.text() + ".wem", "WEM Files (*.wem)"
-                    )[0],
-                    "wb",
-                ).write(content)
+                path = QtWidgets.QFileDialog.getSaveFileName(
+                    self, "Save WEM File", item.text() + ".wem", "WEM Files (*.wem)"
+                )[0]
+                if not path:
+                    return
+                with open(path, "wb") as handle:
+                    handle.write(content)
                 self.msg_box.setText(f"File '{item.text()}.wem' saved successfully.")
             else:
                 QtWidgets.QMessageBox.critical(
@@ -154,10 +148,13 @@ class BnkViewer(Viewer):
             x = QtWidgets.QFileDialog.getExistingDirectory(
                 self, "Select save directory"
             )
+            if not x:
+                return
             for fname in self.container.list_files():
                 content = self.container.get_file_content(fname)
                 if content is not None:
-                    open(x + "\\" + fname + ".wem", "wb").write(content)
+                    with open(os.path.join(x, fname + ".wem"), "wb") as handle:
+                        handle.write(content)
                 else:
                     QtWidgets.QMessageBox.critical(
                         self, "Not found", f"File content for '{fname}' not found."

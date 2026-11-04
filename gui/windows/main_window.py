@@ -494,6 +494,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.app.property("npk_file") is None:
             return
 
+        # The loader runs on the thread pool and keeps `archive_file` alive in
+        # its closure, so it must be told to stop before we drop the archive:
+        # otherwise it keeps decompressing entries into an orphaned archive.
+        self._loading_cancelled = True
+
         self.setWindowTitle("NeoXtractor")
         self.app.setProperty("npk_file", None)
         self.app.setProperty("wwise_event_index", None)
@@ -638,7 +643,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _update_model(self, index):
         """Update model from the signal."""
-        model = cast(NPKFileModel, self.list_widget.model())
+        model = cast(NPKFileModel | None, self.list_widget.model())
+        if model is None:
+            # The package can be unloaded while the loader is still running.
+            return
         idx = model.index(index)
         model.get_filename(idx, invalidate_cache=True)
         self.list_widget.update(idx)

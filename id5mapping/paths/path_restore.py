@@ -2,7 +2,7 @@
 
 The bundle ``id5mapping/paths/path_index.bin`` is a compact hash index
 ``xxh32(relative path, seed 163) -> original vfs path`` (see
-``tools/build_path_index.py``).  The game ships one THFB table pair per
+``id5mapping/tools/build_path_index.py``).  The game ships one THFB table pair per
 package: ``thd/<pkg>.thy`` holds, for every record, the xxh32 key and the
 content md5, ``thd/<pkg>.thh`` holds the matching xxh32 item hash.
 

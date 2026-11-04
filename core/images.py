@@ -6,7 +6,7 @@ from typing import cast
 
 import texture2ddecoder
 from bitstring import ConstBitStream
-from PIL import Image, ImageFile
+from PIL import Image, ImageFile, UnidentifiedImageError
 from PySide6.QtGui import QImage
 
 from core.binary_readers import read_uintle32, read_uintle64
@@ -59,7 +59,10 @@ def _dds_dxgi_fallback(data: bytes):
 def _pillow_image_conversion(data, fmt):
     try:
         return Image.open(io.BytesIO(data), "r", (fmt.upper(), "PNG"))
-    except NotImplementedError:
+    except (NotImplementedError, UnidentifiedImageError):
+        # Pillow reports a DDS it cannot parse (bad header, volume texture,
+        # unsupported DXGI format) as an unidentified image, because Image.open
+        # swallows the SyntaxError raised by its own DDS plugin.
         if fmt.lower() == "dds":
             return _dds_dxgi_fallback(data)
         raise
@@ -268,6 +271,11 @@ def astc_convert(data: bytes):
 
 def convert_image(data, extension):
     """Identify and convert image data to Image."""
+    if data[:8] == b"CompBlks":
+        # The packaging pipeline re-encodes textures as CompBlks blocks while
+        # the restored path keeps the original `.dds` name, so decode by
+        # content instead of trusting the extension.
+        return compblks_convert(data)
     if extension in ("dds", "psd"):
         image = _pillow_image_conversion(data, extension)
         if extension == "psd":
@@ -281,4 +289,4 @@ def convert_image(data, extension):
         return astc_convert(data)
     if extension == "cbk":
         return compblks_convert(data)
-    return None
+    raise ValueError(f"Unsupported image format: {extension}")

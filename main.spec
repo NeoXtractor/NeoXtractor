@@ -18,7 +18,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('configs', 'configs'), ('data', 'data'), ('id5mapping', 'id5mapping')],
+    datas=[('configs', 'configs'), ('data', 'data'), ('id5mapping', 'id5mapping'), ('core/wem/data', 'core/wem/data'), ('core/wem/LICENSE.ww2ogg.md', 'core/wem')],
     hiddenimports=[],
     hookspath=['hooks'],
     hooksconfig={},

@@ -35,6 +35,8 @@ class SettingsWindow(QtWidgets.QDialog):
 
         layout.addWidget(self._create_appearance_settings())
         layout.addWidget(self._create_graphics_settings())
+        layout.addWidget(self._create_audio_settings())
+        layout.addWidget(self._create_video_settings())
 
         layout.addStretch()
 
@@ -190,6 +192,109 @@ class SettingsWindow(QtWidgets.QDialog):
 
         return graphics_group
 
+    def _create_audio_settings(self):
+        """Create the audio export settings section."""
+        audio_group = QtWidgets.QGroupBox("Audio Settings", self)
+        audio_layout = QtWidgets.QVBoxLayout(audio_group)
+
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel("Wwise audio export:", self))
+
+        self.audio_export_combobox = QtWidgets.QComboBox(self)
+        self.audio_export_combobox.addItem("Keep original (.wem)", "origin")
+        self.audio_export_combobox.addItem("Ogg Vorbis (.ogg)", "ogg")
+        self.audio_export_combobox.currentIndexChanged.connect(
+            lambda idx: (
+                self._pending_changes.__setitem__(
+                    "audio.wwise_export", self.audio_export_combobox.itemData(idx)
+                ),
+                self._update_audio_export_hint(),
+            )
+        )
+        row.addWidget(self.audio_export_combobox)
+        row.addStretch()
+        audio_layout.addLayout(row)
+
+        description = QtWidgets.QLabel(
+            "Keep original leaves .wem files untouched. Ogg transcodes every "
+            "extracted WEM, including the audio embedded in .bnk files.",
+            self,
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("color: gray; font-style: italic;")
+        audio_layout.addWidget(description)
+
+        self.audio_export_warning = QtWidgets.QLabel(
+            "Ogg export is slower: every WEM, including the audio inside .bnk "
+            "files, is transcoded one by one.",
+            self,
+        )
+        self.audio_export_warning.setWordWrap(True)
+        self.audio_export_warning.setStyleSheet("color: #e6a23c;")
+        audio_layout.addWidget(self.audio_export_warning)
+
+        self._update_audio_export_hint()
+
+        return audio_group
+
+    def _update_audio_export_hint(self):
+        """Show the slow-export warning only when Ogg transcoding is selected."""
+        self.audio_export_warning.setVisible(
+            self.audio_export_combobox.currentData() == "ogg"
+        )
+
+    def _create_video_settings(self):
+        """Create the NBS video export settings section."""
+        video_group = QtWidgets.QGroupBox("Video Settings", self)
+        video_layout = QtWidgets.QVBoxLayout(video_group)
+
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel("NBS video export:", self))
+
+        self.nbs_export_combobox = QtWidgets.QComboBox(self)
+        self.nbs_export_combobox.addItem("Keep original (.nbs)", "origin")
+        self.nbs_export_combobox.addItem("Matroska (.mkv)", "mkv")
+        self.nbs_export_combobox.addItem("Raw IVF (.ivf)", "ivf")
+        self.nbs_export_combobox.currentIndexChanged.connect(
+            lambda idx: (
+                self._pending_changes.__setitem__(
+                    "video.nbs_export", self.nbs_export_combobox.itemData(idx)
+                ),
+                self._update_nbs_export_hint(),
+            )
+        )
+        row.addWidget(self.nbs_export_combobox)
+        row.addStretch()
+        video_layout.addLayout(row)
+
+        description = QtWidgets.QLabel(
+            "Keep original stores the .nbs archive unchanged. Matroska packs the "
+            "VP9 frames and the MP3 track into one playable file without re-encoding.",
+            self,
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("color: gray; font-style: italic;")
+        video_layout.addWidget(description)
+
+        self.nbs_export_warning = QtWidgets.QLabel(
+            "IVF has no audio track, so exported videos will be silent. Choose "
+            "Matroska (.mkv) to keep the sound.",
+            self,
+        )
+        self.nbs_export_warning.setWordWrap(True)
+        self.nbs_export_warning.setStyleSheet("color: #e6a23c;")
+        video_layout.addWidget(self.nbs_export_warning)
+
+        self._update_nbs_export_hint()
+
+        return video_group
+
+    def _update_nbs_export_hint(self):
+        """Show the silent-export warning only when raw IVF is selected."""
+        self.nbs_export_warning.setVisible(
+            self.nbs_export_combobox.currentData() == "ivf"
+        )
+
     def _load_settings(self):
         """
         Load settings from the settings manager.
@@ -235,6 +340,18 @@ class SettingsWindow(QtWidgets.QDialog):
         msaa_combo_item = self.msaa_combobox.findData(msaa)
         if msaa_combo_item != -1:
             self.msaa_combobox.setCurrentIndex(msaa_combo_item)
+
+        audio_export = self._settings_manager.get("audio.wwise_export", "origin")
+        audio_index = self.audio_export_combobox.findData(audio_export)
+        if audio_index != -1:
+            self.audio_export_combobox.setCurrentIndex(audio_index)
+        self._update_audio_export_hint()
+
+        nbs_export = self._settings_manager.get("video.nbs_export", "mkv")
+        nbs_index = self.nbs_export_combobox.findData(nbs_export)
+        if nbs_index != -1:
+            self.nbs_export_combobox.setCurrentIndex(nbs_index)
+        self._update_nbs_export_hint()
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
         """

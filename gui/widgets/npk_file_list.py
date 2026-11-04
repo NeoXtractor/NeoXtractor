@@ -6,8 +6,11 @@ from typing import cast
 from PySide6 import QtCore, QtWidgets
 
 from core.config import Config
+from core.newbasis import parse as parse_nbs, to_ivf, to_mkv
 from core.npk.class_types import NPKEntry, State
 from gui.models.npk_file_model import NPKFileModel
+from gui.utils.audio_export import build_outputs, get_export_target, is_audio_entry
+from gui.utils.nbs_export import get_export_target as get_nbs_export_target
 from gui.utils.config import save_config_manager_to_settings
 from gui.utils.npk import get_npk_file
 from gui.utils.viewer import ALL_VIEWERS
@@ -89,11 +92,19 @@ class NPKFileList(QtWidgets.QListView):
 
         npk_file = get_npk_file()
 
+        # The old model is parented to this view, so `setModel(None)` alone keeps
+        # it (and its NPKFile with every decompressed entry) alive in memory.
+        old_model = super().model()
+        self.setModel(None)
+        if old_model is not None:
+            old_model.setParent(None)
+            old_model.deleteLater()
+
         if npk_file is None:
-            self.setModel(None)
-        else:
-            self.setModel(NPKFileModel(npk_file, self))
-            self.selectionModel().currentChanged.connect(self.on_current_changed)
+            return
+
+        self.setModel(NPKFileModel(npk_file, self))
+        self.selectionModel().currentChanged.connect(self.on_current_changed)
 
     def on_current_changed(
         self, current: QtCore.QModelIndex, previous: QtCore.QModelIndex
@@ -172,6 +183,24 @@ class NPKFileList(QtWidgets.QListView):
                 lambda: self.extract_entries(indexes, decoded=False)
             )
 
+        if any(
+            self.model().get_filename(index).lower().endswith((".wem", ".bnk"))
+            for index in indexes
+        ):
+            extract_audio = menu.addAction("Extract Audio (transcode)")
+            extract_audio.triggered.connect(lambda: self.extract_audio(indexes))
+
+        if any(
+            self.model().get_filename(index).lower().endswith(".nbs")
+            for index in indexes
+        ):
+            extract_video = menu.addAction("Extract Video")
+            extract_video.triggered.connect(lambda: self.extract_video(indexes))
+            extract_mp3 = menu.addAction("Extract Audio (MP3)")
+            extract_mp3.triggered.connect(
+                lambda: self.extract_video(indexes, "mp3")
+            )
+
         menu.addSeparator()
         for viewer in ALL_VIEWERS:
             viewer_action = menu.addAction("Open in " + viewer.name)
@@ -223,6 +252,75 @@ class NPKFileList(QtWidgets.QListView):
         with open(file_path, "wb") as handle:
             handle.write(entry.get_export_data(decoded=decoded))
 
+    @staticmethod
+    def _write_outputs(dir_path: str, outputs: list[tuple[str, bytes]]) -> None:
+        """Write generated audio files under ``dir_path``."""
+        for relative, content in outputs:
+            file_path = os.path.join(dir_path, relative)
+            parent = os.path.dirname(file_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            with open(file_path, "wb") as handle:
+                handle.write(content)
+
+    @staticmethod
+    def _write_bytes(file_path: str, content: bytes) -> None:
+        """Write one generated file, creating its parent directory."""
+        parent = os.path.dirname(file_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(file_path, "wb") as handle:
+            handle.write(content)
+
+    def _audio_requested(self, filename: str, decoded: bool) -> bool:
+        """Whether the export setting asks for transcoded audio for this entry."""
+        return decoded and is_audio_entry(filename) and get_export_target() != "origin"
+
+    def _audio_outputs(self, entry: NPKEntry, filename: str, decoded: bool):
+        """Return transcoded audio files when the export setting asks for them."""
+        target = get_export_target()
+        if target == "origin" or not decoded or not is_audio_entry(filename):
+            return None
+        try:
+            return build_outputs(
+                filename, entry.get_export_data(decoded=decoded), target
+            )
+        except ValueError:
+            # Not convertible (for example a non-Wwise bank): extract it as-is.
+            return None
+
+    def _progress_bar(self) -> QtWidgets.QProgressBar | None:
+        """Return the main window's inline progress bar, like loading uses."""
+        bar = getattr(self.window(), "progress_bar", None)
+        return bar if isinstance(bar, QtWidgets.QProgressBar) else None
+
+    def _begin_progress(self, text: str, maximum: int) -> QtWidgets.QProgressBar | None:
+        bar = self._progress_bar()
+        if bar is None:
+            return None
+        bar.setFormat(text)
+        bar.setRange(0, maximum)
+        bar.setValue(0)
+        bar.setVisible(True)
+        QtWidgets.QApplication.processEvents()
+        return bar
+
+    def _advance_progress(
+        self, bar: QtWidgets.QProgressBar | None, value: int, text: str | None = None
+    ):
+        if bar is None:
+            return
+        if text:
+            bar.setFormat(text)
+        bar.setValue(value)
+        QtWidgets.QApplication.processEvents()
+
+    def _end_progress(self, bar: QtWidgets.QProgressBar | None):
+        if bar is None:
+            return
+        bar.setValue(0)
+        bar.setVisible(False)
+
     def _selection_has_decoded_entries(self, indexes: list[QtCore.QModelIndex]) -> bool:
         npk_file = get_npk_file()
         if npk_file is None:
@@ -254,6 +352,44 @@ class NPKFileList(QtWidgets.QListView):
                 or self.model().get_filename(index)
             )
             relative = self._export_relative_path(filename, row_index)
+
+            outputs = None
+            if self._audio_requested(relative, decoded):
+                dir_path = QtWidgets.QFileDialog.getExistingDirectory(
+                    self,
+                    "Select Directory to Extract Audio",
+                    "",
+                    QtWidgets.QFileDialog.Option.ShowDirsOnly,
+                )
+                if not dir_path:
+                    return
+
+                progress_bar = self._begin_progress(
+                    f"Converting {os.path.basename(relative)}...", 0
+                )
+                try:
+                    outputs = self._audio_outputs(entry, relative, decoded)
+                except Exception as e:  # noqa: BLE001
+                    QtWidgets.QMessageBox.critical(
+                        self, "Error", f"Failed to convert audio: {str(e)}"
+                    )
+                    return
+                finally:
+                    self._end_progress(progress_bar)
+
+                if outputs:
+                    try:
+                        self._write_outputs(dir_path, outputs)
+                        QtWidgets.QMessageBox.information(
+                            self,
+                            "Success",
+                            f"Extracted {len(outputs)} audio file(s) to {dir_path}",
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        QtWidgets.QMessageBox.critical(
+                            self, "Error", f"Failed to extract file: {str(e)}"
+                        )
+                    return
 
             if os.path.dirname(relative):
                 # Restored path: keep the original directory tree under a chosen folder.
@@ -296,7 +432,16 @@ class NPKFileList(QtWidgets.QListView):
                     success_count = 0
                     fail_count = 0
 
-                    for index in indexes:
+                    progress_bar = self._begin_progress(
+                        "Extracting files... (%v/%m)", len(indexes)
+                    )
+                    for position, index in enumerate(indexes, start=1):
+                        self._advance_progress(
+                            progress_bar,
+                            position - 1,
+                            "Extracting files... (%v/%m)",
+                        )
+
                         row_index = index.row()
 
                         # Get the entry data first so the detected extension is reflected in the filename.
@@ -312,10 +457,18 @@ class NPKFileList(QtWidgets.QListView):
                         file_path = os.path.join(dir_path, relative)
 
                         try:
-                            self._write_entry(entry, file_path, decoded)
-                            success_count += 1
+                            outputs = self._audio_outputs(entry, relative, decoded)
+                            if outputs:
+                                self._write_outputs(dir_path, outputs)
+                                success_count += len(outputs)
+                            else:
+                                self._write_entry(entry, file_path, decoded)
+                                success_count += 1
                         except Exception:
                             fail_count += 1
+
+                    self._advance_progress(progress_bar, len(indexes))
+                    self._end_progress(progress_bar)
 
                     message = f"Extracted {success_count} files to {dir_path}"
                     if fail_count > 0:
@@ -328,6 +481,147 @@ class NPKFileList(QtWidgets.QListView):
                     QtWidgets.QMessageBox.critical(
                         self, "Error", f"Failed to extract files: {str(e)}"
                     )
+
+    def extract_audio(self, indexes: list[QtCore.QModelIndex]):
+        """Transcode every selected ``.wem`` into a playable format."""
+        npk_file = get_npk_file()
+        if not self.model() or npk_file is None:
+            return
+
+        dir_path = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory to Extract Audio",
+            "",
+            QtWidgets.QFileDialog.Option.ShowDirsOnly,
+        )
+        if not dir_path:
+            return
+
+        success_count = 0
+        skipped_count = 0
+        failures: list[str] = []
+
+        target = get_export_target()
+        if target == "origin":
+            target = "ogg"
+
+        progress_bar = self._begin_progress(
+            "Converting audio... (%v/%m)", len(indexes)
+        )
+        for position, index in enumerate(indexes, start=1):
+            self._advance_progress(
+                progress_bar,
+                position - 1,
+                "Converting audio... (%v/%m)",
+            )
+
+            row_index = index.row()
+            entry = npk_file.find_entry_by_id(row_index)
+            filename = (
+                entry.get_export_filename(decoded=True)
+                or self.model().get_filename(index)
+            )
+            if not is_audio_entry(filename):
+                skipped_count += 1
+                continue
+
+            try:
+                data = entry.get_export_data(decoded=True)
+                relative = self._export_relative_path(filename, row_index)
+                self._write_outputs(dir_path, build_outputs(relative, data, target))
+                success_count += 1
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{filename}: {exc}")
+
+        self._advance_progress(progress_bar, len(indexes))
+        self._end_progress(progress_bar)
+
+        message = f"Converted {success_count} audio file(s) to {dir_path}"
+        if skipped_count:
+            message += f"\n{skipped_count} non-audio entry(ies) skipped"
+        if failures:
+            message += "\n\n" + "\n".join(failures[:10])
+            if len(failures) > 10:
+                message += f"\n... and {len(failures) - 10} more"
+        QtWidgets.QMessageBox.information(self, "Audio Extraction", message)
+
+    def extract_video(self, indexes: list[QtCore.QModelIndex], target: str | None = None):
+        """Export selected ``.nbs`` archives using the configured format."""
+        npk_file = get_npk_file()
+        if not self.model() or npk_file is None:
+            return
+
+        if target is None:
+            target = get_nbs_export_target()
+
+        dir_path = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory to Extract Video",
+            "",
+            QtWidgets.QFileDialog.Option.ShowDirsOnly,
+        )
+        if not dir_path:
+            return
+
+        success_count = 0
+        skipped_count = 0
+        failures: list[str] = []
+
+        progress_bar = self._begin_progress(
+            "Exporting video... (%v/%m)", len(indexes)
+        )
+        for position, index in enumerate(indexes, start=1):
+            self._advance_progress(
+                progress_bar,
+                position - 1,
+                "Exporting video... (%v/%m)",
+            )
+
+            row_index = index.row()
+            entry = npk_file.find_entry_by_id(row_index)
+            filename = (
+                entry.get_export_filename(decoded=True)
+                or self.model().get_filename(index)
+            )
+            if not filename.lower().endswith(".nbs"):
+                continue
+
+            relative = self._export_relative_path(filename, row_index)
+            try:
+                data = entry.get_export_data(decoded=True)
+                video = parse_nbs(data)
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{filename}: {exc}")
+                continue
+
+            base = os.path.join(dir_path, os.path.splitext(relative)[0])
+            try:
+                if target == "origin":
+                    self._write_bytes(os.path.join(dir_path, relative), data)
+                elif target == "mkv":
+                    self._write_bytes(base + ".mkv", to_mkv(video))
+                elif target == "mp3":
+                    if video.audio is None:
+                        skipped_count += 1
+                        continue
+                    self._write_bytes(base + ".mp3", video.audio.mp3)
+                else:
+                    self._write_bytes(base + ".ivf", to_ivf(video))
+                success_count += 1
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{filename}: {exc}")
+
+        self._advance_progress(progress_bar, len(indexes))
+        self._end_progress(progress_bar)
+
+        message = f"Exported {success_count} video file(s) to {dir_path}"
+        if skipped_count:
+            message += f"\n{skipped_count} archive(s) without an audio track skipped"
+        if failures:
+            message += "\n\n" + "\n".join(failures[:10])
+            if len(failures) > 10:
+                message += f"\n... and {len(failures) - 10} more"
+        QtWidgets.QMessageBox.information(self, "Video Extraction", message)
 
     def show_rename_dialog(self, index: QtCore.QModelIndex):
         """
