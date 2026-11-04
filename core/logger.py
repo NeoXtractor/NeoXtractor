@@ -1,8 +1,10 @@
 """Logger module."""
 
+import functools
 import inspect
 import logging
 import os
+import sys
 
 from PySide6.QtCore import QMessageLogContext, QtMsgType, qInstallMessageHandler
 
@@ -45,6 +47,19 @@ def custom_logging_handler(
 qInstallMessageHandler(custom_logging_handler)
 
 
+@functools.lru_cache(maxsize=512)
+def _logger_of_call_site(code):
+    """Resolve a call-site code object to its logger instance, cached.
+
+    Inspecting the stack is expensive (each frame triggers an os.path
+    existence check); caching per call-site avoids paying it on every
+    get_logger() call.
+    """
+    module = inspect.getmodule(code)
+    module_name = module.__name__ if module else "unknown"
+    return logging.getLogger(module_name)
+
+
 def get_logger(module_name=None):
     """
     Get a logger with a specific module name.
@@ -53,9 +68,7 @@ def get_logger(module_name=None):
     :return: A logger instance with the specified name.
     """
     if module_name is None:
-        frame = inspect.stack()[1]
-        module = inspect.getmodule(frame[0])
-        module_name = module.__name__ if module else "unknown"
+        return _logger_of_call_site(sys._getframe(1).f_code)
 
     if module_name == "__main__":
         return default_logger

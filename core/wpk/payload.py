@@ -136,8 +136,19 @@ class WPKPayloadProcessor:
 
             if check_rotor(entry):
                 before_len = len(entry.data)
+                try:
+                    unpacked = unpack_rotor(entry.data)
+                except Exception as exc:
+                    # The 2-byte marker is only a hint and can collide with an
+                    # ordinary payload; keep the bytes instead of failing the
+                    # whole entry.
+                    get_logger().warning(
+                        "ROTOR unpack failed for %s: %s", context, exc
+                    )
+                    break
+
                 entry.data_flags |= NPKEntryDataFlags.ROTOR_PACKED
-                entry.data = unpack_rotor(entry.data)
+                entry.data = unpacked
                 get_logger().debug(
                     "ROTOR unpacked: %s in=%d out=%d",
                     context,

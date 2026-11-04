@@ -15,6 +15,7 @@ class WPKPathResolver:
 
     def __init__(self, reader):
         self.reader = reader
+        self._slot_dir_cache: dict[Path, Path] = {}
 
     def iter_wpk_path_candidates(self, pkg_id: int):
         seen = set()
@@ -32,12 +33,24 @@ class WPKPathResolver:
         if custom:
             yield from push(custom)
 
+        # Some packs name the 10th+ payload with hex digits (chr_playera.wpk),
+        # so both the decimal and hex spellings must be probed.
+        index = int(pkg_id)
+        names = [str(index)]
+        hex_name = f"{index:x}"
+        if hex_name != str(index):
+            names.append(hex_name)
+
         stem = re.escape(self.reader.base_stem)
-        regex = re.compile(rf"^{stem}_?0*{int(pkg_id)}\.wpk$", re.IGNORECASE)
+        alternation = "|".join(names)
+        regex = re.compile(rf"^{stem}_?0*(?:{alternation})\.wpk$", re.IGNORECASE)
 
         direct_candidates = [
-            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}{pkg_id}.wpk"),
-            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}_{pkg_id}.wpk"),
+            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}{name}.wpk")
+            for name in names
+        ] + [
+            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}_{name}.wpk")
+            for name in names
         ]
         for candidate in direct_candidates:
             yield from push(candidate)
@@ -71,9 +84,30 @@ class WPKPathResolver:
         return not (0 <= int(pkg_id) <= 15)
 
     def get_slot_file_dir(self, base_dir: str | None = None) -> Path:
+        root = Path(base_dir or self.reader.base_dir)
+        cached = self._slot_dir_cache.get(root)
+        if cached is not None:
+            return cached
+
         stem = self.reader.base_stem
-        slot_name = re.sub(r"\d+$", "", stem) or stem
-        return Path(base_dir or self.reader.base_dir) / slot_name
+        # A trailing digit is not always a package index: packs such as
+        # script3.idx keep their slot files in script3/ while the payload
+        # packs are script30.wpk/script31.wpk. Probe the exact stem first and
+        # only fall back to the digit-stripped name used by older packs.
+        candidates = [stem]
+        stripped = re.sub(r"\d+$", "", stem)
+        if stripped and stripped != stem:
+            candidates.append(stripped)
+
+        resolved = root / (stripped or stem)
+        for name in candidates:
+            candidate = root / name
+            if candidate.is_dir():
+                resolved = candidate
+                break
+
+        self._slot_dir_cache[root] = resolved
+        return resolved
 
     def get_wpk_handle(self, pkg_id: int) -> BinaryIO | None:
         if pkg_id in self.reader._wpk_cache:
@@ -85,6 +119,6 @@ class WPKPathResolver:
             self.reader._wpk_cache[pkg_id] = None
             return None
 
-        handle = open(wpk_path, "rb")
+        handle = self.reader._open_wpk_mapped(wpk_path)
         self.reader._wpk_cache[pkg_id] = handle
         return handle

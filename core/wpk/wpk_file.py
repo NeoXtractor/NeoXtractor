@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import mmap
 import os
 from typing import BinaryIO, Dict, List
 
@@ -114,6 +115,7 @@ class IDXWPKFile:
         self._wpk_cache: Dict[int, BinaryIO | None] = {}
         self._wpk_paths: Dict[int, str] = {}
         self._alt_handle_cache: Dict[tuple[str, int], BinaryIO | None] = {}
+        self._wpk_files: List[BinaryIO] = []
         self.counterpart_idx_path: str | None = None
 
         self._missing_entry_count: int = 0
@@ -178,14 +180,41 @@ class IDXWPKFile:
                     handle.close()
                 except Exception:
                     pass
-        self._wpk_cache.clear()
         for handle in self._alt_handle_cache.values():
             if handle is not None:
                 try:
                     handle.close()
                 except Exception:
                     pass
+        for file in self._wpk_files:
+            try:
+                file.close()
+            except Exception:
+                pass
+        self._wpk_cache.clear()
         self._alt_handle_cache.clear()
+        self._wpk_files.clear()
+
+    def _open_wpk_mapped(self, wpk_path: str) -> BinaryIO | None:
+        """Open a WPK file and return a memory-mapped read view of it.
+
+        Mapping the package into memory turns per-entry seek+read syscalls
+        into cheap slice copies and lets the OS page cache serve repeated
+        random access, which is the dominant cost when loading whole packs.
+        The underlying file object is tracked for later closing.
+        """
+        try:
+            file = open(wpk_path, "rb")
+        except OSError:
+            return None
+        self._wpk_files.append(file)
+        size = os.fstat(file.fileno()).st_size
+        if size == 0:
+            return file
+        try:
+            return mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+        except ValueError:
+            return file
 
     # ------------------------------------------------------------------
     # Base / hot update overlay
@@ -277,10 +306,7 @@ class IDXWPKFile:
             pass
         for candidate in candidates:
             if os.path.exists(candidate):
-                try:
-                    handle = open(candidate, "rb")
-                except OSError:
-                    handle = None
+                handle = self._open_wpk_mapped(candidate)
                 break
         self._alt_handle_cache[key] = handle
         return handle
@@ -378,6 +404,45 @@ class IDXWPKFile:
     # ------------------------------------------------------------------
     # Unified entry API
     # ------------------------------------------------------------------
+    def prefetch_entry_data(self) -> None:
+        """Warm the OS page cache by reading every entry's bytes sequentially.
+
+        Ordering entries by offset within each package turns thousands of
+        independent seek+read calls into one sequential pass per package,
+        which lets the OS readahead populate the page cache. Bytes are not
+        retained in a dict -- load_entry() slices them from the mmap on
+        demand, keeping memory proportional to accessed entries rather than
+        the whole package.
+        """
+        if self.mode != "idx":
+            return
+        groups: Dict[tuple, List[NPKIndex]] = {}
+        for index in self.indices:
+            if self._is_slot_file_pkg(index.pkg_id):
+                continue
+            key = (index.pkg_id, getattr(index, "_alt_dir", None))
+            groups.setdefault(key, []).append(index)
+
+        for (pkg_id, alt_dir), items in groups.items():
+            handle = (
+                self._get_alt_wpk_handle(alt_dir, pkg_id)
+                if alt_dir
+                else self._get_wpk_handle(pkg_id)
+            )
+            if handle is None:
+                continue
+            items.sort(key=lambda idx: idx.file_offset)
+            for index in items:
+                off = index.file_offset
+                ln = index.hdr_size + index.payload_size
+                if ln <= 0:
+                    continue
+                if isinstance(handle, mmap.mmap):
+                    _ = handle[off : off + ln]  # warm page cache, drop immediately
+                else:
+                    handle.seek(off)
+                    _ = handle.read(ln)
+
     def is_entry_loaded(self, index: int) -> bool:
         return index in self.entries
 
@@ -426,8 +491,7 @@ class IDXWPKFile:
         entry.stage1_tag = None
 
         # Copy index attributes to entry
-        for attr in vars(idx):
-            setattr(entry, attr, getattr(idx, attr))
+        entry.__dict__.update(vars(idx))
 
         try:
             self._load_entry_data(entry)
@@ -541,8 +605,11 @@ class IDXWPKFile:
                 entry.file_length if entry.file_length > 0 else hdr_size + payload_size
             )
 
-            handle.seek(entry.file_offset)
-            raw_data = handle.read(total_size)
+            if isinstance(handle, mmap.mmap):
+                raw_data = handle[entry.file_offset : entry.file_offset + total_size]
+            else:
+                handle.seek(entry.file_offset)
+                raw_data = handle.read(total_size)
 
             if len(raw_data) == 0:
                 raise MissingIndexedResourceError(
@@ -625,13 +692,20 @@ class IDXWPKFile:
         if not is_binary(entry.data):
             entry.data_flags |= NPKEntryDataFlags.TEXT
 
-        entry.source_extension = get_ext(entry.data, entry.data_flags)
+        data_before_process = entry.data
+        source_ext = get_ext(entry.data, entry.data_flags)
+        entry.source_extension = source_ext
 
         processed = process_entry_with_processors(entry)
         if processed and not is_binary(entry.data):
             entry.data_flags |= NPKEntryDataFlags.TEXT
 
-        entry.extension = entry.extension or get_ext(entry.data, entry.data_flags)
+        if entry.data is data_before_process:
+            # Processors left the payload untouched: reuse the detection done
+            # above instead of running the same heuristics a second time.
+            entry.extension = entry.extension or source_ext
+        else:
+            entry.extension = entry.extension or get_ext(entry.data, entry.data_flags)
         entry.category = get_file_category(entry.extension)
 
         get_logger().debug(
