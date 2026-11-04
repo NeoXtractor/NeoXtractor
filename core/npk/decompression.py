@@ -158,7 +158,12 @@ def check_nxs3(entry: NPKEntry) -> bool:
 
 
 def check_rotor(entry: NPKEntry) -> bool:
-    """Check if the data is ROTOR encrypted."""
+    """Check whether the payload starts with a ROTOR marker.
+
+    This is only a 2-byte hint and can collide with an ordinary payload, so
+    callers must treat an ``unpack_rotor`` failure as "not ROTOR" and keep the
+    original bytes instead of failing the entry.
+    """
     return entry.data[:2] == bytes([0x1D, 0x04]) or entry.data[:2] == bytes(
         [0x15, 0x23]
     )
