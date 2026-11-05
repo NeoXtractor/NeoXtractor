@@ -40,7 +40,17 @@ def detect_idx_rec_size(file, file_count: int) -> int:
 
 
 def parse_idx_record(rec: bytes, rec_size: int) -> tuple[bytes, int, int, int, int]:
-    """Return (raw_hash, pkg_id, file_offset, payload_size, hdr_size)."""
+    """Return (raw_hash, pkg_id, file_offset, payload_size, hdr_size).
+
+    The last u16 means different things per generation, so callers must not
+    trust it blindly (see ``core/wpk/payload_window.py``):
+
+    * 28-byte records (Onmyoji 2.8.x): a per-entry tag in the 1..211 range.
+      The payload is stored bare at ``file_offset``; using it as a skip
+      distance cuts the ``PC`` tag and turns every entry into ``.dat``.
+    * 36-byte records (Identity V): a real ``hdr_size`` (0x30) that skips the
+      ``1DPW`` wrapper in front of the payload.
+    """
     raw_hash = rec[0x00:0x10]
     if rec_size == IDX_REC_SIZE_COMPACT:
         # hash16 | payload u32 | offset u32 | pkg u16 | hdr u16

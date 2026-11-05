@@ -33,8 +33,9 @@ from .idx_reader import (
     read_idx_header,
     read_idx_indices,
 )
-from .paths import WPKPathResolver
 from .payload import WPKPayloadProcessor
+from .payload_window import resolve_payload_window
+from .paths import WPKPathResolver
 from .slot_file import SlotFileResolver
 from .standalone import (
     build_index_from_embedded_header,
@@ -580,14 +581,17 @@ class IDXWPKFile:
             entry.file_original_length = len(raw_data)
             hdr_size = getattr(entry, "hdr_size", 0)
             payload_size = getattr(entry, "payload_size", 0)
-            if raw_data[:4] == b"1DPW":
-                payload = (
-                    raw_data[hdr_size : hdr_size + payload_size]
-                    if payload_size > 0
-                    else raw_data[hdr_size:]
-                )
-            else:
-                payload = raw_data
+            if payload_size <= 0:
+                payload_size = len(raw_data)
+            # 28-byte records store the payload bare; 36-byte records wrap it
+            # in a 1DPW header. Resolve from the bytes, not from the record.
+            window = resolve_payload_window(
+                lambda abs_off, length: raw_data[abs_off : abs_off + length],
+                0,
+                payload_size,
+                hdr_size,
+            )
+            payload = window.payload
         else:
             handle = (
                 self._get_alt_wpk_handle(alt_dir, pkg_id)
@@ -601,34 +605,55 @@ class IDXWPKFile:
 
             hdr_size = getattr(entry, "hdr_size", 0)
             payload_size = getattr(entry, "payload_size", 0)
-            total_size = (
-                entry.file_length if entry.file_length > 0 else hdr_size + payload_size
-            )
+            if payload_size <= 0 and entry.file_length > 0:
+                payload_size = max(0, entry.file_length - hdr_size)
+            # Cover both layouts: a bare payload that starts at file_offset and
+            # a 1DPW wrapper whose own header carries the real skip distance.
+            span = max(payload_size + hdr_size, MIN_EMBEDDED_HEADER_SIZE)
 
             if isinstance(handle, mmap.mmap):
-                raw_data = handle[entry.file_offset : entry.file_offset + total_size]
+                raw_data = handle[entry.file_offset : entry.file_offset + span]
+
+                def _read_at(abs_off: int, length: int, _h=handle) -> bytes:
+                    return _h[abs_off : abs_off + length]
             else:
                 handle.seek(entry.file_offset)
-                raw_data = handle.read(total_size)
+                raw_data = handle.read(span)
+
+                def _read_at(abs_off: int, length: int, _h=handle) -> bytes:
+                    _h.seek(abs_off)
+                    return _h.read(length)
 
             if len(raw_data) == 0:
                 raise MissingIndexedResourceError(
                     f"{entry.filename}: resource is missing or located in a different resource pack"
                 )
 
-            if len(raw_data) != total_size:
+            window = resolve_payload_window(
+                _read_at, entry.file_offset, payload_size, hdr_size
+            )
+            if not window.payload:
                 raise EOFError(
-                    f"Failed to read entry data: expected {total_size}, got {len(raw_data)}"
+                    f"Failed to read entry data: expected {payload_size} bytes, got 0"
                 )
-
-            if hdr_size > 0 and hdr_size <= len(raw_data):
-                payload = (
-                    raw_data[hdr_size : hdr_size + payload_size]
-                    if payload_size > 0
-                    else raw_data[hdr_size:]
+            if len(window.payload) < payload_size:
+                get_logger().warning(
+                    "Short payload for %s pkg=%d: expected %d, got %d",
+                    entry.filename,
+                    pkg_id,
+                    payload_size,
+                    len(window.payload),
                 )
-            else:
-                payload = raw_data
+            entry.payload_window_source = window.source
+            layout_debug = (
+                f"{entry.filename} pkg={pkg_id} layout={window.source} "
+                f"hdr={window.hdr_size} record_hdr={hdr_size}"
+            )
+            if window.source == "record_hdr":
+                get_logger().debug("Payload window uses record hdr: %s", layout_debug)
+            elif window.source == "fallback":
+                get_logger().debug("Payload window unresolved: %s", layout_debug)
+            payload = window.payload
 
         entry.raw_data = raw_data
         entry.payload_data = payload
