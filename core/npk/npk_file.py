@@ -14,6 +14,7 @@ from core.npk.decompression import (
     check_nxs3,
     check_rotor,
     decompress_entry,
+    log_rotor_failure,
     strip_none_wrapper,
     unpack_lz4_like,
     unpack_nxs3,
@@ -366,9 +367,7 @@ class NPKFile:
                 except Exception as exc:
                     # The 2-byte marker can collide with ordinary payloads;
                     # keep the original bytes rather than dropping the entry.
-                    get_logger().warning(
-                        "ROTOR unpack failed for %s: %s", entry.filename, exc
-                    )
+                    log_rotor_failure(entry.filename, exc)
                     break
 
                 entry.data_flags |= NPKEntryDataFlags.ROTOR_PACKED

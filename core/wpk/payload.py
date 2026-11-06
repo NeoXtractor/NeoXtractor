@@ -11,6 +11,7 @@ from core.npk.decompression import (
     check_lz4_like,
     check_nxs3,
     check_rotor,
+    log_rotor_failure,
     strip_none_wrapper,
     unpack_lz4_like,
     unpack_nxs3,
@@ -142,9 +143,7 @@ class WPKPayloadProcessor:
                     # The 2-byte marker is only a hint and can collide with an
                     # ordinary payload; keep the bytes instead of failing the
                     # whole entry.
-                    get_logger().warning(
-                        "ROTOR unpack failed for %s: %s", context, exc
-                    )
+                    log_rotor_failure(context, exc)
                     break
 
                 entry.data_flags |= NPKEntryDataFlags.ROTOR_PACKED

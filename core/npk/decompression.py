@@ -10,9 +10,15 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from core.logger import get_logger
 from core.npk.class_types import NPKEntry
 from core.npk.enums import CompressionType
 from core.rotor import Rotor
+
+# The ROTOR marker is a two-byte hint, so one false positive on a whole pack
+# can fail thousands of entries. Warn on the first few, then drop to debug.
+_ROTOR_FAILURE_WARNING_LIMIT = 3
+_rotor_failure_count = 0
 
 
 def init_rotor() -> Rotor:
@@ -167,6 +173,25 @@ def check_rotor(entry: NPKEntry) -> bool:
     return entry.data[:2] == bytes([0x1D, 0x04]) or entry.data[:2] == bytes(
         [0x15, 0x23]
     )
+
+
+def log_rotor_failure(context: str, exc: Exception) -> str:
+    """Report a failed ``unpack_rotor`` attempt without flooding the log.
+
+    Callers keep the original bytes (a false positive is more likely than a
+    broken pack), so this is informational: the first failures are warnings
+    and the remainder are debug. Returns the message that was emitted, for
+    call sites that need it elsewhere.
+    """
+    global _rotor_failure_count
+
+    _rotor_failure_count += 1
+    message = f"ROTOR unpack failed for {context}: {exc}"
+    if _rotor_failure_count <= _ROTOR_FAILURE_WARNING_LIMIT:
+        get_logger().warning("%s", message)
+    else:
+        get_logger().debug("%s (failure #%d)", message, _rotor_failure_count)
+    return message
 
 
 def check_stzb(entry: NPKEntry) -> bool:

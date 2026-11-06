@@ -57,6 +57,10 @@ def _logger_of_call_site(code):
     """
     module = inspect.getmodule(code)
     module_name = module.__name__ if module else "unknown"
+    # Entry points run as "__main__"; keep the application logger name there.
+    # ``default_logger`` is defined below, but it is only touched at call time.
+    if module_name == "__main__":
+        return default_logger  # pylint: disable=used-before-assignment
     return logging.getLogger(module_name)
 
 
