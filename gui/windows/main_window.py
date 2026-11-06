@@ -446,7 +446,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if dialog.index is not None:
             self.app.setProperty("wwise_event_index", dialog.index)
             if is_wwise_archive(idx_path):
-                expand_banks(archive_file, dialog.index)
+                expand_banks(
+                    archive_file,
+                    dialog.index,
+                    dedupe_media=self.settings_manager.get(
+                        "audio.wwise_dedupe_media", True
+                    ),
+                )
             apply_bank_labels(archive_file, dialog.index)
 
         NPKFileModel._file_names_cache.clear()
@@ -676,7 +682,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 # built while the entries were still loading only sees part of
                 # the banks, which would leave most media unnamed.
                 wwise_index = self._auto_wwise_index(archive_file)
-                expanded = expand_banks(archive_file, wwise_index)
+                expanded = expand_banks(
+                    archive_file,
+                    wwise_index,
+                    dedupe_media=self.settings_manager.get(
+                        "audio.wwise_dedupe_media", True
+                    ),
+                )
                 renamed = (
                     apply_bank_labels(archive_file, wwise_index)
                     if wwise_index is not None
