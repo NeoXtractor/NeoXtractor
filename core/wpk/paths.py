@@ -10,6 +10,32 @@ from typing import BinaryIO
 from core.logger import get_logger
 
 
+def pkg_name(pkg_id: int) -> str:
+    """Return the file-name spelling of a package id.
+
+    NeoX names payload packs in hex, so package ``0x10`` is ``<stem>10.wpk``
+    and package ``0x0A`` is ``<stem>a.wpk`` -- not ``<stem>10.wpk``.
+    """
+    return format(int(pkg_id), "x")
+
+
+def parse_wpk_suffix(file_name: str, stem: str) -> int | None:
+    """Return the package id encoded in a WPK file name, or None.
+
+    Accepts ``<stem><hex>``, ``<stem>_<hex>`` and zero-padded spellings.
+    """
+    low = file_name.lower()
+    if not low.endswith(".wpk") or not low.startswith(stem.lower()):
+        return None
+    suffix = low[len(stem) :].removesuffix(".wpk").lstrip("_").lstrip("0")
+    if not suffix:
+        return 0
+    try:
+        return int(suffix, 16)
+    except ValueError:
+        return None
+
+
 class WPKPathResolver:
     """Resolve package ids to WPK files and keep open-file handles cached."""
 
@@ -33,32 +59,26 @@ class WPKPathResolver:
         if custom:
             yield from push(custom)
 
-        # Some packs name the 10th+ payload with hex digits (chr_playera.wpk),
-        # so both the decimal and hex spellings must be probed.
-        index = int(pkg_id)
-        names = [str(index)]
-        hex_name = f"{index:x}"
-        if hex_name != str(index):
-            names.append(hex_name)
-
+        # Package names are hex: with ``script.idx`` the payload of package
+        # 0x30 lives in ``script30.wpk``. The decimal spelling is *not* probed
+        # because every decimal name in 10..25 is also a valid hex name of a
+        # different package (decimal 10 == hex 0x0A vs <stem>10.wpk == 0x10),
+        # so a fallback would silently read the wrong package.
+        name = pkg_name(pkg_id)
         stem = re.escape(self.reader.base_stem)
-        alternation = "|".join(names)
-        regex = re.compile(rf"^{stem}_?0*(?:{alternation})\.wpk$", re.IGNORECASE)
+        regex = re.compile(rf"^{stem}_?0*{re.escape(name)}\.wpk$", re.IGNORECASE)
 
         direct_candidates = [
-            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}{name}.wpk")
-            for name in names
-        ] + [
-            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}_{name}.wpk")
-            for name in names
+            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}{name}.wpk"),
+            os.path.join(self.reader.base_dir, f"{self.reader.base_stem}_{name}.wpk"),
         ]
         for candidate in direct_candidates:
             yield from push(candidate)
 
         try:
-            for name in sorted(os.listdir(self.reader.base_dir)):
-                if regex.fullmatch(name):
-                    yield from push(os.path.join(self.reader.base_dir, name))
+            for file_name in sorted(os.listdir(self.reader.base_dir)):
+                if regex.fullmatch(file_name):
+                    yield from push(os.path.join(self.reader.base_dir, file_name))
         except OSError:
             return
 
@@ -77,7 +97,7 @@ class WPKPathResolver:
             return custom
 
         return os.path.join(
-            self.reader.base_dir, f"{self.reader.base_stem}{pkg_id}.wpk"
+            self.reader.base_dir, f"{self.reader.base_stem}{pkg_name(pkg_id)}.wpk"
         )
 
     def is_slot_file_pkg(self, pkg_id: int) -> bool:
@@ -115,7 +135,22 @@ class WPKPathResolver:
 
         wpk_path = self.find_wpk_path(pkg_id)
         if not os.path.exists(wpk_path):
-            get_logger().warning("WPK not found for pkg_id=%d: %s", pkg_id, wpk_path)
+            hint = ""
+            lookalike = os.path.join(
+                self.reader.base_dir, f"{self.reader.base_stem}{int(pkg_id)}.wpk"
+            )
+            if os.path.exists(lookalike):
+                wrong_id = parse_wpk_suffix(
+                    os.path.basename(lookalike), self.reader.base_stem
+                )
+                if wrong_id is not None and wrong_id != int(pkg_id):
+                    hint = (
+                        f" (not used: {os.path.basename(lookalike)} is package"
+                        f" 0x{wrong_id:X} under hex naming)"
+                    )
+            get_logger().warning(
+                "WPK not found for package 0x%X: %s%s", int(pkg_id), wpk_path, hint
+            )
             self.reader._wpk_cache[pkg_id] = None
             return None
 

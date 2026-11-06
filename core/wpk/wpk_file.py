@@ -35,7 +35,7 @@ from .idx_reader import (
 )
 from .payload import WPKPayloadProcessor
 from .payload_window import resolve_payload_window
-from .paths import WPKPathResolver
+from .paths import WPKPathResolver, parse_wpk_suffix, pkg_name
 from .slot_file import SlotFileResolver
 from .standalone import (
     build_index_from_embedded_header,
@@ -294,14 +294,14 @@ class IDXWPKFile:
         if key in self._alt_handle_cache:
             return self._alt_handle_cache[key]
         handle = None
+        # Same hex naming as the base directory: <stem><hex>.wpk.
         candidates = [
-            os.path.join(alt_dir, f"{self.base_stem}{pkg_id}.wpk"),
-            os.path.join(alt_dir, f"{self.base_stem}_{pkg_id}.wpk"),
+            os.path.join(alt_dir, f"{self.base_stem}{pkg_name(pkg_id)}.wpk"),
+            os.path.join(alt_dir, f"{self.base_stem}_{pkg_name(pkg_id)}.wpk"),
         ]
         try:
             for entry in os.listdir(alt_dir):
-                low = entry.lower()
-                if low.endswith(".wpk") and low.startswith(self.base_stem.lower()) and str(pkg_id) in low:
+                if parse_wpk_suffix(entry, self.base_stem) == int(pkg_id):
                     candidates.append(os.path.join(alt_dir, entry))
         except OSError:
             pass
