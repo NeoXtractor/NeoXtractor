@@ -4,13 +4,22 @@ Banks store small, pre-rendered media inline (`DIDX` table + `DATA` chunk).
 Those media are what the game actually plays, so the file list shows them as
 individual `.wem` entries instead of the opaque `.bnk` container.
 
+Streamed sources are the exception: the bank only carries a short prefetch
+(the game streams the rest from a separate `.wem` resource). Such a prefetch is
+a RIFF whose declared length is larger than the payload, so it cannot be played
+as-is; `expand_banks` swaps it for the complete `.wem` of the same archive and
+drops the now duplicated standalone row. A prefetch with no complete counterpart
+is left out entirely, so truncated audio is never listed or exported.
+
 Names are resolved through the active :class:`WwiseEventIndex` when available
 (event name first, otherwise `<shortID>.wem`).
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
+import struct
 
 from core.logger import get_logger
 from core.npk.class_types import NPKEntry, NPKEntryDataFlags, State
@@ -18,64 +27,210 @@ from core.npk.detection import get_file_category
 from core.wem.bnk import extract_wem_media  # noqa: F401  (re-exported)
 
 
-def expand_banks(archive_file, wwise_index=None) -> int:
+def expand_banks(archive_file, wwise_index=None, dedupe_media: bool = True) -> int:
     """Replace every expandable `.bnk` entry with its contained WEM entries.
 
     The archive's `indices` / `entries` lists are rebuilt in place so all the
     row based UI (filter, preview, extract) keeps working. Returns the number
     of WEM entries that were added.
+
+    `dedupe_media` keeps one row per unique medium: identical audio stored in
+    several banks, and standalone `.wem` rows that only repeat a bank medium,
+    are dropped. With it off every reference stays, so the list and the export
+    contain duplicates of the same audio.
     """
     indices = getattr(archive_file, "indices", None)
     entries = getattr(archive_file, "entries", None)
     if not indices or entries is None:
         return 0
 
-    new_indices = []
-    new_entries: dict[int, NPKEntry] = {}
+    # Pass 1: expand the banks and resolve their streamed media, remembering
+    # which standalone `.wem` rows are exact copies of a bank's medium.
+    plans: dict[int, list] = {}
+    used_rows: set[int] = set()
+    dropped_rows: set[int] = set()
+    claimed_digests: set[bytes] = set()
+    seen_media: set[tuple] = set()
     expanded_banks = 0
     dropped_banks = 0
     added = 0
+    resolved_streams = 0
+    skipped_truncated = 0
+    duplicate_media = 0
 
     for old_row, old_index in enumerate(list(indices)):
         entry = entries.get(old_row)
-        is_bank = entry is not None and (entry.extension or "").lower() == "bnk"
-        if is_bank:
-            media = extract_wem_media(entry.data)
-            if not media:
-                # Banks without inline media are never shown: their external
-                # WEMs already exist as their own rows.
-                dropped_banks += 1
-                continue
-        else:
-            media = []
+        if entry is None or (entry.extension or "").lower() != "bnk":
+            continue
+        media = extract_wem_media(entry.data)
         if not media:
-            new_entries[len(new_indices)] = entry
-            new_indices.append(old_index)
+            # Banks without inline media are never shown: their external
+            # WEMs already exist as their own rows.
+            dropped_banks += 1
+            dropped_rows.add(old_row)
             continue
 
         expanded_banks += 1
+        planned = []
         for sid, payload in media:
-            wem = _make_wem_entry(sid, payload, wwise_index)
-            new_entries[len(new_indices)] = wem
-            new_indices.append(wem)
-            added += 1
+            total = _riff_total(payload)
+            if total and total > len(payload):
+                row, full = _stream_copy(archive_file, payload, total)
+                if full is None:
+                    # A prefetch without its full copy would decode as
+                    # "RIFF truncated", so it is not listed at all.
+                    skipped_truncated += 1
+                    continue
+                used_rows.add(row)
+                resolved_streams += 1
+                payload = full
+            digest = _content_digest(payload)
+            claimed_digests.add(digest)
+            if dedupe_media and (sid, digest) in seen_media:
+                # Banks may repeat the same medium (and shortID); one row is
+                # enough for the list and the export.
+                duplicate_media += 1
+                continue
+            seen_media.add((sid, digest))
+            planned.append((sid, payload))
+        plans[old_row] = planned
 
     if not expanded_banks and not dropped_banks:
         return 0
 
+    # Pass 2: rebuild the row tables, leaving out consumed stream copies and
+    # any RIFF whose declared size exceeds its data.
+    new_indices = []
+    new_entries: dict[int, NPKEntry] = {}
+    deduped_streams = 0
+    dropped_truncated_rows = 0
+
+    for old_row, old_index in enumerate(list(indices)):
+        entry = entries.get(old_row)
+        if entry is None:
+            continue
+        if old_row in plans:
+            for sid, payload in plans[old_row]:
+                wem = _make_wem_entry(sid, payload, wwise_index)
+                new_entries[len(new_indices)] = wem
+                new_indices.append(wem)
+                added += 1
+            continue
+        if old_row in used_rows and dedupe_media:
+            # The bank now carries this medium; keep only the named row.
+            deduped_streams += 1
+            continue
+        if old_row in dropped_rows:
+            continue
+        if _is_truncated_riff(getattr(entry, "data", None)):
+            dropped_truncated_rows += 1
+            continue
+        if (
+            dedupe_media
+            and not getattr(entry, "wwise_sid", None)
+            and (entry.extension or "").lower() == "wem"
+            and _content_digest(entry.data) in claimed_digests
+        ):
+            # The external md5 row carries the same audio as a bank medium,
+            # which already has the shortID used for naming; keep that one.
+            deduped_streams += 1
+            continue
+        new_entries[len(new_indices)] = entry
+        new_indices.append(old_index)
+
     archive_file.indices = new_indices
     archive_file.entries = new_entries
+    archive_file._wwise_stream_index = None
     if hasattr(archive_file, "file_count"):
         archive_file.file_count = len(new_indices)
 
     get_logger().info(
-        "Wwise: expanded %d bank(s) into %d wem entr(ies), dropped %d media-less bank(s), %d total rows",
+        "Wwise: expanded %d bank(s) into %d wem entr(ies), %d streamed media completed "
+        "from external .wem, %d duplicate media row(s) removed (dedupe=%s), %d truncated "
+        "prefetch(es) and %d truncated row(s) skipped, dropped %d media-less bank(s), "
+        "%d total rows",
         expanded_banks,
         added,
+        resolved_streams,
+        deduped_streams + duplicate_media,
+        "on" if dedupe_media else "off",
+        skipped_truncated,
+        dropped_truncated_rows,
         dropped_banks,
         len(new_indices),
     )
     return added
+
+
+#: Bank media that is only a prefetch of a streamed source: RIFF declares more
+#: bytes than the inline payload carries. The remainder lives in a separate
+#: `.wem` resource of the same archive.
+_RIFF_HEAD = 12
+_KEY_SLICE = slice(12, 76)
+
+
+def _riff_total(payload: bytes) -> int:
+    if len(payload) < _RIFF_HEAD or payload[:4] != b"RIFF":
+        return 0
+    return struct.unpack_from("<I", payload, 4)[0] + 8
+
+
+def _stream_key(payload: bytes, total: int) -> tuple:
+    """Identity of a streamed medium: declared length + start of its body.
+
+    A prefetch and its full copy share the header and the first bytes after it,
+    so the pair (declared total size, digest of the body head) matches them
+    without hashing megabytes of audio.
+    """
+    return total, hashlib.blake2b(bytes(payload[_KEY_SLICE]), digest_size=16).digest()
+
+
+def _is_truncated_riff(payload: bytes | None) -> bool:
+    """True when a RIFF declares more bytes than it actually carries."""
+    total = _riff_total(payload or b"")
+    return bool(total) and total > len(payload)
+
+
+def _content_digest(payload: bytes | None) -> bytes:
+    """Digest of the whole payload, used to spot the same audio stored twice."""
+    return hashlib.blake2b(bytes(payload or b""), digest_size=32).digest()
+
+
+def _stream_media_index(archive_file) -> dict:
+    """Complete external `.wem` payloads of this archive, keyed by `_stream_key`.
+
+    Values are ``(row, data)`` so the caller can retire the duplicated row once
+    the bank carries the same medium.
+    """
+    cached = getattr(archive_file, "_wwise_stream_index", None)
+    if cached is not None:
+        return cached
+    index: dict[tuple, tuple[int, bytes]] = {}
+    entries = getattr(archive_file, "entries", None) or {}
+    for row, entry in list(entries.items()):
+        data = getattr(entry, "data", None)
+        if not data or len(data) < _KEY_SLICE.stop or data[:4] != b"RIFF":
+            continue
+        total = _riff_total(data)
+        if total != len(data):
+            # Prefetch copies and truncated resources are not usable sources.
+            continue
+        index.setdefault(_stream_key(data, total), (row, data))
+    archive_file._wwise_stream_index = index
+    return index
+
+
+def _stream_copy(archive_file, payload: bytes, total: int) -> tuple[int, bytes] | tuple[None, None]:
+    """Complete copy of a streamed medium, as ``(row, data)``; ``(None, None)`` if absent."""
+    hit = _stream_media_index(archive_file).get(_stream_key(payload, total))
+    if hit is None:
+        get_logger().debug(
+            "Wwise: streamed media prefetch (%d of %d bytes) has no external copy",
+            len(payload),
+            total,
+        )
+        return None, None
+    return hit
 
 
 def apply_bank_labels(archive_file, wwise_index) -> int:
