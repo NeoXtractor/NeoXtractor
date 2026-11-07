@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import mmap
 import os
 from typing import BinaryIO, Dict, List
 
@@ -25,9 +26,16 @@ from .constants import (
     MIN_EMBEDDED_HEADER_SIZE,
     WPK_MAGIC,
 )
-from .idx_reader import log_idx_split_summary, read_idx_header, read_idx_indices
-from .paths import WPKPathResolver
+from .idx_reader import (
+    detect_idx_rec_size,
+    log_idx_split_summary,
+    parse_idx_record,
+    read_idx_header,
+    read_idx_indices,
+)
 from .payload import WPKPayloadProcessor
+from .payload_window import resolve_payload_window
+from .paths import WPKPathResolver, parse_wpk_suffix, pkg_name
 from .slot_file import SlotFileResolver
 from .standalone import (
     build_index_from_embedded_header,
@@ -47,19 +55,20 @@ def _read_idx_records(idx_path: str) -> List[dict]:
             raise ValueError(f"Not a valid WPKS (.idx) file: {idx_path}")
         file.seek(0x0C)
         count = int.from_bytes(file.read(4), "little")
+        rec_size = detect_idx_rec_size(file, count)
         file.seek(IDX_HEAD_SIZE)
         for _ in range(count):
-            rec = file.read(IDX_REC_SIZE)
-            if len(rec) != IDX_REC_SIZE:
+            rec = file.read(rec_size)
+            if len(rec) != rec_size:
                 break
-            raw_hash = rec[0x00:0x10]
-            hdr_size = int.from_bytes(rec[0x20:0x22], "little")
-            payload_size = int.from_bytes(rec[0x1C:0x20], "little")
+            raw_hash, pkg_id, file_offset, payload_size, hdr_size = parse_idx_record(
+                rec, rec_size
+            )
             records.append(
                 {
                     "raw_hash_hex": raw_hash.hex(),
-                    "pkg_id": rec[0x14],
-                    "file_offset": int.from_bytes(rec[0x18:0x1C], "little"),
+                    "pkg_id": pkg_id,
+                    "file_offset": file_offset,
                     "file_length": hdr_size + payload_size,
                     "hdr_size": hdr_size,
                     "payload_size": payload_size,
@@ -107,6 +116,7 @@ class IDXWPKFile:
         self._wpk_cache: Dict[int, BinaryIO | None] = {}
         self._wpk_paths: Dict[int, str] = {}
         self._alt_handle_cache: Dict[tuple[str, int], BinaryIO | None] = {}
+        self._wpk_files: List[BinaryIO] = []
         self.counterpart_idx_path: str | None = None
 
         self._missing_entry_count: int = 0
@@ -171,14 +181,41 @@ class IDXWPKFile:
                     handle.close()
                 except Exception:
                     pass
-        self._wpk_cache.clear()
         for handle in self._alt_handle_cache.values():
             if handle is not None:
                 try:
                     handle.close()
                 except Exception:
                     pass
+        for file in self._wpk_files:
+            try:
+                file.close()
+            except Exception:
+                pass
+        self._wpk_cache.clear()
         self._alt_handle_cache.clear()
+        self._wpk_files.clear()
+
+    def _open_wpk_mapped(self, wpk_path: str) -> BinaryIO | None:
+        """Open a WPK file and return a memory-mapped read view of it.
+
+        Mapping the package into memory turns per-entry seek+read syscalls
+        into cheap slice copies and lets the OS page cache serve repeated
+        random access, which is the dominant cost when loading whole packs.
+        The underlying file object is tracked for later closing.
+        """
+        try:
+            file = open(wpk_path, "rb")
+        except OSError:
+            return None
+        self._wpk_files.append(file)
+        size = os.fstat(file.fileno()).st_size
+        if size == 0:
+            return file
+        try:
+            return mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+        except ValueError:
+            return file
 
     # ------------------------------------------------------------------
     # Base / hot update overlay
@@ -257,23 +294,20 @@ class IDXWPKFile:
         if key in self._alt_handle_cache:
             return self._alt_handle_cache[key]
         handle = None
+        # Same hex naming as the base directory: <stem><hex>.wpk.
         candidates = [
-            os.path.join(alt_dir, f"{self.base_stem}{pkg_id}.wpk"),
-            os.path.join(alt_dir, f"{self.base_stem}_{pkg_id}.wpk"),
+            os.path.join(alt_dir, f"{self.base_stem}{pkg_name(pkg_id)}.wpk"),
+            os.path.join(alt_dir, f"{self.base_stem}_{pkg_name(pkg_id)}.wpk"),
         ]
         try:
             for entry in os.listdir(alt_dir):
-                low = entry.lower()
-                if low.endswith(".wpk") and low.startswith(self.base_stem.lower()) and str(pkg_id) in low:
+                if parse_wpk_suffix(entry, self.base_stem) == int(pkg_id):
                     candidates.append(os.path.join(alt_dir, entry))
         except OSError:
             pass
         for candidate in candidates:
             if os.path.exists(candidate):
-                try:
-                    handle = open(candidate, "rb")
-                except OSError:
-                    handle = None
+                handle = self._open_wpk_mapped(candidate)
                 break
         self._alt_handle_cache[key] = handle
         return handle
@@ -371,6 +405,45 @@ class IDXWPKFile:
     # ------------------------------------------------------------------
     # Unified entry API
     # ------------------------------------------------------------------
+    def prefetch_entry_data(self) -> None:
+        """Warm the OS page cache by reading every entry's bytes sequentially.
+
+        Ordering entries by offset within each package turns thousands of
+        independent seek+read calls into one sequential pass per package,
+        which lets the OS readahead populate the page cache. Bytes are not
+        retained in a dict -- load_entry() slices them from the mmap on
+        demand, keeping memory proportional to accessed entries rather than
+        the whole package.
+        """
+        if self.mode != "idx":
+            return
+        groups: Dict[tuple, List[NPKIndex]] = {}
+        for index in self.indices:
+            if self._is_slot_file_pkg(index.pkg_id):
+                continue
+            key = (index.pkg_id, getattr(index, "_alt_dir", None))
+            groups.setdefault(key, []).append(index)
+
+        for (pkg_id, alt_dir), items in groups.items():
+            handle = (
+                self._get_alt_wpk_handle(alt_dir, pkg_id)
+                if alt_dir
+                else self._get_wpk_handle(pkg_id)
+            )
+            if handle is None:
+                continue
+            items.sort(key=lambda idx: idx.file_offset)
+            for index in items:
+                off = index.file_offset
+                ln = index.hdr_size + index.payload_size
+                if ln <= 0:
+                    continue
+                if isinstance(handle, mmap.mmap):
+                    _ = handle[off : off + ln]  # warm page cache, drop immediately
+                else:
+                    handle.seek(off)
+                    _ = handle.read(ln)
+
     def is_entry_loaded(self, index: int) -> bool:
         return index in self.entries
 
@@ -419,8 +492,7 @@ class IDXWPKFile:
         entry.stage1_tag = None
 
         # Copy index attributes to entry
-        for attr in vars(idx):
-            setattr(entry, attr, getattr(idx, attr))
+        entry.__dict__.update(vars(idx))
 
         try:
             self._load_entry_data(entry)
@@ -509,14 +581,17 @@ class IDXWPKFile:
             entry.file_original_length = len(raw_data)
             hdr_size = getattr(entry, "hdr_size", 0)
             payload_size = getattr(entry, "payload_size", 0)
-            if raw_data[:4] == b"1DPW":
-                payload = (
-                    raw_data[hdr_size : hdr_size + payload_size]
-                    if payload_size > 0
-                    else raw_data[hdr_size:]
-                )
-            else:
-                payload = raw_data
+            if payload_size <= 0:
+                payload_size = len(raw_data)
+            # 28-byte records store the payload bare; 36-byte records wrap it
+            # in a 1DPW header. Resolve from the bytes, not from the record.
+            window = resolve_payload_window(
+                lambda abs_off, length: raw_data[abs_off : abs_off + length],
+                0,
+                payload_size,
+                hdr_size,
+            )
+            payload = window.payload
         else:
             handle = (
                 self._get_alt_wpk_handle(alt_dir, pkg_id)
@@ -530,31 +605,55 @@ class IDXWPKFile:
 
             hdr_size = getattr(entry, "hdr_size", 0)
             payload_size = getattr(entry, "payload_size", 0)
-            total_size = (
-                entry.file_length if entry.file_length > 0 else hdr_size + payload_size
-            )
+            if payload_size <= 0 and entry.file_length > 0:
+                payload_size = max(0, entry.file_length - hdr_size)
+            # Cover both layouts: a bare payload that starts at file_offset and
+            # a 1DPW wrapper whose own header carries the real skip distance.
+            span = max(payload_size + hdr_size, MIN_EMBEDDED_HEADER_SIZE)
 
-            handle.seek(entry.file_offset)
-            raw_data = handle.read(total_size)
+            if isinstance(handle, mmap.mmap):
+                raw_data = handle[entry.file_offset : entry.file_offset + span]
+
+                def _read_at(abs_off: int, length: int, _h=handle) -> bytes:
+                    return _h[abs_off : abs_off + length]
+            else:
+                handle.seek(entry.file_offset)
+                raw_data = handle.read(span)
+
+                def _read_at(abs_off: int, length: int, _h=handle) -> bytes:
+                    _h.seek(abs_off)
+                    return _h.read(length)
 
             if len(raw_data) == 0:
                 raise MissingIndexedResourceError(
                     f"{entry.filename}: resource is missing or located in a different resource pack"
                 )
 
-            if len(raw_data) != total_size:
+            window = resolve_payload_window(
+                _read_at, entry.file_offset, payload_size, hdr_size
+            )
+            if not window.payload:
                 raise EOFError(
-                    f"Failed to read entry data: expected {total_size}, got {len(raw_data)}"
+                    f"Failed to read entry data: expected {payload_size} bytes, got 0"
                 )
-
-            if hdr_size > 0 and hdr_size <= len(raw_data):
-                payload = (
-                    raw_data[hdr_size : hdr_size + payload_size]
-                    if payload_size > 0
-                    else raw_data[hdr_size:]
+            if len(window.payload) < payload_size:
+                get_logger().warning(
+                    "Short payload for %s pkg=%d: expected %d, got %d",
+                    entry.filename,
+                    pkg_id,
+                    payload_size,
+                    len(window.payload),
                 )
-            else:
-                payload = raw_data
+            entry.payload_window_source = window.source
+            layout_debug = (
+                f"{entry.filename} pkg={pkg_id} layout={window.source} "
+                f"hdr={window.hdr_size} record_hdr={hdr_size}"
+            )
+            if window.source == "record_hdr":
+                get_logger().debug("Payload window uses record hdr: %s", layout_debug)
+            elif window.source == "fallback":
+                get_logger().debug("Payload window unresolved: %s", layout_debug)
+            payload = window.payload
 
         entry.raw_data = raw_data
         entry.payload_data = payload
@@ -618,13 +717,20 @@ class IDXWPKFile:
         if not is_binary(entry.data):
             entry.data_flags |= NPKEntryDataFlags.TEXT
 
-        entry.source_extension = get_ext(entry.data, entry.data_flags)
+        data_before_process = entry.data
+        source_ext = get_ext(entry.data, entry.data_flags)
+        entry.source_extension = source_ext
 
         processed = process_entry_with_processors(entry)
         if processed and not is_binary(entry.data):
             entry.data_flags |= NPKEntryDataFlags.TEXT
 
-        entry.extension = entry.extension or get_ext(entry.data, entry.data_flags)
+        if entry.data is data_before_process:
+            # Processors left the payload untouched: reuse the detection done
+            # above instead of running the same heuristics a second time.
+            entry.extension = entry.extension or source_ext
+        else:
+            entry.extension = entry.extension or get_ext(entry.data, entry.data_flags)
         entry.category = get_file_category(entry.extension)
 
         get_logger().debug(

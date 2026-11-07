@@ -95,3 +95,10 @@ class NPKEntryFilter:
 
             # Apply visibility
             self._list_view.setRowHidden(row, not show_item)
+
+        # Filtering changes how many rows the view lays out, so the vertical
+        # scrollbar range shrinks with the result set. Keeping the previous
+        # offset makes Qt clamp it to the new maximum, which drags the list to
+        # the bottom right when the user clicks a result. Start at the top of
+        # the new result set instead.
+        self._list_view.verticalScrollBar().setValue(0)
