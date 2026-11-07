@@ -1,8 +1,12 @@
-"""PMX Format Converter"""
+"""PMX Format Converter
+
+Ported from the original NeoX Model Converter ``savepmx`` implementation
+(NeoXtractor v1.2.2, commit 7e4804c), adapted to the ``MeshData`` structure.
+"""
 
 import io
-from typing import cast
 
+import numpy as np
 import pymeshio.pmx.writer
 from pymeshio import common, pmx
 
@@ -10,6 +14,79 @@ from core.mesh_loader import MeshData
 
 NAME = "Polygon Model eXtended (PMX) Format"
 EXTENSION = ".pmx"
+
+# Joint index values NeoX uses to mark an unused bone slot.
+_UNUSED_JOINTS = (255, 65535)
+
+
+def _bone_translation(matrix) -> tuple[float, float, float]:
+    """Return the translation part of a NeoX bone matrix.
+
+    NeoX stores bone matrices row-major with the translation in the last row,
+    so the translation is the last column of the transposed matrix (this is
+    what ``transformations.translation_from_matrix(matrix.T)`` returned in the
+    original converter, and what the mesh viewer uses to draw bones).
+    """
+    m = np.asarray(matrix, dtype=np.float64).reshape(4, 4).T
+    return float(m[0, 3]), float(m[1, 3]), float(m[2, 3])
+
+
+def _new_bone(name: str, position: common.Vector3, parent_index: int) -> pmx.Bone:
+    bone = pmx.Bone(
+        name=name,
+        english_name=name,
+        position=position,
+        parent_index=parent_index,
+        layer=0,
+        flag=0,
+    )
+    bone.setFlag(pmx.BONEFLAG_CAN_ROTATE, True)
+    bone.setFlag(pmx.BONEFLAG_IS_VISIBLE, True)
+    bone.setFlag(pmx.BONEFLAG_CAN_MANIPULATE, True)
+    return bone
+
+
+def _build_bones(mesh: MeshData) -> tuple[list[pmx.Bone], dict[int, int]]:
+    """Build the PMX bone list (parents always before children) and an
+    old-index -> new-index map."""
+    bones = mesh.bones
+    bone_count = len(bones.names)
+    parents = list(bones.parents)[:bone_count]
+
+    children: dict[int, list[int]] = {}
+    roots: list[int] = []
+    for i, p in enumerate(parents):
+        if p == -1 or p is None or not 0 <= p < bone_count or p == i:
+            roots.append(i)
+        else:
+            children.setdefault(p, []).append(i)
+
+    bone_pool: list[pmx.Bone] = []
+    old2new: dict[int, int] = {}
+
+    def visit(root: int):
+        # Iterative depth-first search (avoids recursion limits on long chains)
+        stack = [(root, -1)]
+        while stack:
+            index, parent_new = stack.pop()
+            if index in old2new:
+                continue
+            new_index = len(bone_pool)
+            old2new[index] = new_index
+            x, y, z = _bone_translation(bones.matrix[index])
+            bone_pool.append(
+                _new_bone(bones.names[index], common.Vector3(-x, y, -z), parent_new)
+            )
+            for child in reversed(children.get(index, [])):
+                stack.append((child, new_index))
+
+    for root in roots:
+        visit(root)
+    # Bones caught in a parent cycle are never reached from a root.
+    for i in range(bone_count):
+        visit(i)
+
+    return bone_pool, old2new
 
 
 def convert(mesh: MeshData) -> bytes:
@@ -23,153 +100,89 @@ def convert(mesh: MeshData) -> bytes:
     - bytes: PMX file content as bytes
     """
     pmx_model = pmx.Model()
-    pmx_model.display_slots.append(pmx.DisplaySlot("Expression", "Exp", 1, None))
-    pmx_model.name = "ExportedMesh_NeoXtractor"
-    pmx_model.comment = "Created by NeoXtractor"
+    pmx_model.display_slots.append(pmx.DisplaySlot("表情", "Exp", 1, None))
+    pmx_model.name = "NeoXtractor"
+    pmx_model.english_name = "Empty model"
+    pmx_model.comment = "NeoX Model Converterで生成"
+    pmx_model.english_comment = "Created by NeoXtractor."
 
-    # Build bone hierarchy if bones exist
-    if mesh.has_bones:
-        parent_child_dict = {}
-        old2new = {}
-        index_pool = [-1]
-        bone_pool: list[pmx.Bone] = []
-
-        # Build parent-child relationships
-        for i, p in enumerate(mesh.bones.parents):
-            if p not in parent_child_dict:
-                parent_child_dict[p] = []
-            parent_child_dict[p].append(i)
-
-        def build_joint(index, parent_index):
-            matrix = mesh.bones.matrix[index]
-            # Extract translation from matrix for PMX
-            x, y, z = matrix[0, 3], matrix[1, 3], matrix[2, 3]
-            bone_pool.append(
-                pmx.Bone(
-                    name=mesh.bones.names[index],
-                    english_name=mesh.bones.names[index],
-                    position=common.Vector3(x, y, z),
-                    parent_index=parent_index,
-                    layer=0,
-                    flag=0,
-                )
-            )
-            bone_pool[-1].setFlag(pmx.BONEFLAG_CAN_ROTATE, True)
-            bone_pool[-1].setFlag(pmx.BONEFLAG_IS_VISIBLE, True)
-            bone_pool[-1].setFlag(pmx.BONEFLAG_CAN_MANIPULATE, True)
-
-        def deep_first_search(index, index_pool, parent_index):
-            index_pool[0] += 1
-            current_node_index = index_pool[0]
-            old2new[index] = current_node_index
-            build_joint(index, parent_index)
-            if index in parent_child_dict:
-                for child in parent_child_dict[index]:
-                    deep_first_search(child, index_pool, current_node_index)
-
-        # Find root bone and build hierarchy
-        try:
-            root_index = mesh.bones.parents.index(-1)
-            deep_first_search(root_index, index_pool, -1)
-        except ValueError:
-            # No root bone found, create default structure
-            for i in range(len(mesh.bones.names)):
-                old2new[i] = i
-                build_joint(
-                    i,
-                    mesh.bones.parents[i] if mesh.bones.parents[i] != -1 else -1,
-                )
-
-        pmx_model.bones = bone_pool
+    has_bones = mesh.has_bones and len(mesh.bones.names) > 0
+    if has_bones:
+        pmx_model.bones, old2new = _build_bones(mesh)
     else:
-        # Create a default root bone
-        root_bone = pmx.Bone(
-            name="root",
-            english_name="root",
-            position=common.Vector3(0, 0, 0),
-            parent_index=-1,
-            layer=0,
-            flag=0,
-        )
-        root_bone.setFlag(pmx.BONEFLAG_CAN_ROTATE, True)
-        root_bone.setFlag(pmx.BONEFLAG_IS_VISIBLE, True)
-        root_bone.setFlag(pmx.BONEFLAG_CAN_MANIPULATE, True)
-        pmx_model.bones = [root_bone]
-        old2new = {0: 0}
+        pmx_model.bones = [_new_bone("root", common.Vector3(0, 0, 0), -1)]
+        old2new = {}
 
-    for i, position in enumerate(mesh.mesh.position):
-        x, y, z = position
-        nx, ny, nz = mesh.mesh.normal[i]
-        u, v = mesh.mesh.uv[i]
+    positions = mesh.mesh.position
+    normals = mesh.mesh.normal
+    uvs = mesh.mesh.uv
+    joints = mesh.bones.joints if has_bones else []
+    weights = mesh.bones.weights if has_bones else []
 
-        if mesh.has_bones and i < len(mesh.bones.joints):
-            # Map old bone indices to new ones
-            vertex_joint_index = []
-            for joint_idx in mesh.bones.joints[i]:
-                if joint_idx in old2new:
-                    vertex_joint_index.append(old2new[joint_idx])
-                else:
-                    vertex_joint_index.append(0)  # Default to root bone
+    for i, (x, y, z) in enumerate(positions):
+        nx, ny, nz = normals[i] if i < len(normals) else (0.0, 0.0, 1.0)
+        u, v = uvs[i] if i < len(uvs) else (0.0, 0.0)
 
-            # Ensure we have 4 bone indices and weights
-            while len(vertex_joint_index) < 4:
-                vertex_joint_index.append(0)
-            vertex_joint_index = vertex_joint_index[:4]
-
-            vertex_weights = (
-                mesh.bones.weights[i]
-                if i < len(mesh.bones.weights)
+        if i < len(joints):
+            joint_index = [
+                old2new.get(int(j), 0) if int(j) not in _UNUSED_JOINTS else 0
+                for j in list(joints[i])[:4]
+            ]
+            joint_weight = (
+                [float(w) for w in list(weights[i])[:4]]
+                if i < len(weights)
                 else [1.0, 0.0, 0.0, 0.0]
             )
-            while len(vertex_weights) < 4:
-                vertex_weights.append(0.0)
-            vertex_weights = vertex_weights[:4]
-
-            vertex = pmx.Vertex(
-                common.Vector3(cast(int, x), cast(int, y), cast(int, z)),
-                common.Vector3(cast(int, nx), cast(int, ny), cast(int, nz)),
-                common.Vector2(cast(int, u), cast(int, v)),
-                pmx.Bdef4(*vertex_joint_index, *vertex_weights),
-                0.0,
-            )
+            joint_index += [0] * (4 - len(joint_index))
+            joint_weight += [0.0] * (4 - len(joint_weight))
+            deform = pmx.Bdef4(*joint_index, *joint_weight)
         else:
-            # No bone data - assign to root bone
-            vertex = pmx.Vertex(
-                common.Vector3(cast(int, x), cast(int, y), cast(int, z)),
-                common.Vector3(cast(int, nx), cast(int, ny), cast(int, nz)),
-                common.Vector2(cast(int, u), cast(int, v)),
-                pmx.Bdef1(0),
+            deform = pmx.Bdef1(0)
+
+        pmx_model.vertices.append(
+            pmx.Vertex(
+                common.Vector3(-float(x), float(y), -float(z)),
+                common.Vector3(-float(nx), float(ny), -float(nz)),
+                common.Vector2(float(u), float(v)),
+                deform,
                 0.0,
             )
-        pmx_model.vertices.append(vertex)
+        )
 
-    # Add faces
+    vertex_total = len(pmx_model.vertices)
+    face_total = 0
     for face in mesh.mesh.face:
+        face = [int(f) for f in face]
+        # Skip faces that would point outside the vertex list and corrupt the file
+        if any(not 0 <= f < vertex_total for f in face):
+            continue
         pmx_model.indices.extend(face)
+        face_total += 1
 
-    # Default single material
-    material = pmx.Material(
-        name="Material",
-        english_name="Material",
-        diffuse_color=common.RGB(1, 1, 1),
-        alpha=1.0,
-        specular_factor=1,
-        specular_color=common.RGB(1, 1, 1),
-        ambient_color=common.RGB(0, 0, 0),
-        flag=0,
-        edge_color=common.RGBA(0, 0, 0, 1),
-        edge_size=0,
-        texture_index=-1,
-        sphere_texture_index=-1,
-        sphere_mode=pmx.MATERIALSPHERE_NONE,
-        toon_sharing_flag=1,
-        toon_texture_index=0,
-        comment="Auto-Generated Material",
-        vertex_count=len(mesh.mesh.face) * 3,
+    pmx_model.materials.append(
+        pmx.Material(
+            name="Mat0",
+            english_name="material0",
+            diffuse_color=common.RGB(1, 1, 1),
+            alpha=1.0,
+            specular_factor=1,
+            specular_color=common.RGB(1, 1, 1),
+            ambient_color=common.RGB(0, 0, 0),
+            flag=0,
+            edge_color=common.RGBA(0, 0, 0, 1),
+            edge_size=0,
+            texture_index=-1,
+            sphere_texture_index=-1,
+            sphere_mode=pmx.MATERIALSPHERE_NONE,
+            toon_sharing_flag=1,
+            toon_texture_index=0,
+            comment="comment",
+            vertex_count=face_total * 3,
+        )
     )
-    pmx_model.materials.append(material)
 
-    # Write to bytes buffer
+    # Write to bytes buffer (text encoding 0 = UTF-16LE, as the working
+    # converter did via pymeshio.pmx.writer.write_to_file)
     buffer = io.BytesIO()
-    pymeshio.pmx.writer.write(buffer, pmx_model, 1)
+    pymeshio.pmx.writer.write(buffer, pmx_model)
     return buffer.getvalue()
