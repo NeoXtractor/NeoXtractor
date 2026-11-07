@@ -233,6 +233,28 @@ class SettingsWindow(QtWidgets.QDialog):
         self.audio_export_warning.setStyleSheet("color: #e6a23c;")
         audio_layout.addWidget(self.audio_export_warning)
 
+        self.dedupe_media_checkbox = QtWidgets.QCheckBox(
+            "List each audio file only once", self
+        )
+        self.dedupe_media_checkbox.setChecked(True)
+        self.dedupe_media_checkbox.toggled.connect(
+            lambda checked: self._pending_changes.__setitem__(
+                "audio.wwise_dedupe_media", checked
+            )
+        )
+        audio_layout.addWidget(self.dedupe_media_checkbox)
+
+        dedupe_description = QtWidgets.QLabel(
+            "On: audio repeated across several banks (or also stored as a "
+            "standalone .wem) is listed once, so the export has no duplicates. "
+            "Off: every reference is listed and exported separately. Takes "
+            "effect the next time a package is opened.",
+            self,
+        )
+        dedupe_description.setWordWrap(True)
+        dedupe_description.setStyleSheet("color: gray; font-style: italic;")
+        audio_layout.addWidget(dedupe_description)
+
         self._update_audio_export_hint()
 
         return audio_group
@@ -346,6 +368,10 @@ class SettingsWindow(QtWidgets.QDialog):
         if audio_index != -1:
             self.audio_export_combobox.setCurrentIndex(audio_index)
         self._update_audio_export_hint()
+
+        self.dedupe_media_checkbox.setChecked(
+            self._settings_manager.get("audio.wwise_dedupe_media", True)
+        )
 
         nbs_export = self._settings_manager.get("video.nbs_export", "mkv")
         nbs_index = self.nbs_export_combobox.findData(nbs_export)

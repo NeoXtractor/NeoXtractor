@@ -8,7 +8,7 @@ from collections import Counter
 from core.logger import get_logger
 from core.npk.class_types import NPKIndex
 
-from .constants import IDX_HEAD_SIZE, IDX_REC_SIZE
+from .constants import IDX_HEAD_SIZE, IDX_REC_SIZE, IDX_REC_SIZE_COMPACT
 
 
 def read_idx_header(reader, file) -> None:
@@ -24,24 +24,66 @@ def read_idx_header(reader, file) -> None:
     get_logger().info("Entry count: %d", reader.file_count)
 
 
+def detect_idx_rec_size(file, file_count: int) -> int:
+    """Pick the IDX record size (36 or 28 bytes) from the file size.
+
+    Layout: 0x20 header + count * rec_size + optional 4-byte trailer.
+    Falls back to the legacy 36-byte layout when nothing matches exactly.
+    """
+    file.seek(0, os.SEEK_END)
+    total = file.tell()
+    for rec_size in (IDX_REC_SIZE, IDX_REC_SIZE_COMPACT):
+        body = IDX_HEAD_SIZE + file_count * rec_size
+        if total in (body, body + 4):
+            return rec_size
+    return IDX_REC_SIZE
+
+
+def parse_idx_record(rec: bytes, rec_size: int) -> tuple[bytes, int, int, int, int]:
+    """Return (raw_hash, pkg_id, file_offset, payload_size, hdr_size).
+
+    The last u16 means different things per generation, so callers must not
+    trust it blindly (see ``core/wpk/payload_window.py``):
+
+    * 28-byte records (Onmyoji 2.8.x): a per-entry tag in the 1..211 range.
+      The payload is stored bare at ``file_offset``; using it as a skip
+      distance cuts the ``PC`` tag and turns every entry into ``.dat``.
+    * 36-byte records (Identity V): a real ``hdr_size`` (0x30) that skips the
+      ``1DPW`` wrapper in front of the payload.
+    """
+    raw_hash = rec[0x00:0x10]
+    if rec_size == IDX_REC_SIZE_COMPACT:
+        # hash16 | payload u32 | offset u32 | pkg u16 | hdr u16
+        payload_size = int.from_bytes(rec[0x10:0x14], "little")
+        file_off = int.from_bytes(rec[0x14:0x18], "little")
+        pkg_id = int.from_bytes(rec[0x18:0x1A], "little")
+        hdr_size = int.from_bytes(rec[0x1A:0x1C], "little")
+    else:
+        pkg_id = rec[0x14]
+        file_off = int.from_bytes(rec[0x18:0x1C], "little")
+        payload_size = int.from_bytes(rec[0x1C:0x20], "little")
+        hdr_size = int.from_bytes(rec[0x20:0x22], "little")
+    return raw_hash, pkg_id, file_off, payload_size, hdr_size
+
+
 def read_idx_indices(reader, file) -> None:
     """Read all fixed-size IDX records into NPKIndex entries."""
     reader.indices = []
+    rec_size = detect_idx_rec_size(file, reader.file_count)
+    get_logger().info("IDX record size: %d bytes", rec_size)
     file.seek(IDX_HEAD_SIZE)
     logger = get_logger()
 
     for i in range(reader.file_count):
-        rec = file.read(IDX_REC_SIZE)
-        if len(rec) != IDX_REC_SIZE:
+        rec = file.read(rec_size)
+        if len(rec) != rec_size:
             raise EOFError(f"IDX truncated while reading record {i}")
 
         index = NPKIndex()
 
-        raw_hash = rec[0x00:0x10]
-        pkg_id = rec[0x14]
-        file_off_hdr = int.from_bytes(rec[0x18:0x1C], "little")
-        payload_size = int.from_bytes(rec[0x1C:0x20], "little")
-        hdr_size = int.from_bytes(rec[0x20:0x22], "little")
+        raw_hash, pkg_id, file_off_hdr, payload_size, hdr_size = parse_idx_record(
+            rec, rec_size
+        )
         total_size = hdr_size + payload_size
 
         index.file_signature = int.from_bytes(raw_hash, "little")
