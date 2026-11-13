@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any
 
-from neoxtractor.core.logger import get_logger
+from neoxtractor.core.utils.logger import get_logger
 from neoxtractor.gui.settings_migration import CURRENT_SCHEMA_VERSION, run_migration
 
 class SettingsManager:

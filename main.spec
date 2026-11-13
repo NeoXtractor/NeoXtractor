@@ -4,6 +4,15 @@ import subprocess
 import sys
 import atexit
 
+from PyInstaller.utils.hooks import collect_submodules
+
+# Discovery-based packages (pkgutil.iter_modules) need their submodules
+# collected explicitly: a frozen build imports nothing lazily, so an
+# uncollected viewer or container module simply never appears.
+_hidden = collect_submodules("neoxtractor.gui.viewers")
+_hidden += collect_submodules("neoxtractor.core.packages")
+_hidden += collect_submodules("neoxtractor.core.resources")
+
 subprocess.call([sys.executable, 'tools/build_info_tool.py', 'gen'])
 
 def cleanup():
@@ -19,7 +28,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('configs', 'configs'), ('data', 'data')],
-    hiddenimports=[],
+    hiddenimports=_hidden,
     hookspath=['hooks'],
     hooksconfig={},
     runtime_hooks=[],

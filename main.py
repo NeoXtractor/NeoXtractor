@@ -1,15 +1,11 @@
-"""NeoXtractor entrypoint"""
+"""NeoXtractor launcher: a thin front for the package entry point.
 
-from neoxtractor.core.args import arguments, parse_args
-from neoxtractor.core.logger import setup_logger
-from neoxtractor.gui import run as run_gui
+All command-line handling lives in :mod:`neoxtractor.__main__`, so this
+file and ``python -m neoxtractor`` start the identical program; a frozen
+build analyses this script and follows the import to the same entry.
+"""
 
-def run_cli():
-    """Run NeoXtractor as a CLI application."""
-    raise NotImplementedError("CLI mode is not implemented yet.")
+from neoxtractor.__main__ import main
 
 if __name__ == "__main__":
-    parse_args()
-    setup_logger()
-    if arguments.subcommand == "gui" or arguments.subcommand is None:
-        run_gui()
+    raise SystemExit(main())

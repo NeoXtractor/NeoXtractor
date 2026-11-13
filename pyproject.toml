@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "neoxtractor"
 version = "3.0.1"
@@ -24,3 +28,29 @@ dependencies = [
 required-environments = [
     "sys_platform == 'darwin' and platform_machine == 'arm64' and platform_release <= '22'"
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["neoxtractor"]
+
+# The git layout keeps data/ and configs/ at the repository root, outside
+# the package; a wheel must ship them inside it, because the runtime
+# resource root for an installed package is the package directory itself
+# (see neoxtractor.core.utils.app.get_application_path).
+[tool.hatch.build.targets.wheel.force-include]
+"data" = "neoxtractor/data"
+"configs" = "neoxtractor/configs"
+
+[tool.mypy]
+python_version = "3.12"
+# Check the bodies of functions without annotations too: the GUI carries a
+# lot of un-annotated PySide6 signal/slot code, and a contribution gate that
+# skips those bodies would let real bugs slip through unchecked.
+check_untyped_defs = true
+
+# Third-party libraries that ship no type information (no stubs, no py.typed).
+# Skipping their analysis is the one sanctioned exception to the "keep mypy
+# green without inline suppressions" rule; every other error must be fixed in
+# code.  See CONTRIBUTING.md.
+[[tool.mypy.overrides]]
+module = ["lz4", "lz4.*", "flatbuffers", "flatbuffers.*", "pymeshio", "pymeshio.*"]
+ignore_missing_imports = true

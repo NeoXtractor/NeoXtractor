@@ -1,9 +1,11 @@
 {
+    "config_version": 3,
     "name": "Super Mecha Champions",
     "read_options": {
-        "decryption_key": null,
-        "aes_key": null,
-        "info_size": 32
+        "npk": {
+            "decryption_key": null,
+            "info_size": 32
+        }
     },
     "entry_signature_name_map": {}
 }

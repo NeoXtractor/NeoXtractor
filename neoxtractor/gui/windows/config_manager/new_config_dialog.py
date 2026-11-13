@@ -1,16 +1,18 @@
-"""Dialog for creating a new game configuration."""
+"""Dialog for creating a new game configuration.
+
+Read options are schema-driven (:class:`OptionsForm`).
+"""
 
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QLineEdit,
-    QSpinBox,
     QVBoxLayout,
 )
 
-from neoxtractor.core.config import Config
-from neoxtractor.core.packages.npk.class_types import NPKReadOptions
+from neoxtractor.gui.config import Config
+from neoxtractor.gui.windows.config_manager.options_form import OptionsForm
 
 
 class NewConfigDialog(QDialog):
@@ -24,34 +26,18 @@ class NewConfigDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Create New Config")
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(400)
 
-        # Create layout
         self.main_layout = QVBoxLayout(self)
         self.form_layout = QFormLayout()
         self.main_layout.addLayout(self.form_layout)
 
-        # Config name field
         self.name_edit = QLineEdit()
         self.form_layout.addRow("Config Name:", self.name_edit)
 
-        # Info size field
-        self.info_size_edit = QSpinBox()
-        self.info_size_edit.setMinimum(0)
-        self.info_size_edit.setMaximum(999999)
-        self.info_size_edit.setValue(0)  # Default value
-        self.form_layout.addRow(
-            "Info Size (0 for auto determine):", self.info_size_edit
-        )
+        self.options_form = OptionsForm(self)
+        self.main_layout.addWidget(self.options_form)
 
-        # Decryption key field
-        self.key_edit = QSpinBox()
-        self.key_edit.setMinimum(-2147483648)  # int32 min
-        self.key_edit.setMaximum(2147483647)  # int32 max
-        self.key_edit.setValue(0)  # Default value
-        self.form_layout.addRow("Decryption Key (Use 0 for no key):", self.key_edit)
-
-        # Buttons
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -65,25 +51,16 @@ class NewConfigDialog(QDialog):
             self.accept()
 
         self.button_box.accepted.connect(validate_and_accept)
-
         self.button_box.rejected.connect(self.reject)
         self.main_layout.addWidget(self.button_box)
 
-    def get_config(self):
+    def get_config(self) -> Config:
         """Get the created config.
 
         Returns:
             Config: The newly created config
         """
-        config = Config(
-            name=self.name_edit.text(),
-            read_options=NPKReadOptions(
-                decryption_key=None
-                if self.key_edit.value() == 0
-                else self.key_edit.value(),
-                info_size=None
-                if self.info_size_edit.value() == 0
-                else self.info_size_edit.value(),
-            ),
+        return Config(
+            name=self.name_edit.text().strip(),
+            read_options=self.options_form.get_read_options(),
         )
-        return config

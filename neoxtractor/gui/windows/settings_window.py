@@ -1,17 +1,15 @@
 """Provides a settings window for the application."""
 
 import sys
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
 from PySide6 import QtGui, QtWidgets
 
+from neoxtractor.core.utils.logger import get_logger
+from neoxtractor.gui.app_state import AppState
 from neoxtractor.gui.settings_manager import SettingsManager
 from neoxtractor.gui.theme import ThemeManager
 from neoxtractor.gui.widgets.color_triangle_widget import ColorTriangleWidget
-from neoxtractor.gui.widgets.managed_rhi_widget import ManagedRhiWidget
-
-if TYPE_CHECKING:
-    from neoxtractor.gui.windows.main_window import MainWindow
 
 
 class SettingsWindow(QtWidgets.QDialog):
@@ -76,7 +74,7 @@ class SettingsWindow(QtWidgets.QDialog):
                 self.theme_combobox.addItem(display_name, theme_id)
 
         except Exception as e:
-            print(f"Error loading themes: {e}")
+            get_logger().warning("Error loading themes: %s", e)
 
         def set_theme(theme_id):
             self._pending_changes["appearance.theme"] = theme_id
@@ -119,9 +117,7 @@ class SettingsWindow(QtWidgets.QDialog):
         return appearance_group
 
     def _create_graphics_settings(self):
-        """
-        Create the graphics settings section.
-        """
+        """Create the graphics settings section."""
         graphics_group = QtWidgets.QGroupBox("Graphics Settings", self)
         graphics_layout = QtWidgets.QHBoxLayout(graphics_group)
 
@@ -191,10 +187,7 @@ class SettingsWindow(QtWidgets.QDialog):
         return graphics_group
 
     def _load_settings(self):
-        """
-        Load settings from the settings manager.
-        """
-        # Load theme setting
+        """Load settings from the settings manager."""
         current_theme = self._settings_manager.get("appearance.theme", "system")
         if current_theme == "system":
             # Select system theme (None data)
@@ -237,16 +230,12 @@ class SettingsWindow(QtWidgets.QDialog):
             self.msaa_combobox.setCurrentIndex(msaa_combo_item)
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
-        """
-        Handle the show event to load settings.
-        """
+        """Handle the show event to load settings."""
         super().showEvent(event)
         self._load_settings()
 
     def save_settings(self):
-        """
-        Save the settings to the settings manager.
-        """
+        """Save the settings to the settings manager."""
         for key, value in self._pending_changes.items():
             self._settings_manager.set(key, value)
         self._settings_manager.save_config()
@@ -257,17 +246,9 @@ class SettingsWindow(QtWidgets.QDialog):
                 theme_manager = ThemeManager.instance()
                 theme_manager.set_theme(self._pending_changes["appearance.theme"])
             except Exception as e:
-                print(f"Error applying theme: {e}")
+                get_logger().warning("Error applying theme: %s", e)
 
-        main_window = cast("MainWindow", self.parent())
-
-        # Apply MSAA to all QRhiWidgets
+        # Apply MSAA to all managed RHI widgets
         msaa = self._settings_manager.get("graphics.msaa", 1)
-        rhi_widgets: list[ManagedRhiWidget] = main_window.app.property(
-            "managed_rhi_widgets"
-        )
-        if rhi_widgets is None:
-            # If no managed RHI widgets list exists, we cannot proceed.
-            return
-        for rhi_widget in rhi_widgets:
+        for rhi_widget in AppState.instance().managed_rhi_widgets:
             rhi_widget.setSampleCount(msaa)

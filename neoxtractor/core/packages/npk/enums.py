@@ -1,6 +1,17 @@
-"""NPK module enums for compression and encryption types."""
+"""Enums for NPK file types, compression, and encryption."""
 
-from enum import IntEnum, StrEnum
+from enum import IntEnum
+
+
+def is_unknown(flag: IntEnum) -> bool:
+    """True when *flag* was fabricated by ``_missing_`` from an unrecognized value.
+
+    Invariant: fabricated members are named ``UNKNOWN(n)`` and no defined
+    member name starts with that prefix, so the name is the recognition test.
+    Alternatives fail: ``cls(value)`` never raises (``_missing_`` fabricates a
+    member), and ``value in cls`` does not consult ``_missing_``.
+    """
+    return flag.name.startswith("UNKNOWN")
 
 
 class NPKFileType(IntEnum):
@@ -68,16 +79,3 @@ class DecryptionType(IntEnum):
         obj._name_ = f"UNKNOWN({value})"
         obj._value_ = int(value)
         return obj
-
-
-class NPKEntryFileCategories(StrEnum):
-    """Enum defining the file types for NPK entries."""
-
-    MESH = "Mesh"
-    TEXTURE = "Texture"
-    CHARACTER = "Character"
-    BANK = "Bank"
-    SKIN = "Skin"
-    XML = "NeoX XML"
-    CSB = "Cocos2D UI"
-    OTHER = "Other"

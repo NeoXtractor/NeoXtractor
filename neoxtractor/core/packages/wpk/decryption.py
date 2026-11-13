@@ -1,10 +1,20 @@
-"""WPK/WPD1 payload stage-1 decoding helpers."""
+"""WPK/WPD1 payload stage-1 decoding helpers.
+
+A direct port of the reference decoder: the AES key derivation, the XOR
+schedules, and the header obfuscation mirror the on-disk algorithm exactly.
+Key material and constants are copied verbatim, never paraphrased.
+Pure functions over payload bytes.
+"""
 
 from __future__ import annotations
 
 import struct
+from typing import TYPE_CHECKING
 
-from neoxtractor.core.logger import get_logger
+if TYPE_CHECKING:
+    # Type-checker view only; runtime availability is gated by _HAS_AES.
+    from cryptography.hazmat.backends import default_backend as aes_default_backend
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 try:
     from cryptography.hazmat.backends import default_backend as aes_default_backend
@@ -12,7 +22,8 @@ try:
 
     _HAS_AES = True
 except ImportError:  # pragma: no cover - graceful fallback
-    Cipher = algorithms = modes = aes_default_backend = None
+    # Names stay unbound: every use site short-circuits on ``not _HAS_AES``
+    # before touching them.
     _HAS_AES = False
 
 
@@ -39,16 +50,7 @@ def derive_key(length: int, t: int) -> bytes:
 
 def aes_decrypt_prefix(buf: bytearray, length: int, key16: bytes) -> int:
     """AES-ECB decrypt the prefix aligned to 16-byte blocks."""
-    if (
-        length <= 0
-        or not _HAS_AES
-        or (
-            Cipher is None
-            or algorithms is None
-            or modes is None
-            or aes_default_backend is None
-        )  # Makes the linter shush
-    ):
+    if length <= 0 or not _HAS_AES:
         return 0
 
     done = (length // 16) * 16
@@ -134,17 +136,11 @@ def try_decode_payload_stage1(
 ) -> tuple[bytes, bool, int | None]:
     """Best-effort wrapper around stage-1 decoding.
 
-    Returns (data, decoded, tag).
+    Returns (data, decoded, tag).  ``decoded=False`` means the payload does
+    not carry a stage-1 tag at all -- a legitimate shape, the caller keeps
+    the bytes.  A recognised tag that fails to decode raises.
     """
-    try:
-        result = decode_payload_stage1(payload, skip_header_decode=skip_header_decode)
-    except Exception as exc:  # pragma: no cover - defensive logging path
-        if context:
-            get_logger().debug("WPD1 stage1 failed for %s: %s", context, exc)
-        else:
-            get_logger().debug("WPD1 stage1 failed: %s", exc)
-        return payload, False, None
-
+    result = decode_payload_stage1(payload, skip_header_decode=skip_header_decode)
     if result is None:
         return payload, False, None
 

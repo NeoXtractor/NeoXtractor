@@ -7,6 +7,8 @@
   "xml": "xml",
   "mtl": "xml",
   "mtg": "xml",
+  "bxml": "xml",
+  "ags": "xml",
   "pvr.meta": "xml",
   "sec": "xml",
   "gim": "xml",

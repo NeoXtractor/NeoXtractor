@@ -22,12 +22,11 @@ class VerticalTabBar(QtWidgets.QTabBar):
             painter.drawControl(QtWidgets.QStyle.ControlElement.CE_TabBarTabShape, opt)
             painter.save()
 
-            # PySide6 has incorrect typing
-            size: QtCore.QSize = opt.rect.size()  # type: ignore[attr-defined]
+            size: QtCore.QSize = opt.rect.size()
             size.transpose()
             rect = QtCore.QRect(QtCore.QPoint(), size)
-            rect.moveCenter(opt.rect.center())  # type: ignore[attr-defined]
-            opt.rect = rect  # type: ignore[attr-defined]
+            rect.moveCenter(opt.rect.center())
+            opt.rect = rect
 
             center = self.tabRect(index).center()
             painter.translate(center)

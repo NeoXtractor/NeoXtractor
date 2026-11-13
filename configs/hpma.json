@@ -1,6 +1,9 @@
 {
+    "config_version": 3,
     "name": "Harry Potter: Magic Awakened",
     "read_options": {
-        "decryption_key": -250
+        "npk": {
+            "decryption_key": -250
+        }
     }
 }

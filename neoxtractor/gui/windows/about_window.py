@@ -6,12 +6,11 @@ from neoxtractor.core.build_info import BuildInfo
 
 
 class LogoWidget(QtWidgets.QWidget):
-    """Custom widget that draws the NeoXtractor logo with perfect text positioning"""
+    """Widget that draws the NeoXtractor logo."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # Create fonts
         self.normal_font = QtGui.QFont()
         self.normal_font.setFamily("Orbitron")
         self.normal_font.setPointSize(24)
@@ -30,11 +29,10 @@ class LogoWidget(QtWidgets.QWidget):
 
         self.version_text = f"v{BuildInfo.version}" if BuildInfo.version else "DEV"
 
-        # Pre-calculate text widths for optimal positioning
         self.update_metrics()
 
     def update_metrics(self):
-        """Calculate text metrics for precise positioning"""
+        """Calculate text metrics used for positioning."""
         fm_normal = QtGui.QFontMetrics(self.normal_font)
         fm_x = QtGui.QFontMetrics(self.x_font)
         fm_ver = QtGui.QFontMetrics(self.ver_font)
@@ -47,7 +45,6 @@ class LogoWidget(QtWidgets.QWidget):
         self.ver_width = fm_ver.horizontalAdvance(self.version_text)
         self.ver_height = fm_ver.height()
 
-        # Calculate total width needed
         self.total_width = self.neo_width + self.x_width + self.tractor_width - 25
 
     def sizeHint(self):
@@ -55,7 +52,7 @@ class LogoWidget(QtWidgets.QWidget):
         return QtCore.QSize(self.total_width, max(self.normal_height, self.x_height))
 
     def paintEvent(self, event):
-        """Custom paint event to draw the logo text"""
+        """Paint event that draws the logo text."""
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.TextAntialiasing)
@@ -72,7 +69,6 @@ class LogoWidget(QtWidgets.QWidget):
             QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignTop,
             "Neo",
         )
-        # painter.drawText(neo_rect, QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignBottom, "Neo")
         text_color = painter.pen().color()
 
         # X
@@ -142,7 +138,7 @@ class AboutWindow(QtWidgets.QDialog):
         app_name_layout.addWidget(logo_widget)
 
         # Description
-        description = QtWidgets.QLabel("A tool for extracting data from NPK files.")
+        description = QtWidgets.QLabel("A tool for extracting data from game archives.")
         description.setWordWrap(True)
         description.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 
@@ -153,7 +149,6 @@ class AboutWindow(QtWidgets.QDialog):
         copyright_info.setWordWrap(True)
         copyright_info.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 
-        # Add widgets to main layout
         layout.addSpacing(10)
         layout.addLayout(app_name_layout)
         layout.addSpacing(10)

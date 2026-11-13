@@ -7,8 +7,9 @@ from typing import Any, Dict, Optional, cast
 
 from PySide6 import QtCore, QtWidgets
 
-from neoxtractor.core.logger import get_logger
-from neoxtractor.core.utils import get_application_path
+from neoxtractor.core.utils.logger import get_logger
+from neoxtractor.core.utils.app import get_application_path
+from neoxtractor.gui.app_state import AppState
 
 SYSTEM_COLORS = {
     "palette": {
@@ -337,14 +338,5 @@ class ThemeManager(QtCore.QObject):
 
     @staticmethod
     def instance() -> "ThemeManager":
-        """Get the global theme manager instance."""
-        app = QtWidgets.QApplication.instance()
-        if not app:
-            raise RuntimeError("No QApplication instance found")
-
-        theme_manager = app.property("theme_manager")
-        if not theme_manager:
-            theme_manager = ThemeManager()
-            app.setProperty("theme_manager", theme_manager)
-
-        return theme_manager
+        """The process theme manager, held by :class:`AppState`."""
+        return AppState.instance().theme

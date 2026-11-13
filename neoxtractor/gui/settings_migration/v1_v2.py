@@ -1,4 +1,4 @@
-from neoxtractor.core.logger import get_logger
+from neoxtractor.core.utils.logger import get_logger
 
 
 def migrate(settings_dict: dict):
@@ -8,14 +8,13 @@ def migrate(settings_dict: dict):
     Args:
         settings_dict (dict): The dictionary containing settings to migrate.
     """
-    if "schema_version" in settings_dict:
+    if settings_dict.get("schema_version") != 1:
         get_logger().info("Settings is not v1, skipping migration.")
         return
 
-    # Update the schema version to 2
     settings_dict["schema_version"] = 2
 
-    # Migrate gameconfigs to the new format
+    # v1: decryption_key is a top-level game config field -> v2: nested under read_options
     for game_config in settings_dict.get("gameconfigs", []):
         decryption_key = game_config["decryption_key"]
         game_config["read_options"] = {"decryption_key": decryption_key}

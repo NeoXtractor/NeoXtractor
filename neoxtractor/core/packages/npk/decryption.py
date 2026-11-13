@@ -1,14 +1,16 @@
-"""Provides decompression functions."""
+"""NPK entry payload decryption: XOR variants keyed by index metadata.
 
-from neoxtractor.core.logger import get_logger
-from neoxtractor.core.packages.npk.class_types import NPKEntry, NPKEntryDataFlags
+Every function takes plain values (bytes plus index fields) and returns new
+bytes.
+"""
+
 from neoxtractor.core.packages.npk.enums import DecryptionType
 
 from .eggyparty_codes import decrypt_mode3_block
 
 
 def decrypt_eggparty_index(index_data: bytes | bytearray):
-    """按 16 字节块批量解密，尾部不足 16 字节部分保持原样。"""
+    """Decrypt whole 16-byte blocks; a short tail is left unchanged."""
     round_keys = [
         1466294906,
         1460669224,
@@ -84,88 +86,74 @@ def decrypt_eggparty_index(index_data: bytes | bytearray):
     return bytes(buffer)
 
 
-def decrypt_entry(entry: NPKEntry, key: int | None = None) -> bytes:
-    """
-    Decrypts the data of an NPKEntry object based on its encryption type.
-    Parameters:
-        entry (NPKEntry): The entry containing the encrypted data and metadata.
-        key (int | None, optional): The decryption key required for certain encryption types.
-                                     Defaults to None.
-    Returns:
-        bytes: The decrypted data as a bytes object.
-    Raises:
-        ValueError: If the decryption key is required but not provided.
-    Encryption Types:
-        - BASIC_XOR: Performs a basic XOR decryption using a key array derived from the provided key.
-                     Only the first 128 bytes (0x80) of the data are decrypted.
-        - ADVANCED_XOR: Performs an advanced XOR decryption using a key array derived from the entry's
-                        CRC and original file length. Decrypts a specific range of the data based on
-                        the entry's metadata.
-        - INCREMENTAL_XOR: Performs an incremental XOR decryption using a key derived from the entry's
-                           CRC and original file length. Decrypts a specific range of the data with
-                           an incrementing key.
-    Notes:
-        - The decryption process modifies the data in-place using a bytearray.
-        - The decryption range and key generation depend on the entry's metadata, such as file length,
-          original file length, and CRC.
+def decrypt_entry(
+    data: bytes,
+    encrypt_flag: DecryptionType,
+    crc: int,
+    file_length: int,
+    file_original_length: int,
+    key: int | None = None,
+) -> bytes | None:
+    """Decrypt one payload according to its encryption type.
+
+    - BASIC_XOR: XOR with a key array derived from ``key``; only the first
+      128 bytes (0x80) are decrypted.  Without ``key`` the payload cannot be
+      decrypted and ``None`` is returned.
+    - ADVANCED_XOR: XOR with a key array derived from ``crc`` and
+      ``file_original_length``; the decrypted range is located from the
+      index metadata.
+    - INCREMENTAL_XOR: XOR with an incrementing key derived from ``crc`` and
+      ``file_original_length``; the decrypted range is located from the
+      index metadata.
+
+    Returns the decrypted bytes, or ``None`` when the option ``key`` is
+    required but missing.
     """
 
-    # Convert data to bytearray for in-place modifications
-    data = bytearray(entry.data)
+    buf = bytearray(data)
 
-    if entry.encrypt_flag == DecryptionType.BASIC_XOR:  # Basic XOR
+    if encrypt_flag == DecryptionType.BASIC_XOR:
         if key is None:
-            get_logger().error(
-                "Decryption key is not set for file using 'BASIC XOR' decryption,"
-                + "did you use the correct config?"
-            )
-            entry.data_flags |= NPKEntryDataFlags.ENCRYPTED
-            return entry.data
+            return None
 
-        size = min(entry.file_length, 0x80)
+        size = min(file_length, 0x80)
 
-        # Generate key array
         key_array = [(key + x) & 0xFF for x in range(0, 0x100)]
 
-        # Apply XOR decryption
         for j in range(size):
-            data[j] ^= key_array[j % 0xFF]
+            buf[j] ^= key_array[j % 0xFF]
 
-    elif entry.encrypt_flag == DecryptionType.ADVANCED_XOR:  # Advanced XOR variants
-        b = entry.crc ^ entry.file_original_length
+    elif encrypt_flag == DecryptionType.ADVANCED_XOR:
+        b = crc ^ file_original_length
 
         start = 0
-        size = entry.file_length
+        size = file_length
 
         if size > 0x80:
-            start = (entry.crc >> 1) % (size - 0x80)
-            size = 2 * entry.file_original_length % 0x60 + 0x20
+            start = (crc >> 1) % (size - 0x80)
+            size = 2 * file_original_length % 0x60 + 0x20
 
-        # Generate key array
         key_array = [(x + b) & 0xFF for x in range(0, 0x81)]
 
-        # Apply XOR decryption
         for j in range(size):
-            data[start + j] ^= key_array[j % 0x80]
+            buf[start + j] ^= key_array[j % 0x80]
 
-    elif entry.encrypt_flag == DecryptionType.INCREMENTAL_XOR:  # Incremental XOR
-        v3 = int(entry.file_original_length)
-        v4 = int(entry.crc)
+    elif encrypt_flag == DecryptionType.INCREMENTAL_XOR:
+        v3 = int(file_original_length)
+        v4 = int(crc)
 
         crc_key = (v3 ^ v4) & 0xFF
         offset = 0
         length = 0
 
-        if entry.file_length <= 0x80:
-            length = entry.file_length
+        if file_length <= 0x80:
+            length = file_length
         else:
-            offset = (v3 >> 1) % (entry.file_length - 0x80)
+            offset = (v3 >> 1) % (file_length - 0x80)
             length = ((v4 << 1) & 0xFFFFFFFF) % 0x60 + 0x20
 
-        # Apply incremental XOR decryption
         for xx in range(offset, offset + length):
-            data[xx] ^= crc_key
+            buf[xx] ^= crc_key
             crc_key = (crc_key + 1) & 0xFF
 
-    # Convert back to bytes
-    return bytes(data)
+    return bytes(buf)

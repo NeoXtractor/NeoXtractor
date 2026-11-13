@@ -1,18 +1,25 @@
 """Provides a mesh renderer."""
 
+from __future__ import annotations
+
 import ctypes
 import os
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from PySide6 import QtGui, QtWidgets
 
-from neoxtractor.core.resources.mesh.loader import MeshData
-from neoxtractor.core.utils import get_application_path
+from neoxtractor.core.utils.app import get_application_path
 from neoxtractor.gui.renderers.point_renderer import PointRenderer
 from neoxtractor.gui.utils.rendering import is_d3d, static_uniform_buffer_type
-from neoxtractor.gui.widgets.viewers.mesh_viewer.camera import Camera
+
+if TYPE_CHECKING:
+    # Type-only, named through the public resource facade, not the private
+    # ``_mesh`` package.
+    from neoxtractor.core.resources.mesh import MeshData
+    # Type-only: avoids the renderers <-> viewers import cycle.
+    from neoxtractor.gui.viewers.mesh_viewer.camera import Camera
 
 MESH_COLOR = [0.8, 0.8, 0.8]
 
@@ -214,6 +221,7 @@ class MeshRenderer:
     @mesh_data.setter
     def mesh_data(self, value: ProcessedMeshData | None):
         """
+        Assigning None destroys the mesh and overlay GPU buffers.
         Sets the mesh data to be rendered.
         """
         self._mesh_data = value
@@ -272,15 +280,16 @@ class MeshRenderer:
             self._rhi = self._rhi_widget.rhi()
 
         shaders_path = os.path.join(get_application_path(), "data", "shaders")
-        if self._mesh_shaders is None:
+        # Load through a local: the field is Optional, but the rest of this
+        # method uses the narrowed non-None pair.
+        mesh_shaders = self._mesh_shaders
+        if mesh_shaders is None:
             with open(os.path.join(shaders_path, "mesh.vert.qsb"), "rb") as f:
-                vsrc = f.read()
-                vsrc = QtGui.QShader.fromSerialized(vsrc)
-                with open(os.path.join(shaders_path, "mesh.frag.qsb"), "rb") as f:
-                    fsrc = f.read()
-                    fsrc = QtGui.QShader.fromSerialized(fsrc)
-
-                    self._mesh_shaders = (vsrc, fsrc)
+                vsrc = QtGui.QShader.fromSerialized(f.read())
+            with open(os.path.join(shaders_path, "mesh.frag.qsb"), "rb") as f:
+                fsrc = QtGui.QShader.fromSerialized(f.read())
+            mesh_shaders = (vsrc, fsrc)
+            self._mesh_shaders = mesh_shaders
 
         if self._mesh_pipeline is None:
             self._mesh_vert_ubuf = self._rhi.newBuffer(
@@ -318,10 +327,10 @@ class MeshRenderer:
             self._mesh_pipeline.setShaderStages(
                 [
                     QtGui.QRhiShaderStage(
-                        QtGui.QRhiShaderStage.Type.Vertex, self._mesh_shaders[0]
+                        QtGui.QRhiShaderStage.Type.Vertex, mesh_shaders[0]
                     ),
                     QtGui.QRhiShaderStage(
-                        QtGui.QRhiShaderStage.Type.Fragment, self._mesh_shaders[1]
+                        QtGui.QRhiShaderStage.Type.Fragment, mesh_shaders[1]
                     ),
                 ]
             )
@@ -357,10 +366,10 @@ class MeshRenderer:
             self._mesh_wireframe_pipeline.setShaderStages(
                 [
                     QtGui.QRhiShaderStage(
-                        QtGui.QRhiShaderStage.Type.Vertex, self._mesh_shaders[0]
+                        QtGui.QRhiShaderStage.Type.Vertex, mesh_shaders[0]
                     ),
                     QtGui.QRhiShaderStage(
-                        QtGui.QRhiShaderStage.Type.Fragment, self._mesh_shaders[1]
+                        QtGui.QRhiShaderStage.Type.Fragment, mesh_shaders[1]
                     ),
                 ]
             )

@@ -1,13 +1,13 @@
-"""Provides a point renderer that compatible with both Vulkan/OpenGL and Direct3D."""
+"""Provides a point renderer compatible with both Vulkan/OpenGL and Direct3D."""
 
 import ctypes
 import os
-from typing import cast
+from typing import Sequence, cast
 
 import numpy as np
 from PySide6 import QtGui, QtWidgets
 
-from neoxtractor.core.utils import get_application_path
+from neoxtractor.core.utils.app import get_application_path
 from neoxtractor.gui.utils.rendering import is_d3d, static_uniform_buffer_type
 
 
@@ -39,8 +39,10 @@ class PointRenderer:
         self._rhi_widget = rhi_widget
         self._point_color = point_color
 
-        self._points = []
-        self._new_points = []
+        # Each point holds 3 floats, or 4 when add_points() appended a
+        # pixel size.
+        self._points: list[Sequence[float]] = []
+        self._new_points: list[Sequence[float]] | None = []
 
         self._rhi: QtGui.QRhi | None = None
 
@@ -55,10 +57,7 @@ class PointRenderer:
         self._srb: QtGui.QRhiShaderResourceBindings | None = None
 
     def _generate_quad_indices(self, point_count: int) -> list[int]:
-        """
-        Generate indices for quad rendering ahead of time.
-        Each point creates a quad with 2 triangles (6 indices).
-        """
+        """Build quad indices: 2 triangles (6 indices) per 4-vertex quad."""
         indices = []
         for i in range(point_count):
             base_vertex = i * 4
@@ -76,11 +75,9 @@ class PointRenderer:
         return indices
 
     def _points_to_quads(
-        self, points: list[tuple[int, int, int, int]], screen_width, screen_height
+        self, points: list[Sequence[float]], screen_width, screen_height
     ):
-        """
-        Convert point data to quad vertices for Direct3D rendering.
-        """
+        """Expand 4-float points into quad vertices for Direct3D rendering."""
         pnts = np.array(points)
         num_points = len(pnts)
 
@@ -109,7 +106,11 @@ class PointRenderer:
         """
         Add points to the renderer.
 
-        :param points: A list of points, where each point is a tuple of (x, y, z).
+        :param points: An array-like of points, each a tuple/array of
+            ``(x, y, z)`` floats (a bare sequence, or stacked with
+            ``point_size`` below).  Left untyped on purpose: callers pass
+            both ``list[tuple]`` and ``list[np.ndarray]`` and it feeds
+            ``np.column_stack`` directly.
         :param point_size: The size of the points.
         """
 
@@ -126,16 +127,15 @@ class PointRenderer:
         self._new_points.extend(points_with_size.tolist())
 
     def clear_points(self):
-        """
-        Clear all points from the renderer.
-        """
+        """Remove all points from the renderer."""
         self._points = []
 
     def initialize(self, cb: QtGui.QRhiCommandBuffer, mvp_ubuf: QtGui.QRhiBuffer):
         """
-        Initialize the renderer.
-
-        :param cb: The command buffer to use for rendering.
+        Build GPU resources on first call: shaders loaded from serialized
+        ``.qsb`` files (``point`` or ``point_d3d`` per backend), uniform
+        buffers, and the graphics pipeline. Call before update_resources()
+        and render().
         """
 
         if self._rhi is None or self._rhi != self._rhi_widget.rhi():
@@ -244,7 +244,8 @@ class PointRenderer:
             )
             self._pipeline.create()
 
-            # Direct 3D needs dynamic uniform buffer
+            # D3D refreshes the color via a dynamic buffer in
+            # update_resources(), so only non-D3D uploads it statically here.
             if not self._is_d3d:
                 resource_updates = self._rhi.nextResourceUpdateBatch()
                 arr = (ctypes.c_float * len(self._point_color))(*self._point_color)
@@ -308,9 +309,9 @@ class PointRenderer:
 
             if self._is_d3d:
                 indices = self._generate_quad_indices(point_count)
-                arr = (ctypes.c_int * len(indices))(*indices)
+                idx_arr = (ctypes.c_int * len(indices))(*indices)
                 resource_updates.uploadStaticBuffer(
-                    cast(QtGui.QRhiBuffer, self._ibuf), cast(int, arr)
+                    cast(QtGui.QRhiBuffer, self._ibuf), cast(int, idx_arr)
                 )
 
             self._points = self._new_points

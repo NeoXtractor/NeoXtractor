@@ -7,7 +7,7 @@ from typing import cast
 
 from PySide6 import QtGui, QtWidgets
 
-from neoxtractor.core.utils import get_application_path
+from neoxtractor.core.utils.app import get_application_path
 from neoxtractor.gui.renderers.text_renderer import TextRenderer
 from neoxtractor.gui.widgets.managed_rhi_widget import ManagedRhiWidget
 
@@ -58,7 +58,8 @@ class ColorTriangleWidget(ManagedRhiWidget):
         self._text_renderer = TextRenderer(self, 16)
 
         self._last_frame_time = time.time()
-        self._rotation = 0
+        # Rotation accumulates a float per frame (1.5 * delta * 60).
+        self._rotation: float = 0
 
     def initialize(self, cb: QtGui.QRhiCommandBuffer):
         if self._rhi != self.rhi() or self._rhi is None:  # type hint
@@ -96,22 +97,16 @@ class ColorTriangleWidget(ManagedRhiWidget):
             self._pipeline = self._rhi.newGraphicsPipeline()
             shaders_path = os.path.join(get_application_path(), "data", "shaders")
             with open(os.path.join(shaders_path, "color.vert.qsb"), "rb") as f:
-                vsrc = f.read()
-                vsrc = QtGui.QShader.fromSerialized(vsrc)
-                with open(os.path.join(shaders_path, "color.frag.qsb"), "rb") as f:
-                    fsrc = f.read()
-                    fsrc = QtGui.QShader.fromSerialized(fsrc)
+                vsrc = QtGui.QShader.fromSerialized(f.read())
+            with open(os.path.join(shaders_path, "color.frag.qsb"), "rb") as f:
+                fsrc = QtGui.QShader.fromSerialized(f.read())
 
-                    self._pipeline.setShaderStages(
-                        [
-                            QtGui.QRhiShaderStage(
-                                QtGui.QRhiShaderStage.Type.Vertex, vsrc
-                            ),
-                            QtGui.QRhiShaderStage(
-                                QtGui.QRhiShaderStage.Type.Fragment, fsrc
-                            ),
-                        ]
-                    )
+            self._pipeline.setShaderStages(
+                [
+                    QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Vertex, vsrc),
+                    QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Fragment, fsrc),
+                ]
+            )
             input_layout = QtGui.QRhiVertexInputLayout()
             input_layout.setBindings(
                 [
@@ -152,7 +147,10 @@ class ColorTriangleWidget(ManagedRhiWidget):
         )
         self._view_proj.translate(0, 0, -4)
 
-    def render(self, cb: QtGui.QRhiCommandBuffer):
+    # PySide6 stub defect: the .pyi gives QWidget.render(painter, ...) and
+    # QRhiWidget.render(cb) one name, so any render(cb) override is flagged.
+    # The stub's overload set is wrong, not our signature.
+    def render(self, cb: QtGui.QRhiCommandBuffer):  # type: ignore[override]
         if (
             self._rhi is None
             or self._view_proj is None

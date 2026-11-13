@@ -8,8 +8,8 @@ from typing import cast
 from PIL import Image, ImageDraw, ImageFont
 from PySide6 import QtGui, QtWidgets
 
-from neoxtractor.core.logger import get_logger
-from neoxtractor.core.utils import get_application_path
+from neoxtractor.core.utils.logger import get_logger
+from neoxtractor.core.utils.app import get_application_path
 
 
 @dataclass
@@ -137,8 +137,12 @@ class TextRenderer:
 
         # Create character map
         self._char_data: dict[str, Character] = {}
-        cursor_x, cursor_y = 0, 0
-        max_height = 0
+        # Atlas cursors are sub-pixel geometry: PIL getbbox() and the
+        # /atlas_size normalisation below produce floats, so the running
+        # pen position and row height are tracked as float throughout.
+        cursor_x: float = 0
+        cursor_y = 0
+        max_height: float = 0
 
         ascent, descent = font.getmetrics()
         self.font_height = total_height = ascent + descent
@@ -189,13 +193,9 @@ class TextRenderer:
 
     def releaseResources(self):
         """
-        Release all allocated graphics resources.
-        This method properly destroys and cleans up all graphics pipeline resources
-        including the rendering pipeline, shader resource binding, and various buffers
-        (uniform, index, and vertex buffers). Each resource is checked for existence
-        before destruction and set to None after cleanup to prevent double-destruction.
-        This method should be called when the text renderer is no longer needed
-        or during cleanup to prevent memory leaks.
+        Destroy the pipeline, shader resource bindings, and all buffers,
+        clearing each handle so initialize() can rebuild them. Call on
+        shutdown to avoid leaking GPU resources.
         """
 
         if self._pipeline is not None:
@@ -273,7 +273,7 @@ class TextRenderer:
         # Create uniform buffer for projection matrix and text color
         self._ubuf = self._rhi.newBuffer(
             QtGui.QRhiBuffer.Type.Dynamic, QtGui.QRhiBuffer.UsageFlag.UniformBuffer, 64
-        )  # Matrix (64 bytes)
+        )  # Projection matrix: 4x4 floats = 64 bytes
         self._ubuf.create()
 
         sampler = self._rhi.newSampler(
@@ -312,25 +312,21 @@ class TextRenderer:
             os.path.join(get_application_path(), "data", "shaders", "text.vert.qsb"),
             "rb",
         ) as f:
-            vsrc = f.read()
-            vsrc = QtGui.QShader.fromSerialized(vsrc)
-            with open(
-                os.path.join(
-                    get_application_path(), "data", "shaders", "text.frag.qsb"
-                ),
-                "rb",
-            ) as f:
-                fsrc = f.read()
-                fsrc = QtGui.QShader.fromSerialized(fsrc)
+            vsrc = QtGui.QShader.fromSerialized(f.read())
+        with open(
+            os.path.join(
+                get_application_path(), "data", "shaders", "text.frag.qsb"
+            ),
+            "rb",
+        ) as f:
+            fsrc = QtGui.QShader.fromSerialized(f.read())
 
-                self._pipeline.setShaderStages(
-                    [
-                        QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Vertex, vsrc),
-                        QtGui.QRhiShaderStage(
-                            QtGui.QRhiShaderStage.Type.Fragment, fsrc
-                        ),
-                    ]
-                )
+        self._pipeline.setShaderStages(
+            [
+                QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Vertex, vsrc),
+                QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Fragment, fsrc),
+            ]
+        )
 
         # Set up vertex input layout
         input_layout = QtGui.QRhiVertexInputLayout()
@@ -368,12 +364,14 @@ class TextRenderer:
 
         # Set up blending for text rendering
         target_blend = QtGui.QRhiGraphicsPipeline.TargetBlend()
-        # TargetBlend is not currently typed
-        target_blend.enable = True  # type: ignore
-        target_blend.srcColor = QtGui.QRhiGraphicsPipeline.BlendFactor.SrcAlpha  # type: ignore
-        target_blend.dstColor = QtGui.QRhiGraphicsPipeline.BlendFactor.OneMinusSrcAlpha  # type: ignore
-        target_blend.srcAlpha = QtGui.QRhiGraphicsPipeline.BlendFactor.One  # type: ignore
-        target_blend.dstAlpha = QtGui.QRhiGraphicsPipeline.BlendFactor.OneMinusSrcAlpha  # type: ignore
+        target_blend.enable = True
+        # PySide6 stub gap: TargetBlend fields are typed int, but Qt accepts
+        # and stores BlendFactor enums at runtime (verified by assignment probe).
+        BF = QtGui.QRhiGraphicsPipeline.BlendFactor
+        target_blend.srcColor = BF.SrcAlpha  # type: ignore[assignment]
+        target_blend.dstColor = BF.OneMinusSrcAlpha  # type: ignore[assignment]
+        target_blend.srcAlpha = BF.One  # type: ignore[assignment]
+        target_blend.dstAlpha = BF.OneMinusSrcAlpha  # type: ignore[assignment]
 
         self._pipeline.setTargetBlends([target_blend])
 
@@ -446,14 +444,15 @@ class TextRenderer:
             scale = queued_text.scale
 
             color_data = list(color)
-            cursor_x = position[0]
+            cursor_x: float = position[0]
 
             for char in text:
                 if char not in self._char_data:
                     continue
 
                 char_info = self._char_data[char]
-                w, h = char_info.size
+                # Scaled glyph size is fractional once multiplied by scale.
+                w, h = float(char_info.size[0]), float(char_info.size[1])
                 w, h = w * scale, h * scale
                 tex_coords = char_info.tex_coords
 

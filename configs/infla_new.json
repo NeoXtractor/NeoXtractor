@@ -1,9 +1,11 @@
 {
+  "config_version": 3,
   "name": "Infinite Lagrange - New",
   "read_options": {
-    "decryption_key": 83,
-    "aes_key": null,
-    "info_size": 28
+    "npk": {
+      "decryption_key": 83,
+      "info_size": 28
+    }
   },
   "entry_signature_name_map": {}
 }
