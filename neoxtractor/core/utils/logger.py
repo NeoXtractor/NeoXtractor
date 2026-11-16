@@ -7,10 +7,12 @@ debug/warning output into the same log stream is installed explicitly via
 PySide6 or PyQt6 bindings.
 """
 
+import functools
 import inspect
 import importlib
 import logging
 import os
+import sys
 
 LEVEL_MAP = {
     "DEBUG": logging.DEBUG,
@@ -40,6 +42,24 @@ def _coerce_level(level):
     return logging.INFO, f"Invalid log level: {level}. Using default (INFO)."
 
 
+@functools.lru_cache(maxsize=512)
+def _logger_of_call_site(code):
+    """Resolve a call-site code object to its logger, cached.
+
+    Walking the stack with ``inspect.stack()`` is expensive (it builds
+    frame records for the whole stack and probes the filesystem); reading
+    the caller's code object directly and caching the resolution keeps
+    repeated ``get_logger()`` calls at the same site cheap.
+    """
+    module = inspect.getmodule(code)
+    module_name = module.__name__ if module else "unknown"
+    # Entry points run as "__main__"; keep the application logger name there.
+    # ``default_logger`` is defined below, but it is only touched at call time.
+    if module_name == "__main__":
+        return default_logger
+    return logging.getLogger(module_name)
+
+
 def get_logger(module_name=None):
     """
     Get a logger with a specific module name.
@@ -48,9 +68,7 @@ def get_logger(module_name=None):
     :return: A logger instance with the specified name.
     """
     if module_name is None:
-        frame = inspect.stack()[1]
-        module = inspect.getmodule(frame[0])
-        module_name = module.__name__ if module else "unknown"
+        return _logger_of_call_site(sys._getframe(1).f_code)
 
     if module_name == "__main__":
         return default_logger
