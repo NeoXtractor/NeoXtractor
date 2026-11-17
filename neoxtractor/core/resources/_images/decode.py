@@ -19,7 +19,7 @@ from typing import IO, cast
 
 import texture2ddecoder
 from bitstring import ConstBitStream
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from neoxtractor.core.utils.binary_readers import read_uintle32, read_uintle64
 from neoxtractor.core.utils.filelike import FileLike, as_stream, read_all
@@ -80,7 +80,10 @@ def pillow_open(f: FileLike, fmt: str) -> Image.Image:
         return Image.open(
             cast("IO[bytes]", stream), "r", (PILLOW_FORMATS[fmt].upper(), "PNG")
         )
-    except NotImplementedError:
+    except (NotImplementedError, UnidentifiedImageError):
+        # Pillow reports a DDS it cannot parse (bad header, volume texture,
+        # unsupported DXGI format) as an unidentified image, because
+        # Image.open swallows the SyntaxError raised by its own DDS plugin.
         if fmt == "dds":
             return _dds_dxgi_fallback(read_all(stream))
         raise
