@@ -295,7 +295,7 @@ class NPKArchive(Archive):
             self._index_arc4_len = len(index_data)
             index_data = ARC4(_ARC4_KEY).decrypt(index_data)
         if self._encrypt_mode == 3:
-            index_data = decrypt_eggparty_index(index_data)
+            index_data = decrypt_eggparty_index(index_data, self._info_size)
 
         nxfn = self._nxfn_files
         with io.BytesIO(index_data) as buf:

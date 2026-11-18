@@ -4,86 +4,55 @@ Every function takes plain values (bytes plus index fields) and returns new
 bytes.
 """
 
+import struct
+
 from neoxtractor.core.packages.npk.enums import DecryptionType
 
-from .eggyparty_codes import decrypt_mode3_block
+from .eggyparty_codes import (
+    EGGPARTY_RAW_KEYS,
+    decrypt_mode3_block,
+    make_dec_schedule,
+)
 
 
-def decrypt_eggparty_index(index_data: bytes | bytearray):
-    """Decrypt whole 16-byte blocks; a short tail is left unchanged."""
-    round_keys = [
-        1466294906,
-        1460669224,
-        2458039086,
-        3599020919,
-        687260292,
-        2570908058,
-        1885258245,
-        245923009,
-        1693573352,
-        2982818590,
-        3915527071,
-        2130099908,
-        448182585,
-        3577467894,
-        1487405185,
-        2543095131,
-        909181480,
-        3482151631,
-        2375275383,
-        3476852186,
-        4146422541,
-        4189874407,
-        1109309880,
-        1118789293,
-        1149249532,
-        244911082,
-        3148009823,
-        11659029,
-        2003874988,
-        1243163670,
-        3040598709,
-        3138598474,
-        3914532381,
-        1030330554,
-        4280481443,
-        237563135,
-        1147416806,
-        3560611495,
-        3259723289,
-        4043971164,
-        2557374349,
-        813845727,
-        4047979994,
-        2489865706,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        10,
-    ]
+def _signatures_ascending(data: bytes | bytearray, info_size: int) -> bool:
+    """Check whether all record signatures are strictly ascending."""
+    count = len(data) // info_size
+    if count < 2:
+        return True
+    prev = struct.unpack_from("<I", data, 0)[0]
+    for i in range(1, count):
+        cur = struct.unpack_from("<I", data, i * info_size)[0]
+        if cur <= prev:
+            return False
+        prev = cur
+    return True
 
-    buffer = bytearray(index_data)
-    block_count = len(buffer) >> 4
-    for block_index in range(block_count):
-        offset = block_index * 16
-        buffer[offset : offset + 16] = decrypt_mode3_block(
-            bytes(buffer[offset : offset + 16]), round_keys
-        )
 
-    return bytes(buffer)
+def decrypt_eggparty_index(
+    index_data: bytes | bytearray, info_size: int = 28
+) -> bytes:
+    """Decrypt enc3 index blocks, trying each known EggParty key in turn.
+
+    The first key whose decryption produces strictly ascending signatures
+    is accepted.  A short tail (not a multiple of 16) is left unchanged.
+    Raises ``ValueError`` if no known key produces a valid index.
+    """
+    block_count = len(index_data) >> 4
+    tail = index_data[block_count * 16 :]
+
+    for raw_key in EGGPARTY_RAW_KEYS:
+        schedule = make_dec_schedule(raw_key)
+        buffer = bytearray(index_data[: block_count * 16])
+        for bi in range(block_count):
+            off = bi * 16
+            buffer[off : off + 16] = decrypt_mode3_block(
+                bytes(buffer[off : off + 16]), schedule
+            )
+        if _signatures_ascending(buffer, info_size):
+            return bytes(buffer) + tail
+
+    raise ValueError("no known EggParty key decrypts this index")
 
 
 def decrypt_entry(
