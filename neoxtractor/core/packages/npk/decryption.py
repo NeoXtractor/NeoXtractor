@@ -16,14 +16,15 @@ from .eggyparty_codes import (
 
 
 def _signatures_ascending(data: bytes | bytearray, info_size: int) -> bool:
-    """Check whether all record signatures are strictly ascending."""
+    """Check whether record signatures are in non-decreasing order.
+    """
     count = len(data) // info_size
     if count < 2:
         return True
     prev = struct.unpack_from("<I", data, 0)[0]
     for i in range(1, count):
         cur = struct.unpack_from("<I", data, i * info_size)[0]
-        if cur <= prev:
+        if cur < prev:
             return False
         prev = cur
     return True
@@ -34,8 +35,8 @@ def decrypt_eggparty_index(
 ) -> bytes:
     """Decrypt enc3 index blocks, trying each known EggParty key in turn.
 
-    The first key whose decryption produces strictly ascending signatures
-    is accepted.  A short tail (not a multiple of 16) is left unchanged.
+    The first key whose decryption produces non-decreasing signatures is
+    accepted.  A short tail (not a multiple of 16) is left unchanged.
     Raises ``ValueError`` if no known key produces a valid index.
     """
     block_count = len(index_data) >> 4

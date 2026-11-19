@@ -1,10 +1,17 @@
 """NPK container module: self-sufficient single-file archives.
 
-An NPK carries its own entry table and, when ``hash_mode``/``encrypt_mode``
-allow it, a plaintext name table (NXFN) inside the same file, so it declares
-no companions, parents, or wants and never attaches to a unit.  Payload is
+An NPK carries its own entry table and, when the header's name-table flag is
+set, a plaintext name table (NXFN) inside the same file, so it declares no
+companions, parents, or wants and never attaches to a unit.  Payload is
 decoded lazily per entry through :class:`Archive.get_res`; ``load`` reads only
 the header and index tables.
+
+The header spans 24 bytes: magic, entry count, the high half of the index
+offset, an encryption byte, a name-table flag byte, two reserved bytes, the
+hash mode, and the low half of the index offset.  Each index record spans 28
+bytes and ends with four single-byte fields -- compression, a reserved byte,
+encryption, and the high byte of the payload offset -- so both offsets are
+64-bit and archives may exceed 4 GiB.
 
 Direct port of the reference decoder: header layout, index record widths,
 and the decrypt/decompress chain follow its control flow exactly -- do not
@@ -42,6 +49,7 @@ from neoxtractor.core.packages.errors import (
     UnsupportedRef,
 )
 from neoxtractor.core.utils.binary_readers import (
+    read_uint8,
     read_uint16,
     read_uint32,
     read_uint64,
@@ -165,10 +173,10 @@ class NPKArchive(Archive):
 
         self._file_type = NPKFileType.NXPK
         self._file_count = 0
-        self._var1 = 0
         self._index_offset = 0
         self._hash_mode = 0
         self._encrypt_mode = 0
+        self._name_table = False
         self._info_size = 0
         self._nxfn_files: list[bytes] = []
         self._key_generator: EXPKKeyGenerator | None = None
@@ -209,10 +217,12 @@ class NPKArchive(Archive):
             raise ValueError(f"Not a valid NPK file: {self.path}")
 
         self._file_count = read_uint32(file)
-        self._var1 = read_uint32(file)
-        self._encrypt_mode = read_uint32(file)
+        index_offset_high = read_uint32(file)
+        self._encrypt_mode = read_uint8(file)
+        self._name_table = bool(read_uint8(file) & 1)
+        read_uint16(file)
         self._hash_mode = read_uint32(file)
-        self._index_offset = read_uint32(file)
+        self._index_offset = (index_offset_high << 32) | read_uint32(file)
 
         self._info_size = (
             self._options.info_size
@@ -220,55 +230,45 @@ class NPKArchive(Archive):
             else self._determine_info_size(file)
         )
 
-        # The three header modes are mutually exclusive, exactly as in the
-        # reference layout: a hash_mode 3 file never reads an encrypt_mode 256
-        # name table, so its branch is a deliberate no-op (the ARC4 stream is
-        # created fresh at each read site).
-        if self._hash_mode == 2:
-            file.seek(self._index_offset + self._file_count * self._info_size)
-            self._nxfn_files = [
-                x for x in file.read().split(b"\x00") if x != b""
-            ]
-        elif self._hash_mode == 3:
-            pass
-        elif self._encrypt_mode == 256:
-            self._nxfn_files = self._read_nxfn_table(
-                file, self._index_offset + self._file_count * self._info_size
-            )
+        if self._name_table:
+            names_at = self._index_offset + self._file_count * self._info_size
+            self._nxfn_files = self._read_nxfn_table(file, names_at)
 
     def _read_nxfn_table(self, file: Seekable, offset: int) -> list[bytes]:
         """Read the NXFN name table at *offset*; [] when it is not understood.
 
-        Layout: 16-byte header (magic ``NXFN``, version, stored length,
-        uncompressed length) then the table body, NUL-separated names.
-        Version 0 stores the body as plain text; version 0x10000 stores it
-        zlib-compressed.  A missing magic or an unknown version leaves the
-        entries nameless -- no guessing at the layout.
+        Layout: 16-byte header (magic ``NXFN``, encryption byte, reserved
+        byte, compression word, stored length, uncompressed length) then the
+        table body of NUL-separated names.  Compression 0 stores the body as
+        plain text and 1 as a zlib stream.  A missing magic, an unsupported
+        algorithm, or a length mismatch leaves the entries nameless.
         """
         file.seek(offset)
         header = file.read(16)
         if len(header) < 16 or header[:4] != _MAGIC_NXFN:
             return []
-        _magic, version, clen, ulen = struct.unpack("<4sIII", header)
-        if version == 0:
+        encrypt_flag = header[4]
+        zip_flag = struct.unpack_from("<H", header, 6)[0]
+        clen, ulen = struct.unpack_from("<II", header, 8)
+        if encrypt_flag != 0:
+            return []
+        if zip_flag == 0:
             body = file.read(clen)
-        elif version == 0x10000:
+        elif zip_flag == 1:
             try:
                 body = zlib.decompress(file.read(clen))
             except zlib.error:
                 return []
-            if len(body) != ulen:
-                return []
         else:
+            return []
+        if len(body) != ulen:
             return []
         return [x for x in body.split(b"\x00") if x != b""]
 
     def _determine_info_size(self, file: Seekable) -> int:
         """Resolve the width of one index record from the file's layout."""
-        if self._encrypt_mode == 256 or self._hash_mode == 2:
+        if self._name_table:
             return 0x1C
-        if self._var1 == 1:
-            return 0x20
         current_pos = file.tell()
         file.seek(self._index_offset)
         index_start = file.tell()
@@ -283,9 +283,6 @@ class NPKArchive(Archive):
         file.seek(self._index_offset)
         if self._file_count == 0:
             return
-        if self._var1 == 1:
-            # A var1 == 1 layout anchors the index at the tail of the file.
-            file.seek(-self._info_size * self._file_count, 2)
         index_data = file.read(self._file_count * self._info_size)
 
         if self._file_type == NPKFileType.EXPK:
@@ -313,15 +310,18 @@ class NPKArchive(Archive):
                 zcrc = read_uint32(buf)
                 crc = read_uint32(buf)
 
-                zip_flag = read_uint16(buf)
+                zip_flag = read_uint8(buf)
                 if zip_flag == 5:
                     zip_flag = 2
                 zip_type = CompressionType(zip_flag)
 
-                encrypt_flag = read_uint16(buf)
+                read_uint8(buf)
+                encrypt_flag = read_uint8(buf)
                 if encrypt_flag == 3:
                     encrypt_flag = 2
                 encrypt_type = DecryptionType(encrypt_flag)
+
+                file_offset |= read_uint8(buf) << 32
 
                 structure = nxfn[i] if i < len(nxfn) else None
                 name, source = self._resolve_name(structure, signature)
