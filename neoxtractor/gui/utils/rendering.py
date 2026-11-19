@@ -33,7 +33,7 @@ def static_uniform_buffer_type(widget: QtWidgets.QRhiWidget) -> QtGui.QRhiBuffer
     )
 
 
-def grid(size: int, steps: int):
+def grid(size: float, steps: int, cell: float | None = None):
     """
     Generate a 3D grid of line segments for visualization purposes.
     Creates a grid pattern by generating horizontal and vertical line segments
@@ -41,8 +41,10 @@ def grid(size: int, steps: int):
     Args:
         size (float): Half the size of the grid (distance from center to edge).
                      The grid will extend from -size to +size in both X and Z directions.
-        steps (int): Number of grid lines in each direction. Total lines will be 2*steps
-                    (steps horizontal + steps vertical).
+        steps (int): Number of grid lines in each direction when ``cell`` is None.
+        cell (float | None): When given, lines are spaced exactly ``cell`` apart
+                     (size is rounded up to a whole number of cells), so the grid
+                     doubles as a fixed-unit scale reference.
     Returns:
         numpy.ndarray: Array of shape (2*steps, 2, 3) containing line segment endpoints.
                       Each line segment is represented by two 3D points (start and end).
@@ -52,8 +54,14 @@ def grid(size: int, steps: int):
         >>> print(grid_lines.shape)
         (10, 2, 3)
     """
-
-    u = np.repeat(np.linspace(-size, size, steps), 2)
-    v = np.tile([-size, size], steps)
-    w = np.zeros(steps * 2)
+    if cell is not None and cell > 0:
+        n = max(1, int(np.ceil(size / cell)))
+        coords = np.arange(-n, n + 1) * cell
+        extent = n * cell
+    else:
+        coords = np.linspace(-size, size, steps)
+        extent = size
+    u = np.repeat(coords, 2)
+    v = np.tile([-extent, extent], len(coords))
+    w = np.zeros(len(coords) * 2)
     return np.concatenate([np.dstack([u, w, v]), np.dstack([v, w, u])])

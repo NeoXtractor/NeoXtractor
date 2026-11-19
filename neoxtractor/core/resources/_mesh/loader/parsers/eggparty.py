@@ -1,11 +1,10 @@
-"""Parser for the NeoX mesh v4 "115-bit per vertex" layout used by EggParty.
+"""Parser for the NeoX mesh v4 layout used by EggParty.
 
 ``MeshParser0`` has no branch for this layout and fails on every EggParty
-mesh. This parser implements the sections verified against real samples and
-an independently produced reference export (see ``eggparty_layout`` for the
-byte-level format reference). One outstanding problem: **the x and z
-position bit fields are still placeholders**, so models render as thin
-slabs on those axes; faces, UVs, joints and weights are verified.
+mesh.  This parser walks the vertex payload the way the engine does: one
+sequential pass stream (flag, positions, normals, optional tangents,
+optional faces, UVs, optional colours, optional skinning tail).  See
+``eggparty_layout`` for the byte-level format reference.
 
 The parser is registered *after* ``MeshParser0``: files that already parse
 keep taking the original path.
@@ -24,16 +23,17 @@ from neoxtractor.core.resources._mesh.loader.types import (
 )
 
 from .eggparty_layout import (
-    BITS_PER_VERTEX,
     MESH_MAGIC,
     decode_faces,
+    decode_normals,
     decode_positions,
     decode_uv,
+    tangent_size,
 )
 
 
 class EggPartyMeshParser(BaseMeshParser):
-    """Parser for the 115-bits-per-vertex NeoX v4 mesh variant."""
+    """Parser for the NeoX v4 sequential-pass mesh layout."""
 
     def parse(self, data: bytes) -> MeshData:
         """Parse mesh."""
@@ -132,34 +132,49 @@ class EggPartyMeshParser(BaseMeshParser):
         data_start = header["data_start"]
         end_offset = header["end_offset"]
 
-        geometry_size = (BITS_PER_VERTEX * vertex_count + 16) // 8
-        faces_offset = data_start + geometry_size
-        uv_offset = faces_offset + face_count * 6
+        flag = data[data_start]
+        pos = data_start + 1
+
+        pos_size = vertex_count * (12 if flag & 1 else 8)
+        positions = decode_positions(
+            data[data_start:data_start + 1 + pos_size], vertex_count
+        )
+        pos += pos_size
+
+        normals = decode_normals(data[pos:pos + vertex_count * 3])
+        pos += vertex_count * 3
+
+        # bit 2 clear keeps the tangent pass in the stream
+        if not flag & 4:
+            pos += tangent_size(vertex_count)
+
+        faces = np.zeros((0, 3), dtype=np.int64)
+        # bit 1 clear keeps the face pass in the stream
+        if not flag & 2:
+            faces = decode_faces(data[pos:pos + face_count * 6], face_count)
+            if faces.size and (faces.min() < 0 or faces.max() >= vertex_count):
+                raise ValueError("face indices out of range")
+            pos += face_count * 6
 
         uv_total = sum(layers * count for count, _, layers, _ in header["submeshes"])
         color_total = sum(color * count for count, _, _, color in header["submeshes"])
         uv_size = 4 * uv_total
-        # ~28% of the pet_low meshes carry a 4-bytes-per-vertex colour section
-        # between the UV block and the tail. Missing it shifts every following
-        # section, which corrupts the joint/weight tail.
+        # Some meshes carry a 4-bytes-per-vertex colour section between the
+        # UV block and the skinning tail.  Missing it shifts every following
+        # section, which corrupts the joint/weight data.
         color_size = 4 * color_total
-        tail_size = 12 * vertex_count + 32
-        tail_offset = uv_offset + uv_size + color_size
-        has_tail = end_offset - tail_offset == tail_size
-
-        positions = decode_positions(data[data_start:faces_offset], vertex_count)
-        faces = decode_faces(data[faces_offset:uv_offset], face_count)
-        if faces.size and (faces.min() < 0 or faces.max() >= vertex_count):
-            raise ValueError("face indices out of range")
-
-        uv = decode_uv(data[uv_offset:uv_offset + uv_size], uv_total)
+        uv = decode_uv(data[pos:pos + uv_size], uv_total)
         if uv is None:
             uv = np.zeros((vertex_count, 2))
+        pos += uv_size + color_size
+
+        tail_size = 12 * vertex_count + 32
+        has_tail = end_offset - pos == tail_size
 
         joints = np.zeros((vertex_count, 4), dtype=np.int64)
         weights = np.zeros((vertex_count, 4))
         if has_tail and header["bones"]["has_bones"] in (1, 4):
-            tail = data[tail_offset:tail_offset + tail_size]
+            tail = data[pos:pos + tail_size]
             joint_bytes = np.frombuffer(tail, dtype=np.uint8, count=vertex_count * 12)
             joints = joint_bytes.reshape(vertex_count, 12)[:, :4].astype(np.int64)
             weight_raw = np.frombuffer(tail, dtype="<u2", count=vertex_count * 4, offset=4)
@@ -171,22 +186,12 @@ class EggPartyMeshParser(BaseMeshParser):
             weights = raw_weights / totals
             joints = np.where(bad, 0, joints)
 
-        normals = np.zeros((vertex_count, 3))
-        triangles = positions[faces]
-        face_normals = np.cross(
-            triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
-        )
-        for k in range(3):
-            np.add.at(normals, faces[:, k], face_normals)
-        lengths = np.linalg.norm(normals, axis=1, keepdims=True)
-        lengths[lengths == 0] = 1.0
-        normals = normals / lengths
-
         get_logger().debug(
-            "MESH: v4/115-bit | VERTS: %d | FACES: %d | UV: %d",
+            "MESH: v4 pass stream | VERTS: %d | FACES: %d | UV: %d | FLAG: 0x%02x",
             vertex_count,
             face_count,
             uv_total,
+            flag,
         )
 
         mesh = Mesh(vertexes=vertex_count, faces=face_count)

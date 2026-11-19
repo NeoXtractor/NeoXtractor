@@ -33,7 +33,7 @@ class MeshLoader:
     def _initialize_parsers(self) -> List[BaseMeshParser]:
         """Initialize the list of available parsers in order of preference.
 
-        ``EggPartyMeshParser`` handles the 115-bits-per-vertex v4 layout that
+        ``EggPartyMeshParser`` handles the v4 sequential-pass layout that
         ``MeshParser0`` does not know about; it is tried second so files that
         already parse keep taking the original path.
         """
@@ -51,8 +51,9 @@ class MeshLoader:
         """
         get_logger().debug("Parsing mesh data from bytes")
 
-        # Try parsing with bytes data
-        for _i, parser in enumerate(self._parsers):
+        # Try parsing with bytes data.
+        errors: List[str] = []
+        for parser in self._parsers:
             parser_name = parser.__class__.__name__
             try:
                 get_logger().debug("Attempting %s (bytes)", parser_name)
@@ -63,9 +64,10 @@ class MeshLoader:
                 return model
 
             except Exception as e:
-                get_logger().warning("%s (bytes) failed: %s", parser_name, e)
+                get_logger().debug("%s (bytes) failed: %s", parser_name, e)
+                errors.append("%s: %s" % (parser_name, e))
 
-        get_logger().error("All byte-based parsing methods failed")
+        get_logger().warning("All mesh parsers failed: %s", "; ".join(errors))
         return None
 
     def load_from_file(self, file_path: Union[str, Path]) -> Optional[MeshData]:

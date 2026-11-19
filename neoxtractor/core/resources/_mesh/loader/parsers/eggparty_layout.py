@@ -1,35 +1,34 @@
-"""Pure helpers for the NeoX v4 115-bits-per-vertex mesh layout (EggParty).
+"""Pure helpers for the NeoX v4 mesh layout (EggParty).
 
-Kept free of project imports so the layout can be unit-tested and scored by
-``tools/verify_eggparty_positions.py`` without pulling the logging stack.
-
-Format reference (verified against real samples and an independent export)
+Format reference
 --------------------------------------------------------------------------
-Container: NXPK archives with ``encrypt_mode == 3`` (EggParty index cipher).
 Mesh header: magic ``0xBBC88034``, version 4, bone block, ``end_offset``,
 then a submesh descriptor table (10-byte entries until a ``must_be_one == 1``
 terminator, followed by total vertex/face counts).
 
-Sections follow with no padding (``vc`` = total vertices, ``fc`` = faces)::
+After the header the vertex payload is a single sequential byte stream
+eaten pass by pass (``vc`` = vertices, ``fc`` = faces)::
 
-    geometry  (115*vc + 16)//8     bit-packed positions, 64-bit records
-    faces     6*fc                 three int16 deltas, global prefix sum
-    uv        4*sum(layers*vc_s)   float16 pairs
-    colors    4*sum(color*vc_s)    optional, ~28% of pet_low meshes
-    tail      12*vc + 32           optional: 4xu8 joints + 4xu16 weights
+    flag       1 byte
+    positions  vc*8  quantized 20-bit fields, or vc*12 raw float32 triples
+    normals    vc*3  signed-byte snorm triples (version 4 always)
+    tangents   T     optional: 3*vc signed bytes + ceil(3*vc/8) bitmap
+                     (+1 phantom byte when 3*vc is a multiple of 8)
+    faces      fc*6  optional: three int16 deltas, global prefix sum
+    uvs        4*sum(layers*vc_s)   float16 pairs
+    colors     4*sum(color*vc_s)    optional raw u32 per vertex
+    tail       12*vc + 32           optional: 4xu8 joints + 4xu16 weights
 
-The section identity is exact on 1651 sampled meshes. Faces reproduce an
-independent FBX export triangle-for-triangle (14330/14330); UVs match the
-reference within 1e-5.
+The flag byte gates the stream: bit 0 selects the position encoding
+(quantized vs raw float32), bit 1 clear keeps the face pass present,
+bit 2 clear keeps the tangent pass present.  The tangent pass size is
+``T = 3*vc + ceil(3*vc/8) + (1 if 3*vc % 8 == 0 else 0)``.
 
-Position bit layout: each coordinate is two fields separated by one
-always-zero bit; the third coordinate's high block wraps to the record
-start. Only the y pair is verified (quantile deviation 0.049, correlation
-0.967). The x and z pairs are placeholders: models render as thin slabs
-until the true fields are found. Per-bit correlation hints: the real x
-high bit is 27 (not 26) and the real z wrap reaches bit 3 (not 2); a second
-non-degenerate reference sample is needed to resolve them. Score candidate
-layouts with ``tools/verify_eggparty_positions.py``.
+Position records (bit 0 clear): one 64-bit LE value per vertex holding
+three consecutive 20-bit fields (X at bits 0-19, Y at 20-39, Z at
+40-59; bits 60-63 unused).  Each field is a signed fixed-point value:
+a 19-bit magnitude (bits 0-18) divided by 2048, negated when bit 19 is
+set.
 """
 
 from __future__ import annotations
@@ -38,65 +37,71 @@ import numpy as np
 
 MESH_MAGIC = 0xBBC88034
 
-#: Bits consumed by one vertex in the packed geometry block.
-BITS_PER_VERTEX = 115
+#: Fixed-point scale: 19-bit magnitude divided by 2048.
+_POS_SCALE = 1.0 / 2048.0
 
-#: Each coordinate is stored as two fields separated by one always-zero bit.
-#: The third coordinate's high block wraps around to the start of the record.
-#:
-#: NOTE: only the *y* pair below is verified against a reference export. The x and z
-#: pairs are placeholders - see the module docstring.
-POSITION_FIELDS = (
-    ((8, 19), (20, 27)),
-    ((27, 39), (40, 47)),
-    ((48, 59), (60, 64)),
-)
-
-#: ``z`` also picks up bits 0..2 of the *same* record (wrap-around).
-Z_WRAP_BITS = (0, 1, 2)
-Z_WRAP_SHIFT = 15
+#: snorm8 divisor shared by the normal and tangent component bytes.
+_SNORM8 = 127.0
 
 
-def bits_to_int(bits: np.ndarray) -> np.ndarray:
-    """Little-endian bit columns to an unsigned integer per row."""
-    weights = 1 << np.arange(bits.shape[1], dtype=np.uint64)
-    return (bits.astype(np.uint64) * weights).sum(axis=1)
+def decode_positions(blob: bytes, vertex_count: int) -> np.ndarray:
+    """Decode v4 positions from the geometry section (flag byte included).
 
-
-def unpack_records(blob: bytes, vertex_count: int) -> np.ndarray:
-    """Return the `vertex_count x 64` little-endian bit matrix of the block."""
-    needed = vertex_count * 8
-    if len(blob) < needed:
-        raise ValueError("position block truncated")
-    records = np.frombuffer(blob, dtype=np.uint8, count=needed)
-    return np.unpackbits(records, bitorder="little").reshape(vertex_count, 64)
-
-
-def decode_positions(
-    blob: bytes,
-    vertex_count: int,
-    fields=POSITION_FIELDS,
-    z_wrap_bits=Z_WRAP_BITS,
-    z_wrap_shift=Z_WRAP_SHIFT,
-) -> np.ndarray:
-    """Decode the bit-packed position block.
-
-    NOTE: the x and z fields are known to be wrong; the model comes out far too
-    thin on those axes. The y field is verified.
+    Returns an (vertex_count, 3) float64 array in model space.
     """
-    bits = unpack_records(blob, vertex_count)
+    if len(blob) < 1:
+        raise ValueError("position block truncated")
+    flag = blob[0]
+    body = blob[1:]
+    if flag & 1:
+        needed = vertex_count * 12
+        if len(body) < needed:
+            raise ValueError("position block truncated")
+        return (
+            np.frombuffer(body, dtype="<f4", count=vertex_count * 3)
+            .reshape(vertex_count, 3)
+            .astype(np.float64)
+        )
+    needed = vertex_count * 8
+    if len(body) < needed:
+        raise ValueError("position block truncated")
+    records = np.frombuffer(body, dtype="<u8", count=vertex_count)
+    positions = np.empty((vertex_count, 3), dtype=np.float64)
+    for coord in range(3):
+        field = (records >> (coord * 20)) & 0xFFFFF
+        magnitude = (field & 0x7FFFF).astype(np.float64)
+        sign = (field >> 19) & 1
+        value = magnitude * _POS_SCALE
+        positions[:, coord] = np.where(sign, -value, value)
+    return positions
 
-    columns = []
-    for (low_a, low_b), (high_a, high_b) in fields:
-        value = bits_to_int(bits[:, low_a:low_b])
-        high = bits_to_int(bits[:, high_a:high_b])
-        columns.append(value + (high << (low_b - low_a)))
 
-    if z_wrap_bits:
-        wrapped = bits_to_int(bits[:, list(z_wrap_bits)])
-        columns[2] = columns[2] + (wrapped << z_wrap_shift)
+def decode_normals(blob: bytes) -> np.ndarray:
+    """Decode the snorm8 normal pass (3 signed bytes per vertex).
 
-    return np.stack(columns, axis=1).astype(np.int64).astype(np.float64)
+    Returns an (n, 3) float64 array of unit-ish direction vectors.
+    """
+    if len(blob) % 3:
+        raise ValueError("normal block truncated")
+    raw = np.frombuffer(blob, dtype=np.int8).reshape(-1, 3).astype(np.float64)
+    normals = raw / _SNORM8
+    lengths = np.linalg.norm(normals, axis=1, keepdims=True)
+    lengths[lengths == 0] = 1.0
+    return normals / lengths
+
+
+def tangent_size(vertex_count: int) -> int:
+    """Byte size of the tangent pass for ``vertex_count`` vertices.
+
+    Layout: 3 attribute bytes per vertex, then one bitmap bit per
+    attribute byte (3*vc bits), plus one phantom byte the engine's
+    bitmap pre-fetch leaves behind when 3*vc is a multiple of 8.
+    """
+    bits = 3 * vertex_count
+    size = bits + (bits + 7) // 8
+    if bits % 8 == 0:
+        size += 1
+    return size
 
 
 def decode_faces(blob: bytes, face_count: int) -> np.ndarray:

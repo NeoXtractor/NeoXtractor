@@ -41,9 +41,19 @@ INSTRUCTIONS: list[tuple[str, str | tuple[str, str]]] = [
 ]
 
 GRID_COLOR = [0.3, 0.3, 0.3]
+GRID_CELL_METERS = 1.525
+GRID_CELLS_PER_SIDE = 10
+
 GRID_VERTEX_DATA = [
     float(coord)
-    for grid_line in cast(np.ndarray, grid(360, 10))
+    for grid_line in cast(
+        np.ndarray,
+        grid(
+            GRID_CELL_METERS * GRID_CELLS_PER_SIDE / 2,
+            GRID_CELLS_PER_SIDE + 1,
+            cell=GRID_CELL_METERS,
+        ),
+    )
     for grid_vertex in grid_line
     for coord in [*grid_vertex, *GRID_COLOR]
 ]
