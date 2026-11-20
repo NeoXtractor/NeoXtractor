@@ -336,8 +336,9 @@ def _guarded_ask(child_ask: Ask, label: str) -> Ask:
 
     A child calling the query with an incompatible signature raises TypeError;
     that (and any other fault) is logged and answered ``None`` so the child can
-    fall back to standalone matching.  The query is read-only: it must not
-    trigger IO on the declaring file.
+    fall back to standalone matching.  The query is read-only: it may consult
+    the declaring file's own bytes but never writes and never decodes
+    payloads.
     """
 
     def guarded(*args: object, **kwargs: object) -> object:
@@ -411,7 +412,8 @@ def _resolve_want(
             continue
         if path in pool or path in denied:
             continue
-        eligible.append((path, not path.startswith(anchor + os.sep)))
+        within = path.startswith(os.path.join(anchor, ""))
+        eligible.append((path, not within))
     undecided = sum(1 for _path, above in eligible if above)
     added = 0
     asked = 0

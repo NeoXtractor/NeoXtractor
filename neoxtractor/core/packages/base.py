@@ -30,12 +30,11 @@ from neoxtractor.core.utils.filelike import Seekable
 # never expand without bound.
 MAX_POOL = 4096
 
-# A read-only query a declaring module offers about its own pre-parsed state
-# (Claim.private).  The driver hands it to a pulled child as the second
-# element of matches()'s want_ask; it is a query, not consent, and it must not
-# trigger IO on the declaring file.  Arguments are agreed by the two modules
-# (keyword arguments recommended); a child that calls it with an incompatible
-# signature degrades via TypeError, never faults the scan.
+# A read-only query a declaring module offers about itself.  The driver
+# hands it to a pulled child as the second element of matches()'s want_ask.
+# Arguments are agreed by the two modules (keyword arguments recommended);
+# a child that calls it with an incompatible signature degrades via the
+# driver's guard, never faults the scan.
 Ask = Callable[..., Any]
 
 
@@ -43,10 +42,11 @@ class Role(StrEnum):
     """The job a container performs inside a unit.
 
     ``INDEX`` = entry table (idx); ``DATA`` = payload store (a wpk part or a
-    bare slot file); ``NAMES`` = registry tables (a thd component: thh + thy
-    together).  A self-sufficient format (npk) declares ``None`` and never
-    attaches.  Formats may extend the vocabulary; attach matches on equality
-    only and never interprets an unknown value.
+    bare slot file); ``NAMES`` = a name registry that fills in entry names
+    for its parent (a thd component, a sidecar list).  A self-sufficient
+    format (npk) declares ``None`` and never attaches.  Formats may extend
+    the vocabulary; attach matches on equality only and never interprets an
+    unknown value.
     """
 
     INDEX = "index"
@@ -67,6 +67,7 @@ class NameSource(StrEnum):
     """How an entry's presented ``name`` was obtained (never a guess)."""
 
     NXFN = "nxfn"                  # plaintext name table inside the npk
+    SIDECAR = "sidecar"            # plaintext name from a sidecar name list
     RESID32 = "resid32"            # recovered via thd plus a name dictionary
     CONTENT_HASH = "content_hash"  # hex of the 16B hash standing in for a name
     MAP = "map"                    # user-provided name_map override
@@ -131,11 +132,13 @@ class Want:
     narrowing a deliberately loose glob without touching the path.
 
     ``child_ask`` is an optional read-only query the declaring module offers
-    about its own pre-parsed state (:attr:`Claim.private`).  When the driver
-    offers a file this want pulled to a module, it passes
-    ``(declaring format, child_ask)`` as that module's ``want_ask``; the child
-    may call it to consult the declarer without triggering IO on it.  ``None``
-    means the child is asked standalone.
+    about itself.  When the driver offers a file this want pulled to a
+    module, it passes ``(declaring format, child_ask)`` as that module's
+    ``want_ask``; a child that verifies itself against the declarer calls it
+    before claiming.  ``None`` means the declarer offers no query, and what
+    a child does then is the child's own policy: one whose identity depends
+    on the declarer's confirmation declines, one whose does not claims on
+    its own bytes alone.
     """
 
     __slots__ = ("role", "rel", "max_files", "pattern", "child_ask")
@@ -214,10 +217,11 @@ class ParentPref(NamedTuple):
     Never expands the pool and never needs to exist; attach resolves these in
     order against claims actually made this scan.  The stem is derived from the
     child's own name, which keeps the match exact without consulting the
-    filesystem.
+    filesystem.  ``role`` names the parent's job; ``None`` targets a
+    self-sufficient parent that performs no role at all.
     """
 
-    role: Role
+    role: Role | None
     rel: str
 
 
@@ -228,10 +232,12 @@ class Claim(NamedTuple):
     It holds no existence verdicts and no resolved objects -- the driver turns
     it into an :class:`Accepted`.
 
-    ``private`` is a format-private pre-parse cache (e.g. a decoded index)
-    that the driver never touches; only the owning format casts and consumes
-    it, and a :class:`Want` may expose a read-only query over it via
-    ``child_ask``.  Defaults to ``None``.
+    ``private`` is a format-private pre-parse cache (e.g. a decoded name
+    list) that the driver never touches: the owning module fills it in at
+    ``matches`` time and the parent that pulled this file consumes it from
+    the unit at ``load`` time; the two modules agree on its shape.  A
+    :class:`Want` may additionally expose a read-only query over the
+    declarer via ``child_ask``.  Defaults to ``None``.
     """
 
     format: str

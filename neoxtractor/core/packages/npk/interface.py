@@ -2,9 +2,11 @@
 
 An NPK carries its own entry table and, when the header's name-table flag is
 set, a plaintext name table (NXFN) inside the same file, so it declares no
-companions, parents, or wants and never attaches to a unit.  Payload is
-decoded lazily per entry through :class:`Archive.get_res`; ``load`` reads only
-the header and index tables.
+companions or parents and never attaches to a unit.  An NXPK asks the driver
+for one optional sibling -- a sidecar name list (its ``npk_info_ext``
+module) whose verified table fills the entries NXFN left nameless.  Payload
+is decoded lazily per entry through :class:`Archive.get_res`; ``load`` reads
+only the header and index tables.
 
 The header spans 24 bytes: magic, entry count, the high half of the index
 offset, an encryption byte, a name-table flag byte, two reserved bytes, the
@@ -20,6 +22,7 @@ simplify.  Key material is copied verbatim, never paraphrased.
 
 from __future__ import annotations
 
+import glob
 import io
 import os
 import struct
@@ -32,6 +35,7 @@ from arc4 import ARC4
 
 from neoxtractor.core.packages.base import (
     Archive,
+    Ask,
     Capability,
     Claim,
     EntryInfo,
@@ -40,8 +44,10 @@ from neoxtractor.core.packages.base import (
     PackageFile,
     ReadOptions,
     RefKind,
+    Role,
     Status,
     Unit,
+    Want,
 )
 from neoxtractor.core.packages.errors import (
     NoSuchEntry,
@@ -63,6 +69,11 @@ from neoxtractor.core.utils.wrappers import (
     unpack_lz4_like,
     unpack_nxs3,
     unpack_rotor,
+)
+from ..npk_info_ext.interface import (
+    FORMAT as SIDECAR_FORMAT,
+    SIDECAR_SUFFIX,
+    SidecarNames,
 )
 
 from .decompression import decompress_entry
@@ -92,6 +103,36 @@ _ARC4_KEY = b"61ea476e-8201-11e5-864b-fcaa147137b7"
 _REPLAY_ZEROS = b"\x00" * 0x10000
 
 _SUPPORTED_KINDS = (RefKind.INDEX, RefKind.NAME, RefKind.SIGNATURE)
+
+
+def _sidecar_confirmed(file: PackageFile) -> Ask:
+    """Build the query a pulled sidecar uses to bind itself to this NPK.
+
+    The sidecar carries a verbatim copy of this file's on-disk index
+    region; the query re-reads that region and compares.  The comparison
+    is against stored bytes -- before any index decryption -- so every
+    hash/encrypt mode binds the same way, and no payload is touched.
+    A backup whose length disagrees with the header's record count is
+    declined without a second read.
+    """
+
+    def confirm(*, backup: bytes) -> bool:
+        if len(backup) == 0 or len(backup) % 0x1C != 0:
+            return False
+        head = file.read_head(0x18)
+        if len(head) < 0x18 or head[:4] != _MAGIC_NXPK:
+            return False
+        count = struct.unpack_from("<I", head, 4)[0]
+        index_offset = (
+            struct.unpack_from("<I", head, 8)[0] << 32
+        ) | struct.unpack_from("<I", head, 0x14)[0]
+        if count * 0x1C != len(backup):
+            return False
+        with file.open() as handle:
+            handle.seek(index_offset)
+            return handle.read(len(backup)) == backup
+
+    return confirm
 
 
 @dataclass
@@ -131,15 +172,30 @@ def matches(
 ) -> Claim | None:
     """Identify an NPK from its first four bytes.
 
-    Identity comes from this file's magic alone; an NPK is self-sufficient, so
-    the claim carries no role, companions, parents, or wants.  An NPK is never
+    Identity comes from this file's magic alone; an NPK is self-sufficient,
+    so the claim carries no role, companions, or parents.  An NPK is never
     a child: a non-``None`` want_ask means the file was pulled into someone
     else's unit, which this format declines outright.
+
+    An NXPK asks the driver for its optional sidecar name list, one
+    ``<own name>.info_ext`` in the same directory, and offers the query
+    that binds a found sidecar to this file's own index bytes.  EXPK
+    builds carry their names in file and never ask.
     """
     if want_ask is not None:
         return None
     head = file.read_head(4)
-    if head not in (_MAGIC_NXPK, _MAGIC_EXPK):
+    wants: tuple[Want, ...] = ()
+    if head == _MAGIC_NXPK:
+        wants = (
+            Want(
+                Role.NAMES,
+                glob.escape(os.path.basename(file.path)) + SIDECAR_SUFFIX,
+                max_files=1,
+                child_ask=_sidecar_confirmed(file),
+            ),
+        )
+    elif head != _MAGIC_EXPK:
         return None
     return Claim(
         format=FORMAT,
@@ -148,7 +204,7 @@ def matches(
         key=None,
         companions=(),
         parents=(),
-        wants=(),
+        wants=wants,
     )
 
 
@@ -204,11 +260,20 @@ class NPKArchive(Archive):
 
     # --- loading -----------------------------------------------------------
 
-    def load_index(self) -> None:
-        """Read the header and index tables; payload stays on disk."""
+    def load_index(
+        self,
+        sidecar_names: "tuple[bytes, ...] | None" = None,
+    ) -> None:
+        """Read the header and index tables; payload stays on disk.
+
+        ``sidecar_names`` is the positionally aligned name list a bound
+        sidecar contributed; it fills names only where this file carries
+        none of its own.
+        """
         with self._source.open() as handle:
             self._read_header(handle)
             self._read_indices(handle)
+        self._apply_sidecar(sidecar_names)
         self._build_views()
         if self._hash_mode == 3:
             self._build_arc4_prefix()
@@ -347,6 +412,29 @@ class NPKArchive(Archive):
                     )
                 )
 
+    def _apply_sidecar(
+        self, names: "tuple[bytes, ...] | None"
+    ) -> None:
+        """Fill nameless records from a bound sidecar's positional list.
+
+        The sidecar was verified against the stored index bytes during
+        identification, so record ``i`` is name ``i``.  A list that does
+        not cover every record is ignored whole: a partial binding is as
+        untrustworthy as none.  Existing names -- NXFN or otherwise --
+        outrank the sidecar and a name that will not decode leaves its
+        record nameless, the same policy as a dirty NXFN entry.
+        """
+        if names is None or len(names) != len(self._records):
+            return
+        for record, raw in zip(self._records, names):
+            if record.name is not None:
+                continue
+            try:
+                record.name = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            record.name_source = NameSource.SIDECAR
+
     def _resolve_name(
         self, structure: bytes | None, signature: int
     ) -> tuple[str | None, NameSource]:
@@ -369,7 +457,7 @@ class NPKArchive(Archive):
                 if override is not None
                 else record.name_source
             )
-            if source is NameSource.NXFN:
+            if source in (NameSource.NXFN, NameSource.SIDECAR):
                 has_plaintext = True
 
             status = self._entry_status(record)
@@ -694,9 +782,22 @@ class NPKArchive(Archive):
 
 
 def load(unit: Unit, options: ReadOptions) -> NPKArchive:
-    """Build an NPK archive from the unit's entry file."""
+    """Build an NPK archive from the unit's entry file.
+
+    A sidecar name list that attached to this unit contributes its parsed
+    table from ``Claim.private``; the archive fills its nameless records
+    from it.  A unit without a sidecar loads exactly as before.
+    """
     assert isinstance(options, NPKReadOptions)
     source = unit.root.consumed[0]
+    sidecar_names: "tuple[bytes, ...] | None" = None
+    for child in unit.children:
+        if (
+            child.claim.format == SIDECAR_FORMAT
+            and isinstance(child.claim.private, SidecarNames)
+        ):
+            sidecar_names = child.claim.private.names
+            break
     archive = NPKArchive(source, options)
-    archive.load_index()
+    archive.load_index(sidecar_names)
     return archive
