@@ -26,9 +26,21 @@ def _save_as_format(viewer: "MeshViewer", target_format, file_path: str):
         QtWidgets.QMessageBox.warning(
             viewer, "No Mesh Loaded", "Please load a mesh file before saving."
         )
-        return
-    with open(file_path, "wb") as f:
-        f.write(convert_mesh(mesh.raw_data, target_format))
+        return False
+    try:
+        # Convert first so a failure never leaves an empty/partial file behind.
+        data = convert_mesh(mesh.raw_data, target_format)
+        with open(file_path, "wb") as f:
+            f.write(data)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        QtWidgets.QMessageBox.critical(
+            viewer,
+            "Save Failed",
+            f"Failed to save {os.path.basename(file_path)} as "
+            f"{target_format.NAME}:\n{type(e).__name__}: {e}",
+        )
+        return False
+    return True
 
 
 def _save_current_as_format(window: "ViewerTabWindow", target_format):
@@ -51,8 +63,7 @@ def _save_current_as_format(window: "ViewerTabWindow", target_format):
         "",
         f"{target_format.NAME} Files (*{target_format.EXTENSION})",
     )
-    if file_path:
-        _save_as_format(viewer, target_format, file_path)
+    if file_path and _save_as_format(viewer, target_format, file_path):
         QtWidgets.QMessageBox.information(
             window,
             "Save Successful",
