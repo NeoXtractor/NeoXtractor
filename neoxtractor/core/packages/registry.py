@@ -33,6 +33,7 @@ from typing import Callable, NamedTuple, Protocol
 from neoxtractor.core.packages.base import (
     Accepted,
     Archive,
+    Ask,
     Claim,
     CompanionState,
     PackageFile,
@@ -330,6 +331,45 @@ def _safe_emit(
         )
 
 
+def _guarded_ask(child_ask: Ask, label: str) -> Ask:
+    """Wrap a declaring module's query so a fault degrades instead of sinking.
+
+    A child calling the query with an incompatible signature raises TypeError;
+    that (and any other fault) is logged and answered ``None`` so the child can
+    fall back to standalone matching.  The query is read-only: it must not
+    trigger IO on the declaring file.
+    """
+
+    def guarded(*args: object, **kwargs: object) -> object:
+        try:
+            return child_ask(*args, **kwargs)
+        except TypeError as exc:
+            get_logger().warning(
+                "child_ask(%s) signature mismatch: %s", label, exc
+            )
+            return None
+        except Exception as exc:
+            get_logger().warning(
+                "child_ask(%s) raised %s: %s", label, type(exc).__name__, exc
+            )
+            return None
+
+    return guarded
+
+
+def _matches_with_ask(
+    module: ModuleType, file_obj: PackageFile, want_ask: "tuple[str, Ask | None] | None"
+) -> "Claim | None":
+    """Call matches() with the declared context, always two-argument.
+
+    ``want_ask`` is ``(declaring format, guarded child_ask)`` when the file
+    was pulled by a want, else ``None`` (seed, standalone, or companion).
+    The driver hands the context over and nothing more: deciding what
+    context a file accepts is the module's own policy in its ``matches``.
+    """
+    return module.matches(file_obj, want_ask)
+
+
 def _resolve_want(
     want: Want,
     entry_path: str,
@@ -338,6 +378,8 @@ def _resolve_want(
     ask: ReadAsk | None,
     denied: set[str],
     report: "Callable[[int], None] | None" = None,
+    pulled: "dict[str, tuple[str, Ask | None]] | None" = None,
+    declarer: str = "",
 ) -> int:
     """Expand one want glob relative to the entry's directory.
 
@@ -345,6 +387,11 @@ def _resolve_want(
     boundary and routes through ask -- default deny, cached per path.  Only
     plain files enter the pool; glob-matched directories are skipped.
     Returns how many files the pool gained.
+
+    When *pulled* is given, each newly pooled path is recorded with the
+    declaring format and the want's ``child_ask`` so a later pass can offer
+    the child that context as ``want_ask``; files already in the pool keep
+    their first declaration.
 
     While candidates await consent, *report* fires before each ask with the
     count still undecided (the file being asked included); a pass that asked
@@ -378,6 +425,8 @@ def _resolve_want(
                 continue
             asked += 1
         pool[path] = LocalPackageFile(path)
+        if pulled is not None:
+            pulled.setdefault(path, (declarer, want.child_ask))
         added += 1
         if added >= want.max_files:
             break
@@ -397,6 +446,8 @@ def _ask_file(
     accepted: dict[str, Accepted],
     claimed: set[str],
     report: "Callable[[int], None] | None" = None,
+    want_ask: "tuple[str, Ask | None] | None" = None,
+    pulled: "dict[str, tuple[str, Ask | None]] | None" = None,
 ) -> None:
     """Ask one module about one unclaimed file; accept its claim if any.
 
@@ -404,9 +455,13 @@ def _ask_file(
     single enforcement point.  A rejected companion stays available for other
     modules.  Any exception from the module is a module bug: log and skip
     this module for this file.
+
+    ``want_ask`` is the declared context ``(format, child_ask)`` when this
+    file was pulled by a want, else ``None`` (standalone).  A legacy
+    one-argument ``matches`` degrades via TypeError.
     """
     try:
-        claim = entry.module.matches(file_obj)
+        claim = _matches_with_ask(entry.module, file_obj, want_ask)
     except ProtocolError as exc:
         get_logger().warning("matches(%s) in %s: %s", path, entry.format, exc)
         return
@@ -423,7 +478,10 @@ def _ask_file(
     except ProtocolError as exc:
         get_logger().warning("Rejecting bad claim on %s: %s", path, exc)
         return
-    _accept(claim, entry, pool, anchor, ask, denied, accepted, claimed, report)
+    _accept(
+        claim, entry, pool, anchor, ask, denied, accepted, claimed, report,
+        pulled,
+    )
 
 
 def _fold_companions(
@@ -466,7 +524,7 @@ def _fold_companions(
             continue
         cfile = pool.get(cpath) or LocalPackageFile(cpath)
         try:
-            cclaim = entry.module.matches(cfile)
+            cclaim = entry.module.matches(cfile, None)
         except Exception as exc:
             get_logger().warning(
                 "companion matches(%s) in %s raised: %s",
@@ -501,6 +559,7 @@ def _accept(
     accepted: dict[str, Accepted],
     claimed: set[str],
     report: "Callable[[int], None] | None" = None,
+    pulled: "dict[str, tuple[str, Ask | None]] | None" = None,
 ) -> Accepted:
     """Turn a validated claim into an Accepted and grow the pool.
 
@@ -511,6 +570,9 @@ def _accept(
     a consent dialog then always sees a current progress bar -- and a second
     on pool growth, so the UI sees the footprint the moment it changes
     instead of waiting for a pass boundary.
+
+    Each want is expanded with its declaring file's format and ``child_ask``
+    recorded into *pulled*, so a child claimed later receives that context.
     """
     before = len(pool)
     claimed.add(claim.entry)
@@ -530,7 +592,10 @@ def _accept(
     if report is not None:
         report(0)  # current state visible before any ask popup
     for base, want in dict.fromkeys(wants):   # dedup, keep declaration order
-        _resolve_want(want, base, anchor, pool, ask, denied, report)
+        declarer = accepted[base].claim.format if base in accepted else entry.format
+        _resolve_want(
+            want, base, anchor, pool, ask, denied, report, pulled, declarer
+        )
     if report is not None and len(pool) > before:
         report(0)
     return acc
@@ -608,7 +673,7 @@ def detect_format(path: str) -> str | None:
     file_obj = LocalPackageFile(norm)
     for entry in ordered_modules():
         try:
-            claim = entry.module.matches(file_obj)
+            claim = entry.module.matches(file_obj, None)
         except Exception as exc:
             get_logger().warning(
                 "matches(%s) in %s raised: %s", norm, entry.format, exc
@@ -666,6 +731,7 @@ def open_file(
     accepted: dict[str, Accepted] = {}
     denied: set[str] = set()
     claimed: set[str] = set()
+    pulled: dict[str, tuple[str, Ask | None]] = {}
     flag = _CancelFlag()
 
     def _report(pending: int = 0) -> None:
@@ -684,7 +750,7 @@ def open_file(
     for entry in seed_modules:
         _check_cancel(flag, "open_file:seed")
         try:
-            claim = entry.module.matches(seed_file)
+            claim = entry.module.matches(seed_file, None)
         except Exception as exc:
             get_logger().warning(
                 "matches(%s) in %s raised: %s", norm, entry.format, exc
@@ -702,7 +768,7 @@ def open_file(
         winner = entry
         _accept(
             claim, entry, pool, anchor_dir, ask, denied,
-            accepted, claimed, _report,
+            accepted, claimed, _report, pulled,
         )
         break
 
@@ -719,9 +785,16 @@ def open_file(
         for path2 in sorted(pool):
             if path2 in claimed:
                 continue
+            ctx = pulled.get(path2)
+            want_ask = (
+                (ctx[0], _guarded_ask(ctx[1], path2) if ctx[1] is not None else None)
+                if ctx is not None
+                else None
+            )
             _ask_file(
                 path2, pool[path2], entry, pool,
                 anchor_dir, ask, denied, accepted, claimed, _report,
+                want_ask, pulled,
             )
         _report()  # pass boundary: fold any pending back into pool-only
 

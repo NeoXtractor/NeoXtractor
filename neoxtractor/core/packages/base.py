@@ -21,7 +21,7 @@ import os
 import re
 from dataclasses import dataclass
 from enum import Enum, StrEnum
-from typing import Any, Iterator, Mapping, NamedTuple, Protocol
+from typing import Any, Callable, Iterator, Mapping, NamedTuple, Protocol
 
 from neoxtractor.core.packages.errors import ProtocolError
 from neoxtractor.core.utils.filelike import Seekable
@@ -29,6 +29,14 @@ from neoxtractor.core.utils.filelike import Seekable
 # Hard ceiling on the pool a single scan may grow, so a pathological glob can
 # never expand without bound.
 MAX_POOL = 4096
+
+# A read-only query a declaring module offers about its own pre-parsed state
+# (Claim.private).  The driver hands it to a pulled child as the second
+# element of matches()'s want_ask; it is a query, not consent, and it must not
+# trigger IO on the declaring file.  Arguments are agreed by the two modules
+# (keyword arguments recommended); a child that calls it with an incompatible
+# signature degrades via TypeError, never faults the scan.
+Ask = Callable[..., Any]
 
 
 class Role(StrEnum):
@@ -121,14 +129,22 @@ class Want:
     :class:`ProtocolError`.  A bad regex raises :class:`ProtocolError`.  The
     driver fullmatches ``pattern`` against each candidate's basename,
     narrowing a deliberately loose glob without touching the path.
+
+    ``child_ask`` is an optional read-only query the declaring module offers
+    about its own pre-parsed state (:attr:`Claim.private`).  When the driver
+    offers a file this want pulled to a module, it passes
+    ``(declaring format, child_ask)`` as that module's ``want_ask``; the child
+    may call it to consult the declarer without triggering IO on it.  ``None``
+    means the child is asked standalone.
     """
 
-    __slots__ = ("role", "rel", "max_files", "pattern")
+    __slots__ = ("role", "rel", "max_files", "pattern", "child_ask")
 
     role: Role
     rel: str
     max_files: int
     pattern: "re.Pattern[str] | None"
+    child_ask: "Ask | None"
 
     def __init__(
         self,
@@ -136,6 +152,7 @@ class Want:
         rel: str,
         max_files: int = 32,
         pattern: "str | re.Pattern[str] | None" = None,
+        child_ask: "Ask | None" = None,
     ) -> None:
         if not want_rel_is_valid(rel):
             raise ProtocolError(
@@ -149,10 +166,16 @@ class Want:
                 raise ProtocolError(
                     f"Want pattern {pattern!r} is not a valid regex: {exc}"
                 ) from exc
+        if child_ask is not None and not callable(child_ask):
+            raise ProtocolError(
+                f"Want child_ask must be callable or None, "
+                f"not {type(child_ask).__name__}"
+            )
         object.__setattr__(self, "role", role)
         object.__setattr__(self, "rel", rel)
         object.__setattr__(self, "max_files", max_files)
         object.__setattr__(self, "pattern", pattern)
+        object.__setattr__(self, "child_ask", child_ask)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError(f"Want is read-only: cannot set {name!r}")
@@ -168,16 +191,20 @@ class Want:
             and self.rel == other.rel
             and self.max_files == other.max_files
             and self.pattern == other.pattern
+            and self.child_ask == other.child_ask
         )
 
     def __hash__(self) -> int:
-        return hash((self.role, self.rel, self.max_files, self.pattern))
+        return hash(
+            (self.role, self.rel, self.max_files, self.pattern, self.child_ask)
+        )
 
     def __repr__(self) -> str:
         pat = self.pattern.pattern if self.pattern is not None else None
         return (
             f"Want(role={self.role!r}, rel={self.rel!r}, "
-            f"max_files={self.max_files!r}, pattern={pat!r})"
+            f"max_files={self.max_files!r}, pattern={pat!r}, "
+            f"child_ask={self.child_ask!r})"
         )
 
 
@@ -200,6 +227,11 @@ class Claim(NamedTuple):
     A claim carries exactly one file's identity plus what it would like nearby.
     It holds no existence verdicts and no resolved objects -- the driver turns
     it into an :class:`Accepted`.
+
+    ``private`` is a format-private pre-parse cache (e.g. a decoded index)
+    that the driver never touches; only the owning format casts and consumes
+    it, and a :class:`Want` may expose a read-only query over it via
+    ``child_ask``.  Defaults to ``None``.
     """
 
     format: str
@@ -217,6 +249,10 @@ class Claim(NamedTuple):
                                      #   Accepted.companion_states
     parents: tuple[ParentPref, ...]  # ordered preference, may all be absent
     wants: tuple[Want, ...]          # pool-expansion globs
+    private: Any = None              # format-private pre-parse cache; the
+                                     #   driver never reads it, the owning
+                                     #   format casts it, Want.child_ask may
+                                     #   expose a read-only query over it
 
 
 class Accepted(NamedTuple):

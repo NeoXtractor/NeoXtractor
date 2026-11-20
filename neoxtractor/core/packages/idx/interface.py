@@ -42,7 +42,7 @@ from __future__ import annotations
 import os
 import struct
 from dataclasses import dataclass
-from typing import Iterator
+from typing import Any, Iterator
 
 from neoxtractor.core.packages.base import (
     Archive,
@@ -102,14 +102,21 @@ class _IndexRecord:
         return (self.hdr_size, self.payload_size, self.pad_size)
 
 
-def matches(file: PackageFile) -> Claim | None:
+def matches(
+    file: PackageFile, want_ask: "tuple[str, Any] | None" = None
+) -> Claim | None:
     """Identify an index from its first four bytes.
 
     Claiming is magic only; the record table is read at load.  The wants pull
     the part family (``{base}[0-9a-f].wpk`` and the underscore variant) and
     the slot directory (``{stem}/*`` narrowed to 32-hex basenames); either
     may come up empty, leaving the matching records MISSING at load.
+
+    An index is a parent, never a child: a non-``None`` want_ask means this
+    file was pulled into someone else's unit, which this format declines.
     """
+    if want_ask is not None:
+        return None
     if file.read_head(4) != _MAGIC_INDEX:
         return None
     stem = os.path.splitext(os.path.basename(file.path))[0]

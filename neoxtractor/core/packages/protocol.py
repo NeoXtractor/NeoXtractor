@@ -5,6 +5,14 @@ base class: it must expose ``FORMAT``, ``PRIORITY``, ``OPTIONS_TYPE``,
 ``matches`` and ``load``.  Discovery and the driver validate against the
 single standard defined here.
 
+``matches(file, want_ask)`` always takes two arguments.  ``want_ask`` is
+the declared context ``(declaring format, child_ask)`` when the file was
+pulled by another module's want, else ``None`` (seed, standalone, or
+companion).  ``child_ask`` is a read-only query over the declarer's
+:attr:`Claim.private` pre-parse cache; it never triggers IO on the
+declaring file, and a child calling it with an incompatible signature or a
+faulting callback degrades to ``None`` via the driver's guard.
+
 Beyond the attribute checks, **modules are stateless**: a discovered module
 lives in ``sys.modules`` for the whole process, so module-level mutable data
 leaks past ``Archive.close()`` and races across concurrent scans.  Per-session

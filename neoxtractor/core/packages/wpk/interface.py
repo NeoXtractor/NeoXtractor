@@ -33,7 +33,7 @@ import os
 import struct
 import threading
 from dataclasses import dataclass
-from typing import Iterator
+from typing import Any, Iterator
 
 from neoxtractor.core.packages.base import (
     Archive,
@@ -107,14 +107,22 @@ def _pkg_id_from_name(stem: str) -> int | None:
     return None
 
 
-def matches(file: PackageFile) -> Claim | None:
+def matches(
+    file: PackageFile, want_ask: "tuple[str, Any] | None" = None
+) -> Claim | None:
     """Identify a WPK part or a bare slot from its first four bytes.
 
     Claiming is magic only; headers are honoured at load.  The parent
     preference points at the index that would own this store (same directory
     for a part, parent directory for a slot).  Nothing here consults the
     filesystem for neighbours.
+
+    A non-``None`` want_ask says a parent pulled this file; the only parent
+    a wpk store serves is the index, so a pull declared by any other format
+    is declined -- the file stays available for the idx to claim itself.
     """
+    if want_ask is not None and want_ask[0] != "idx":
+        return None
     head = file.read_head(4)
     if head == _MAGIC_PART:
         stem = os.path.splitext(os.path.basename(file.path))[0]

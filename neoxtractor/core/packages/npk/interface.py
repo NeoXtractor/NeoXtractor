@@ -26,7 +26,7 @@ import struct
 import threading
 import zlib
 from dataclasses import dataclass
-from typing import Iterator
+from typing import Any, Iterator
 
 from arc4 import ARC4
 
@@ -126,12 +126,18 @@ class _IndexRecord:
     name_source: NameSource
 
 
-def matches(file: PackageFile) -> Claim | None:
+def matches(
+    file: PackageFile, want_ask: "tuple[str, Any] | None" = None
+) -> Claim | None:
     """Identify an NPK from its first four bytes.
 
     Identity comes from this file's magic alone; an NPK is self-sufficient, so
-    the claim carries no role, companions, parents, or wants.
+    the claim carries no role, companions, parents, or wants.  An NPK is never
+    a child: a non-``None`` want_ask means the file was pulled into someone
+    else's unit, which this format declines outright.
     """
+    if want_ask is not None:
+        return None
     head = file.read_head(4)
     if head not in (_MAGIC_NXPK, _MAGIC_EXPK):
         return None
