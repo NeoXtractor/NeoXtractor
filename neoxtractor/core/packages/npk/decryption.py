@@ -4,7 +4,10 @@ Every function takes plain values (bytes plus index fields) and returns new
 bytes.
 """
 
+from __future__ import annotations
+
 import struct
+from typing import TYPE_CHECKING
 
 from neoxtractor.core.packages.npk.enums import DecryptionType
 
@@ -14,10 +17,48 @@ from .eggyparty_codes import (
     make_dec_schedule,
 )
 
+if TYPE_CHECKING:
+    # Type-checker view only; runtime availability is gated by HAS_AES.
+    from cryptography.hazmat.primitives.ciphers import (
+        algorithms,
+        modes,
+    )
+
+try:
+    from cryptography.hazmat.primitives.ciphers import (
+        Cipher,
+        algorithms,
+        modes,
+    )
+
+    HAS_AES = True
+except ImportError:  # pragma: no cover - graceful fallback
+    # Names stay unbound: every use site short-circuits on ``not HAS_AES``
+    # before touching them.
+    HAS_AES = False
+
+# AES-128 key of the v2 encrypted index.
+_V2_INDEX_KEY = b"g58i^C04SW!@e}ad"
+
+
+def decrypt_v2_index(data: bytes) -> bytes:
+    """AES-128-ECB decrypt a v2 index region.
+
+    The engine decrypts whole 16-byte blocks in place, so only a length
+    already aligned to the block size can be reversed; anything else is
+    not this layout.
+    """
+    if not HAS_AES:
+        raise ValueError("AES support requires the cryptography package")
+    if len(data) % 16:
+        raise ValueError("v2 index length is not block aligned")
+    cipher = Cipher(algorithms.AES(_V2_INDEX_KEY), modes.ECB())
+    decryptor = cipher.decryptor()
+    return decryptor.update(data) + decryptor.finalize()
+
 
 def _signatures_ascending(data: bytes | bytearray, info_size: int) -> bool:
-    """Check whether record signatures are in non-decreasing order.
-    """
+    """Check whether record signatures are in non-decreasing order."""
     count = len(data) // info_size
     if count < 2:
         return True
