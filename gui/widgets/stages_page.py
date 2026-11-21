@@ -1,6 +1,7 @@
 """
-The "Stages" entry of the main window's category list: every HPMA stage scene, grouped by stage. Selected scenes
-export as GLB, PMX or glTF (with their textures), and one scene at a time opens in the Scene Viewer.
+The "Stages" entry of the main window's category list: the stage scenes of the opened pack (scene.npk or a DLC
+scene pack), grouped by stage. Selected scenes export as GLB, PMX or glTF (with their textures), and one scene at
+a time opens in the Scene Viewer. The models and textures a scene places are read from the game's other packs.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ from core.npk.stage_export import PackIndex, StageExporter, game_layers, game_ro
 from gui.utils import scan_memory
 
 STAGES_DATA = "stages"
-SETTING_GAME_FOLDER = "stage_export.game_folder"
+SETTING_GAME_FOLDER = "stage_export.game_folder"      # remembered for the other exports' fallback
+NO_STAGES_HINT = "Open scene.npk, or a DLC scene pack (res_dlc_…), to see its stages."
 SETTING_OUTPUT_FOLDER = "stage_export.output_folder"
 SETTING_FORMAT = "stage_export.format"
 
@@ -70,14 +72,17 @@ class _Signals(QtCore.QObject):
 
 
 class StagesPage(QtWidgets.QWidget):
-    """Lists every scene in the game's resource manifests and exports selected ones."""
+    """Lists the scenes of the opened pack and exports selected ones."""
 
     def __init__(self, window: QtWidgets.QMainWindow):
         super().__init__(window)
         self.setObjectName("stagesPage")
         self.window_ = window
         self.game: Path | None = None
+        self.pack: str | None = None           # stem of the opened pack: "scene", "res_dlc1_hogsmeade", ...
         self.index: PackIndex | None = None
+        self._all_scenes: list[str] = []
+        self._sizes: dict[str, int] = {}
         self._generation = 0
         self._cancel = threading.Event()
         self._busy = False
@@ -92,14 +97,9 @@ class StagesPage(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        folder_row = QtWidgets.QHBoxLayout()
         self.folder_label = QtWidgets.QLabel()
         self.folder_label.setWordWrap(True)
-        self.folder_button = QtWidgets.QPushButton("Change…")
-        self.folder_button.clicked.connect(self._choose_game_folder)
-        folder_row.addWidget(self.folder_label, 1)
-        folder_row.addWidget(self.folder_button)
-        layout.addLayout(folder_row)
+        layout.addWidget(self.folder_label)
 
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setHeaderLabels(["Stage", "Scenes", "Size"])
@@ -179,48 +179,40 @@ class StagesPage(QtWidgets.QWidget):
         app = QtWidgets.QApplication.instance()
         return read_options_for(app.property("npk_file") if app is not None else None)
 
-    # -- game folder ---------------------------------------------------------
+    # -- opened pack ---------------------------------------------------------
     def activate(self):
         """Called whenever the Stages category is selected or an archive finishes loading."""
-        game = None
+        game = pack = None
         app = QtWidgets.QApplication.instance()
         archive = app.property("npk_file") if app is not None else None
         if archive is not None and getattr(archive, "file_path", None):
             game = game_root_for(archive.file_path)
-        if game is None and self._setting(SETTING_GAME_FOLDER):
-            game = Path(self._setting(SETTING_GAME_FOLDER))
-        self.set_game(game)
+            pack = Path(archive.file_path).stem.lower()
+        if game is not None:
+            self._store(SETTING_GAME_FOLDER, str(game))
+        self.set_game(game, pack)
 
-    def _choose_game_folder(self):
-        start = str(self.game) if self.game else ""
-        chosen = QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Harry Potter: Magic Awakened folder", start)
-        if not chosen:
-            return
-        game = Path(chosen)
-        if game.name.lower().startswith("res"):
-            game = game.parent
-        if not resource_dirs(game):
-            QtWidgets.QMessageBox.warning(self, "Stages", "That folder has no res, res2, … folders.")
-            return
-        self._store(SETTING_GAME_FOLDER, str(game))
-        self.set_game(game, force=True)
-
-    def set_game(self, game: Path | None, force: bool = False):
+    def set_game(self, game: Path | None, pack: str | None = None):
         if game is not None and not resource_dirs(Path(game)):
             game = None
-        if not force and game == self.game and (self.index is not None or self._scanning):
-            return                             # listed already, or its list is still being read
+        same_game = game is not None and Path(game) == self.game and (self.index is not None or self._scanning)
+        self.pack = pack if game is not None else None
+        if same_game:
+            # The game's index is kept: only the list changes with the opened pack
+            if not self._scanning:
+                self._fill()
+            return
         self.game = Path(game) if game else None
         self.index = None
+        self._all_scenes, self._sizes = [], {}
         self._scanning = False
         self.tree.clear()
         if self.game is None:
-            self.folder_label.setText("Open any Harry Potter: Magic Awakened .npk, or choose the game folder.")
+            self.folder_label.setText(NO_STAGES_HINT)
             self.status.setText("")
             self._update_buttons()
             return
-        layers = game_layers(self.game)
-        self.folder_label.setText("Game folder: " + "  +  ".join(str(layer) for layer in layers))
+        self.folder_label.setText("")
         self.status.setText("Reading stage list…")
         self._generation += 1
         generation, options, game = self._generation, self._read_options(), self.game
@@ -247,7 +239,21 @@ class StagesPage(QtWidgets.QWidget):
         if error or result is None:
             self.status.setText(f"Could not read the stage list: {error}")
             return
-        self.index, scenes, sizes = result
+        self.index, self._all_scenes, self._sizes = result
+        self._fill()
+
+    def _fill(self):
+        """List the scenes that live in the opened pack (the same pack in every res folder counts as one)."""
+        self.tree.clear()
+        scenes = [scene for scene in self._all_scenes if self.pack and scene.split("\\")[0].lower() == self.pack]
+        sizes = self._sizes
+        if not scenes:
+            self.folder_label.setText(NO_STAGES_HINT)
+            self.status.setText("")
+            self._update_buttons()
+            return
+        layers = game_layers(self.game)
+        self.folder_label.setText(f"Stages in {self.pack}.npk  ({'  +  '.join(str(layer) for layer in layers)})")
         groups: dict[tuple[str, str], list[str]] = {}
         for scene in scenes:
             parts = scene.split("\\")
@@ -264,7 +270,7 @@ class StagesPage(QtWidgets.QWidget):
         self.tree.setUpdatesEnabled(False)
         for (stage, pack), members in groups.items():
             largest = max(sizes.get(scene, 0) for scene in members)
-            parent = _SortableItem([f"{stage}   [{pack}]" if pack else stage, str(len(members)), _size_text(largest)])
+            parent = _SortableItem([stage, str(len(members)), _size_text(largest)])
             parent.setData(1, QtCore.Qt.ItemDataRole.UserRole, len(members))
             parent.setData(2, QtCore.Qt.ItemDataRole.UserRole, largest)
             parent.setToolTip(2, "Size of the stage's largest scene file; bigger usually means more objects.")
@@ -282,8 +288,7 @@ class StagesPage(QtWidgets.QWidget):
             self.tree.addTopLevelItem(parent)
         self.tree.setUpdatesEnabled(True)
         self.tree.setSortingEnabled(True)
-        dlc = sum(1 for (_stage, pack) in groups if pack)
-        self.status.setText(f"{len(groups)} stages ({dlc} from DLC packs), {len(scenes)} scenes. "
+        self.status.setText(f"{len(groups)} stages, {len(scenes)} scenes. "
                             "Click a column header to sort; select scenes (or a stage) and export.")
         self.apply_filter(getattr(self.window_, "name_filter_input", None).text()
                           if hasattr(self.window_, "name_filter_input") else "")
@@ -316,7 +321,6 @@ class StagesPage(QtWidgets.QWidget):
     def _update_buttons(self):
         self.export_button.setEnabled(not self._busy and self.index is not None and bool(self._selected_scenes()))
         self.view_button.setEnabled(self.index is not None and len(self._selected_scenes()) == 1)
-        self.folder_button.setEnabled(not self._busy)
 
     def export_selected(self):
         scenes = self._selected_scenes()
