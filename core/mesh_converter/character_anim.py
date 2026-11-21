@@ -80,7 +80,7 @@ def write_vmd(clip, skeleton, target) -> tuple[Path, bool]:
     """<target>.vmd for a clip; returns (path, whether the clip also scales bones, which VMD cannot hold)."""
     rig = SimpleNamespace(bone_name=list(clip.bone_names), bone_parent=list(skeleton.parents),
                           bone_matrix=[world.T for world in rest_worlds(skeleton)])   # row-vector, like meshes
-    from core.mesh_converter import mmd_rig  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import mmd_rig
     names = vmd_bone_names(clip)
     rigged = bone_names.enabled() and mmd_rig.enabled()
     if rigged:                                       # bake against the rigged PMX's chains

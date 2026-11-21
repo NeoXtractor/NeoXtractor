@@ -1,7 +1,7 @@
 """
 PMX Format Converter
 
-Modified from NeoXtractor (AGPL-3.0) in 2026 by this patch set: see NOTICE.md.
+Modified from NeoXtractor (AGPL-3.0) in 2026: see NOTICE.md.
 """
 
 import io
@@ -28,7 +28,7 @@ def _settings_manager():
         from PySide6 import QtWidgets
         app = QtWidgets.QApplication.instance()
         return app.property("settings_manager") if app is not None else None
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return None
 
 
@@ -70,14 +70,14 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
     if mesh.has_bones:
         # helper bones doubling a limb (bone_l_upperarm's shoulder pad) follow that limb
         mesh = mmd_rig.merge_twin_helpers(mesh)
-        from core.mesh_converter import fingers  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter import fingers
         if fingers.enabled(_settings_manager()):
             mesh = fingers.five_fingers(mesh)
 
     if mesh.has_bones:
         names = bone_names.translate(list(mesh.bone_name)) if translate_bones else list(mesh.bone_name)
         if translate_bones:                          # names VMD can address (15 bytes), the same in every export
-            from core.mesh_converter.vmd_export import short_bone_names  # pylint: disable=import-outside-toplevel
+            from core.mesh_converter.vmd_export import short_bone_names
             names = short_bone_names(names)
         source_names = list(getattr(mesh, "bone_source_names", None) or mesh.bone_name)
         parent_child_dict = {}
@@ -261,23 +261,23 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
     if mesh.has_bones and mmd_rig.shoulders_enabled(_settings_manager()):
         try:
             mmd_rig.raise_shoulders(pmx_model)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not raise the shoulder bones")
 
     # Leave out bones that don't move anything in this export, so each model only gets the bones it uses.
     if mesh.has_bones:
         try:
             mmd_rig.remove_unused(pmx_model)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not remove the unused bones")
 
     # Collision shapes on the body for MMD physics (hair, skirts, capes), sized to this model
     if mesh.has_bones:
-        from core.mesh_converter import rigid_bodies  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter import rigid_bodies
         if rigid_bodies.enabled(_settings_manager()):
             try:
                 rigid_bodies.add_body_rigid_bodies(pmx_model)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 get_logger().exception("Could not add the body rigid bodies")
 
     buffer = io.BytesIO()
@@ -288,7 +288,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
 TRANSLATE_LABEL = "Translate bones to MMD names"
 RIG_LABEL = "MMD bone setup (IK legs, センター, display frames)"
 TRANSLATE_TIP = ("Rename HPMA bones (bip001_l_thigh, lower, …) to MMD names (左足D, 下半身, …); the HPMA name is kept as "
-                 "the English bone name. Add or change names with pmx_bone_names.xlsx/.csv/.txt next to neoxtractor.exe.")
+                 "the English bone name. Add or change names with pmx_bone_names.xlsx/.csv/.txt next to NeoXtractor.")
 RIG_TIP = ("With translated bone names: re-arrange the bones into MMD chains and add 全ての親 / センター / グルーブ, IK legs "
            "(足ＩＫ, つま先ＩＫ) driving the D bones, and display frames. VMD exports then key the IK legs.")
 
@@ -333,7 +333,7 @@ FINGERS_TIP = ("The game rigs thumb, index and middle finger; the ring and littl
 
 
 def _bind_fingers(widget):
-    from core.mesh_converter import fingers  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import fingers
     settings = _settings_manager()
     widget.setChecked(fingers.enabled(settings))
     widget.setToolTip(FINGERS_TIP)
@@ -346,7 +346,7 @@ RIGID_TIP = ("Bone-following collision capsules on the body (torso, head, arms, 
 
 
 def _bind_rigid(widget):
-    from core.mesh_converter import rigid_bodies  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import rigid_bodies
     settings = _settings_manager()
     widget.setChecked(rigid_bodies.enabled(settings))
     widget.setToolTip(RIGID_TIP)
@@ -356,17 +356,17 @@ def _bind_rigid(widget):
 
 def pmx_option_actions(parent):
     """The PMX export switches as checkable actions (for export menus)."""
-    from PySide6 import QtGui  # pylint: disable=import-outside-toplevel
+    from PySide6 import QtGui
     translate = QtGui.QAction(TRANSLATE_LABEL, parent)
     rig = QtGui.QAction(RIG_LABEL, parent)
     translate.setCheckable(True)
     rig.setCheckable(True)
     _bind_options(translate, rig)
-    from core.mesh_converter import fingers  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import fingers
     five = QtGui.QAction(fingers.LABEL, parent)
     five.setCheckable(True)
     _bind_fingers(five)
-    from core.mesh_converter import rigid_bodies  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import rigid_bodies
     bodies = QtGui.QAction(rigid_bodies.LABEL, parent)
     bodies.setCheckable(True)
     _bind_rigid(bodies)
@@ -380,7 +380,7 @@ def _install_tools_menu_hook() -> None:
     """Attach the menu toggle right before the Qt event loop starts."""
     try:
         from PySide6 import QtWidgets
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return
 
     original_exec = QtWidgets.QApplication.exec
@@ -394,41 +394,41 @@ def _install_tools_menu_hook() -> None:
         app = QtWidgets.QApplication.instance()
         try:
             # The Stages category lives in its own module; this hook is just where it gets attached
-            from gui.widgets import stages_page  # pylint: disable=import-outside-toplevel
+            from gui.widgets import stages_page
             stages_page.install(app)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not add the Stages category")
         try:
-            from gui.widgets import scene_viewer  # pylint: disable=import-outside-toplevel
+            from gui.widgets import scene_viewer
             scene_viewer.install(app)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not add the Scene Viewer")
         try:
             # Opening any pack also combines its copies from the other install (Documents patch layer)
-            from core.npk import layered_archives  # pylint: disable=import-outside-toplevel
+            from core.npk import layered_archives
             layered_archives.install()
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not combine the game's installs")
         try:
-            from gui.widgets import characters_sort  # pylint: disable=import-outside-toplevel
+            from gui.widgets import characters_sort
             characters_sort.install(app)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not add sorting to the Characters tab")
         try:
-            from gui.widgets import characters_items  # pylint: disable=import-outside-toplevel
+            from gui.widgets import characters_items
             characters_items.install(app)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not add item names to the Characters tab")
         try:
-            from core.npk import wwise_audio  # pylint: disable=import-outside-toplevel
+            from core.npk import wwise_audio
             wwise_audio.install_category(app)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not add the Audio category")
         try:
             # Numbered .wem sounds show (and are found by) the sound bank that uses them
-            from core.npk import wwise_names  # pylint: disable=import-outside-toplevel
+            from core.npk import wwise_names
             wwise_names.install(app)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not add the sound bank labels")
         QtWidgets.QApplication.exec = original_exec
         return original_exec(*args, **kwargs)
@@ -440,31 +440,31 @@ def _install_tools_menu_hook() -> None:
 _install_tools_menu_hook()
 try:
     # get_logger() without inspect.stack(): makes reading packs noticeably faster everywhere
-    from core import fast_logger as _fast_logger  # pylint: disable=import-outside-toplevel
+    from core import fast_logger as _fast_logger
     _fast_logger.install()
-except Exception:  # pylint: disable=broad-except
+except Exception:
     get_logger().exception("Could not install the fast get_logger")
 try:
     # Binary XML to text without the minidom round trip (same text): speeds up metadata scans and .gim reads
-    from core import fast_bxml as _fast_bxml  # pylint: disable=import-outside-toplevel
+    from core import fast_bxml as _fast_bxml
     _fast_bxml.install()
-except Exception:  # pylint: disable=broad-except
+except Exception:
     get_logger().exception("Could not install the fast binary XML decoding")
 try:
     # Path normalising and hashing with the same results in less time: speeds up the Characters tab scan
-    from core import fast_paths as _fast_paths  # pylint: disable=import-outside-toplevel
+    from core import fast_paths as _fast_paths
     _fast_paths.install()
-except Exception:  # pylint: disable=broad-except
+except Exception:
     get_logger().exception("Could not install the fast path helpers")
 try:
     # The Characters scan remembers named metadata entries between scans of unchanged packs
-    from core.npk import metadata_cache as _metadata_cache  # pylint: disable=import-outside-toplevel
+    from core.npk import metadata_cache as _metadata_cache
     _metadata_cache.install()
-except Exception:  # pylint: disable=broad-except
+except Exception:
     get_logger().exception("Could not install the metadata cache")
 try:
     # Before any pack is read: .wem / .ogg / .wav files join the sound banks in the Audio category
-    from core.npk import wwise_audio as _wwise_audio  # pylint: disable=import-outside-toplevel
+    from core.npk import wwise_audio as _wwise_audio
     _wwise_audio.install_detection()
-except Exception:  # pylint: disable=broad-except
+except Exception:
     get_logger().exception("Could not hook the Wwise sound detection")

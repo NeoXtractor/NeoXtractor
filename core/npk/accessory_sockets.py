@@ -1,13 +1,7 @@
-"""
-Accessories the game hangs on sockets instead of skinning them to the character (earrings, some glasses,
-hats, brooches, scarves).
+"""Accessories the game hangs on sockets instead of skinning them (earrings, hats, brooches, some glasses).
 
-role_dress rows with bind_type 1 or 2 list their sockets in bind_params (['idle', 'ershi_l', 'ershi_r'] = both
-ears). The sockets live on the character rig (model/character/<sex>/<sex>_fenli.gim, <Sockets>): a bone and
-a MatrixToBone offset. A piece's model space maps to the character as
-    world = local @ MatrixToBone @ bone_rest      (row vectors, like NeoX bone matrices)
-One copy per socket (the right ear's socket is mirrored). Each copy gets the socket's bone as the parent of
-its own bones, so it follows the head / chest when posed and exports attached.
+role_dress rows with bind_type 1 or 2 name their sockets, which live on the character rig as a bone plus a
+MatrixToBone offset. Each copy is placed at local @ MatrixToBone @ bone_rest and parented to that bone.
 """
 
 from __future__ import annotations
@@ -92,8 +86,8 @@ class Sockets:
 
     def _rest_table(self, sex: str) -> dict:
         if sex not in self._rest:
-            from core.mesh_converter.character_anim import rest_worlds  # pylint: disable=import-outside-toplevel
-            from core.npk import neox_anim  # pylint: disable=import-outside-toplevel
+            from core.mesh_converter.character_anim import rest_worlds
+            from core.npk import neox_anim
             found = self.index.read(SKELETONS[sex])
             result = {}
             if found is not None:
@@ -195,7 +189,7 @@ class Sockets:
                 try:
                     rows = self.tables.keyed_rows("role_dress_bind_info")
                     dresses = self.tables.keyed_rows("role_dress")
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     rows, dresses = {}, {}
                 for row in rows.values():
                     if not isinstance(row, dict) or not isinstance(row.get("offset"), (list, tuple)):

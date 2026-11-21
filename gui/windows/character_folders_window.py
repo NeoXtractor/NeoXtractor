@@ -247,7 +247,7 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             self._render_timer.stop()
             self._render_iterator = None
             self._finish_scan("complete")
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self.cancel_scan(announce=False)
             self.status_label.setText("Could not display character folders: " + str(exc))
         if update is not None and self.scan_busy:

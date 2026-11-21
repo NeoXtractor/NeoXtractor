@@ -1,20 +1,7 @@
-"""
-Faster resource path helpers, with identical results.
+"""Faster normalize_path, murmur3_32 and mesh_hash, with identical results.
 
-normalize_path and murmur3_32 (core.npk.asset_paths) and mesh_hash (core.npk.npkhash_v1) are pure Python and
-run 0.5-3.6 million times each when the Characters tab scans a pack. The bodies here compute the same values
-with less work per call:
-
-- normalize_path skips the separator regex when the path has no '/' and no doubled '\\' (the regex would not
-  change it);
-- murmur3_32 reads all 4-byte blocks in one go and has the mixing steps inline instead of a nested function;
-- mesh_hash is the same arithmetic with its constants inline;
-- both hashes remember their results (one scan hashes the same path several times over: 1.1 million murmur3 and
-  0.56 million mesh hashes for some 0.2 million distinct paths), up to HASH_MEMO entries each.
-
-install() gives the existing functions these bodies in place (their globals and defaults stay), so modules
-that imported them by name use the new bodies too. _tools/check_fast_paths.py compares them with the
-originals on every resource path of the install (967k inputs: identical); tests/test_fast_paths.py on a sample.
+The Characters scan calls these millions of times, so the bodies here are inlined and the two hashes keep
+their results (up to HASH_MEMO entries each). install() replaces the original bodies in place.
 """
 
 import re
@@ -145,5 +132,5 @@ def install() -> bool:
     for target, fast in targets:
         ORIGINAL_CODE[target.__name__] = target.__code__
         target.__code__ = fast.__code__
-        target._fast = True  # pylint: disable=protected-access
+        target._fast = True
     return True

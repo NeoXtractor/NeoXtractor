@@ -1,15 +1,8 @@
-"""
-HPMA skeletons (.skeleton) and animations (.rawanimation).
+"""HPMA skeletons (.skeleton) and animations (.rawanimation).
 
-A .rawanimation holds NeoX chunks: RAWANIMA header (skeleton path), HEAD (frame rate,
-duration), DATA (the motion) and NAME (track names). DATA comes in two layouts:
-
-- an ACL 1.x compressed clip (Animation Compression Library: uniformly sampled, variable bit
-  rate), recognised by its tag; most clips use it
-- plain keyframes, about 7 % of the game's clips. HEAD then also describes DATA as a small node
-  tree: AnimationClip > PoseTrack > a list of joint numbers (into NAME) and one TransformTrack per
-  joint with six arrays: key times and positions, key times and rotations (xyzw), key times and
-  scales. DATA holds those arrays in tree order, each starting on a 16-byte boundary.
+A .rawanimation is a set of NeoX chunks: RAWANIMA (skeleton path), HEAD (frame rate, duration), DATA and
+NAME (track names). DATA is either an ACL 1.x compressed clip (most clips) or plain keyframes, described by a
+small node tree in HEAD: times, positions, rotations (xyzw) and scales, each array 16-byte aligned.
 """
 
 from __future__ import annotations
@@ -404,7 +397,7 @@ def load_default_clip(read, model_path: str, report=None):
     The auto-play animation of a model (from <model>.animconfig), or None.
     read(path) -> (bytes, actual path) | None, e.g. PackIndex.read.
     """
-    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
+    import xml.etree.ElementTree as ET
     stem = model_path.rsplit(".", 1)[0]
     found = read(stem + ".animconfig")
     if found is None:
@@ -441,7 +434,7 @@ def load_default_clip(read, model_path: str, report=None):
         if skeleton_data is None:
             raise FileNotFoundError(skeleton_path)
         return Clip(wanted, animation, Skeleton(skeleton_data[0]), loop)
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         if report is not None:
             report.append(f"animation of {stem}: {exc}")
         return None

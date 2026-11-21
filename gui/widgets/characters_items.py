@@ -1,11 +1,7 @@
-"""
-In-game item names and icons in the Characters tab.
+"""English item names and icons in the Characters tab, from the game's item tables.
 
-After each character scan the game's item tables (core.npk.game_tables: mesh -> item icon + English
-name, cached on disk) are loaded in the background. Then:
-  * item folders and mesh rows show their English item name (male_clothes_02_chuangjue  ·  Opera Coat),
-  * the tab's search also matches those names ("opera coat"),
-  * a small panel under the tree shows the selected item's icon and name.
+Item folders and meshes show their item name, the search matches it, and a panel under the tree shows the
+selected item's icon.
 """
 
 from __future__ import annotations
@@ -35,7 +31,7 @@ _signals: _Signals | None = None
 def _link(path):
     if not _state["links"] or not path:
         return None
-    from core.npk.game_tables import link_for  # pylint: disable=import-outside-toplevel
+    from core.npk.game_tables import link_for
     return link_for(_state["links"], str(path))
 
 
@@ -112,14 +108,14 @@ def _icon_pixmap(link):
         found = _state["index"].read(path.replace("/", "\\"))
         if found is not None:
             try:
-                from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+                from core.npk.stage_export import decode_texture
                 image = decode_texture(found[0]).convert("RGBA")
                 qimage = QtGui.QImage(image.tobytes(), image.width, image.height, 4 * image.width,
                                       QtGui.QImage.Format.Format_RGBA8888).copy()
                 _state["pixmaps"][path] = QtGui.QPixmap.fromImage(qimage).scaled(
                     ICON_SIZE, ICON_SIZE, QtCore.Qt.AspectRatioMode.KeepAspectRatio,
                     QtCore.Qt.TransformationMode.SmoothTransformation)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 get_logger().warning("Could not decode the item icon %s", path, exc_info=True)
     return _state["pixmaps"][path]
 
@@ -173,7 +169,7 @@ def _load(page) -> None:
     path = getattr(archive, "file_path", None)
     if not path or getattr(page, "catalog", None) is None:
         return
-    from core.npk.stage_export import game_root_for  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import game_root_for
     game = game_root_for(path)
     if game is None:
         return
@@ -182,13 +178,13 @@ def _load(page) -> None:
 
     def work():
         try:
-            from core.npk import game_tables  # pylint: disable=import-outside-toplevel
-            from core.npk.stage_export import PackIndex, read_options_for  # pylint: disable=import-outside-toplevel
+            from core.npk import game_tables
+            from core.npk.stage_export import PackIndex, read_options_for
             options = read_options_for(archive)
             index = PackIndex(game, options)
             links = game_tables.mesh_links(game, options, lambda p: (index.read(p) or (None,))[0])
             _signals.loaded.emit(generation, links, index)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().exception("Could not load item names for the Characters tab")
 
     threading.Thread(target=work, daemon=True).start()
@@ -214,7 +210,7 @@ def _loaded(page, generation, links, index) -> None:
 
 
 def install(app) -> None:
-    global _signals  # pylint: disable=global-statement
+    global _signals
     _patch_search()
     for window in app.topLevelWidgets():
         page = getattr(window, "_character_folders_window", None)

@@ -1,15 +1,7 @@
-"""
-Remembers what the Characters scan learnt from the packs' metadata, so the next scan of unchanged packs skips
-most of "Scanning same-name archive metadata".
+"""Saves what the Characters scan read from the packs' metadata, so rescanning unchanged packs is quicker.
 
-RelatedArchiveSet.prepare reads every metadata entry of the opened pack and its same-name siblings (res,
-res2, res3 ...) and keeps the paths each one references (MetadataReferences: assets, folders). It skips an
-entry whose references it already has. This module saves those references for the entries that already had
-their name (a metadata extension) when read, keyed by entry index, under a stamp of the packs and the install's
-resdb manifests (path, size, modification time); before prepare runs on the same packs again it hands them
-back. Unnamed entries are still read every time: reading them is how they get their names.
-
-On a changed install (any stamp differs) the saved file is ignored and rewritten.
+The saved file is stamped with the packs' and resdb's path, size and modification time, and is rebuilt when
+any of them change.
 """
 
 from __future__ import annotations
@@ -28,9 +20,9 @@ _RES_FOLDER = re.compile(r"res\d*", re.IGNORECASE)
 
 def _cache_file(opened: str) -> Path:
     try:
-        from core.utils import get_application_path  # pylint: disable=import-outside-toplevel
+        from core.utils import get_application_path
         folder = Path(get_application_path()) / "scan_cache"
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         folder = Path(os.getcwd()) / "scan_cache"
     name = re.sub(r"[^A-Za-z0-9]+", "_", str(Path(opened).name)).strip("_") or "pack"
     return folder / f"metadata_{name}_{zlib.crc32(str(opened).lower().encode("utf-8")):08x}.json"
@@ -69,8 +61,8 @@ def load(archive_set) -> int:
         return 0
     if saved.get("version") != CACHE_VERSION or saved.get("stamp") != current:
         return 0
-    from core.npk.metadata_references import MetadataReferences  # pylint: disable=import-outside-toplevel
-    references = archive_set._metadata_references  # pylint: disable=protected-access
+    from core.npk.metadata_references import MetadataReferences
+    references = archive_set._metadata_references
     given = 0
     for index, (assets, folders) in saved.get("named", {}).items():
         index = int(index)
@@ -85,7 +77,7 @@ def save(archive_set, named: set) -> None:
     current = stamp(archive_set)
     if current is None:
         return
-    references = archive_set._metadata_references  # pylint: disable=protected-access
+    references = archive_set._metadata_references
     data = {"version": CACHE_VERSION, "stamp": current,
             "named": {str(i): [list(references[i].assets), list(references[i].folders)]
                       for i in sorted(named) if i in references}}
@@ -102,15 +94,15 @@ def save(archive_set, named: set) -> None:
 
 def install() -> bool:
     """Wrap RelatedArchiveSet.prepare (and _read, to learn which entries were named); False if already done."""
-    from core.npk import related_archives  # pylint: disable=import-outside-toplevel
+    from core.npk import related_archives
     cls = related_archives.RelatedArchiveSet
     if getattr(cls.prepare, "_metadata_cache", False):
         return False
-    original_prepare, original_read = cls.prepare, cls._read  # pylint: disable=protected-access
+    original_prepare, original_read = cls.prepare, cls._read
 
     def _read(self, index, *args, **kwargs):
         named = getattr(self, "_named_metadata", None)
-        if named is not None and index not in self._metadata_references:  # pylint: disable=protected-access
+        if named is not None and index not in self._metadata_references:
             entry = self.entries.get(index)
             if entry is not None and getattr(entry, "extension", ""):
                 named.add(index)
@@ -121,9 +113,9 @@ def install() -> bool:
             return original_prepare(self, *args, **kwargs)
         try:
             given = load(self)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             given = 0
-        self._named_metadata = set(self._metadata_references) if given else set()  # pylint: disable=protected-access
+        self._named_metadata = set(self._metadata_references) if given else set()
         try:
             result = original_prepare(self, *args, **kwargs)
         except BaseException:
@@ -133,10 +125,10 @@ def install() -> bool:
         if getattr(self, "prepared", False) and named:
             try:
                 save(self, named)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 pass
         return result
 
-    prepare._metadata_cache = True  # pylint: disable=protected-access
-    cls.prepare, cls._read = prepare, _read  # pylint: disable=protected-access
+    prepare._metadata_cache = True
+    cls.prepare, cls._read = prepare, _read
     return True

@@ -49,7 +49,7 @@ def entry_size(archive, index) -> int:
             if record is None:
                 indices = getattr(archive, "indices", None)
                 record = indices[index] if indices is not None and 0 <= index < len(indices) else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             record = None
         sizes[index] = int(getattr(record, "file_original_length", 0) or getattr(record, "file_length", 0) or 0)
     return sizes[index]
@@ -75,7 +75,7 @@ def _sorted_keys(keys):
         return keys
     try:
         return sorted(keys, key=_asset_key(page, mode), reverse=mode.endswith("_desc"))
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return keys
 
 
@@ -204,7 +204,7 @@ def _log_summary(page) -> None:
         label.setVisible(bool(text))
 
     label.setText = set_text
-    label._summary_to_log = True  # pylint: disable=protected-access
+    label._summary_to_log = True
     if any(mark in label.text() for mark in SUMMARY_MARKS):
         set_text(label.text())
 
@@ -221,7 +221,7 @@ def install(app) -> None:
         settings = app.property("settings_manager")
         try:
             saved = settings.get(SETTING_SORT, "name") if settings is not None else "name"
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             saved = "name"
         _state["mode"] = saved if saved in {mode for _label, mode in MODES} else "name"
 
@@ -247,7 +247,7 @@ def install(app) -> None:
             if settings is not None:
                 try:
                     settings.set(SETTING_SORT, _state["mode"], True)
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     get_logger().warning("Could not save the sort setting", exc_info=True)
             apply_sort(page)
 

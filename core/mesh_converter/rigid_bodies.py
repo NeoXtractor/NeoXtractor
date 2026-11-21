@@ -1,11 +1,7 @@
-"""
-Body rigid bodies (剛体) for PMX export, sized to the model.
+"""Body rigid bodies (剛体) for PMX export, sized to the model.
 
-MMD physics needs collision shapes on the body so hair, skirts and capes don't fall through it. Hand-made
-rigs put bone-following (ボーン追従) capsules on the main bones; this builds the same set from the exported model:
-each bone's capsule runs along its segment (腕 -> ひじ), and its radius is measured from the vertices that bone
-moves. The torso (上半身, 上半身2, 下半身) gets sideways capsules as wide as the body there, the head a capsule
-around the face, the hands boxes. All are group 1 and don't collide with each other.
+Capsules follow the main bones, with radii measured from the vertices each bone moves, so hair and skirts
+don't fall through the body in MMD physics.
 """
 
 from __future__ import annotations
@@ -27,14 +23,14 @@ STANDARD_HEIGHT = 17.4                       # a male character, head to toe, in
 def enabled(settings=None) -> bool:
     if settings is None:
         try:
-            from PySide6 import QtWidgets  # pylint: disable=import-outside-toplevel
+            from PySide6 import QtWidgets
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             settings = None
     try:
         return bool(settings.get(SETTING, True)) if settings is not None else True
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return True
 
 
@@ -101,7 +97,7 @@ def _mirror_pairs(bodies, common, middle=0.0) -> None:
 
 def add_body_rigid_bodies(model, report=None) -> int:
     """Append bone-following body shapes to model.rigidbodies; returns how many were added."""
-    from pymeshio import common, pmx  # pylint: disable=import-outside-toplevel
+    from pymeshio import common, pmx
     report = report if report is not None else []
     bones = model.bones
     index = {bone.name: i for i, bone in enumerate(bones)}

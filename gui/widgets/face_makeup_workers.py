@@ -43,7 +43,7 @@ def _load(game, signals, read_options=None):
         options["presets"] = face_presets(library, faces, files)
         options["skin_icons"] = skin_icons(library)
         payload, error = (library, faces, files, options), ""
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         payload, error = None, str(exc)
     try:
         signals.loaded.emit(payload, error)
@@ -53,9 +53,9 @@ def _load(game, signals, read_options=None):
 
 def _load_ui_sprites(index, signals):
     """The wardrobe screen's own sprites (slot icons, round frames, buttons) from UI.npk, cut from their atlases."""
-    import io  # pylint: disable=import-outside-toplevel
-    import plistlib  # pylint: disable=import-outside-toplevel
-    from PIL import Image  # pylint: disable=import-outside-toplevel
+    import io
+    import plistlib
+    from PIL import Image
     sprites = {}
     for stem in UI_SHEETS:
         try:
@@ -63,7 +63,7 @@ def _load_ui_sprites(index, signals):
             atlas = Image.open(io.BytesIO(data[0] if isinstance(data, tuple) else data)).convert("RGBA")
             plist = index.read(stem + ".plist")
             frames = plistlib.loads(plist[0] if isinstance(plist, tuple) else plist).get("frames", {})
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             continue
         for name, info in frames.items():
             short = name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
@@ -74,7 +74,7 @@ def _load_ui_sprites(index, signals):
                 rotated = info.get("rotated") or info.get("textureRotated")
                 sprite = atlas.crop((x, y, x + (h if rotated else w), y + (w if rotated else h)))
                 sprites[short] = sprite.rotate(90, expand=True) if rotated else sprite
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 continue
     loose = {name: RARITY_GEM_FOLDER + name for name in RARITY_GEMS.values()}    # the filter's rarity gems
     loose.update(LOOSE_SPRITES)
@@ -85,7 +85,7 @@ def _load_ui_sprites(index, signals):
                 if data:
                     sprites[name] = Image.open(io.BytesIO(data[0] if isinstance(data, tuple) else data)).convert("RGBA")
                     break
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 continue
     try:
         signals.ui_sprites.emit(dict(sprites))         # rail icons, buttons, discs: show them right away
@@ -99,7 +99,7 @@ def _load_ui_sprites(index, signals):
                 data = index.read(path)
                 sprites[path.rsplit("\\", 1)[-1].rsplit(".", 1)[0]] = Image.open(
                     io.BytesIO(data[0] if isinstance(data, tuple) else data)).convert("RGBA")
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 continue
     try:
         signals.ui_sprites.emit(sprites)
@@ -109,10 +109,10 @@ def _load_ui_sprites(index, signals):
 
 def _load_ui_sprites_early(game, signals):
     """The UI sprites as soon as the window opens: they need only the pack index, not the game data."""
-    from gui.widgets.character_anim_export import _index  # pylint: disable=import-outside-toplevel
+    from gui.widgets.character_anim_export import _index
     try:
         _load_ui_sprites(_index(game), signals)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         get_logger().exception("Could not load the creator's UI sprites")
 
 
@@ -125,7 +125,7 @@ def _load_icons(library, options, signals):
             for option in items:
                 try:
                     image = library.icon(option)
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     image = None
                 if image is not None:
                     image = image.convert("RGBA")
@@ -140,13 +140,13 @@ def _load_icons(library, options, signals):
 
 def _load_item_icons(index, paths, signals):
     """Item icons (image/clothes/*.png) as small QImages, sent in batches as they decode."""
-    from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import decode_texture
     batch = {}
     for number, path in enumerate(paths):
         try:
             found = index.read(path.replace("/", "\\"))
             image = decode_texture(found[0]).convert("RGBA") if found else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             image = None
         if image is not None:
             image.thumbnail((ICON_SIZE * 2, ICON_SIZE * 2))
@@ -164,7 +164,7 @@ def _load_part_worker(library, path, texture, sockets, signals, sex=None, key=No
     report: list[str] = []
     try:
         items, error = load_wardrobe_items(library, path, report, texture, sockets, sex), ""
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         items, error = None, str(exc)
     try:
         signals.part.emit(key or choice_key(path, texture), items, error)
@@ -176,7 +176,7 @@ def _load_hair_worker(library, path, signals):
     report: list[str] = []
     try:
         items, error = load_face_items(library, [path], [], None, report), ""
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         items, error = None, str(exc)
     try:
         signals.hair.emit(path, items, error)
@@ -188,7 +188,7 @@ def _load_meshes_worker(library, key, mesh_paths, files, shape_path, signals):
     report: list[str] = []
     try:
         items, error = load_face_items(library, mesh_paths, files, shape_path, report), ""
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         items, error = None, str(exc)
     try:
         signals.meshes.emit(key, items, error)
@@ -210,7 +210,7 @@ def _bake_worker(generation, library, folder, sex, look, side, face_texture, hai
         else:
             info["sides"] = {None: image}
         result = (generation, image, info, "")
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         result = (generation, None, {}, f"Could not bake this look: {exc}")
     try:
         signals.baked.emit(*result)
@@ -221,11 +221,11 @@ def _bake_worker(generation, library, folder, sex, look, side, face_texture, hai
 def export_face(main_window, game, library, folder, mesh_paths, hair_data, hair_choice, hair_path, wardrobe_paths,
                 files, sex, look, shape_path, face_texture, fmt, hidden=()):
     """Write <output>/<face>_makeup/model.<fmt>: face (+ eyes, lashes, eyebrows) with the makeup baked in."""
-    from gui.widgets.character_exports import start_export  # pylint: disable=import-outside-toplevel
+    from gui.widgets.character_exports import start_export
     face = folder.rsplit("\\", 1)[-1]
 
     def build(progress, cancelled, report, target):
-        from core.mesh_converter import model_export  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter import model_export
         writer = {"glb": model_export.write_glb, "pmx": model_export.write_pmx, "obj": model_export.write_obj}[fmt]
         items = load_face_items(library, mesh_paths, files, shape_path, report, progress, cancelled)
         progress("Baking the makeup…", len(mesh_paths), len(mesh_paths) + 2)
@@ -262,8 +262,8 @@ def export_face(main_window, game, library, folder, mesh_paths, hair_data, hair_
                 raise InterruptedError
             progress(f"Loading {ntpath.basename(path)}", len(mesh_paths), len(mesh_paths) + 2)
             output += dress_wardrobe_items(load_wardrobe_items(library, path, report, texture, sockets, sex), skin)
-        from gui.widgets.character_exports import with_body_size  # pylint: disable=import-outside-toplevel
-        from core.npk.accessory_sockets import apply_bind_offsets  # pylint: disable=import-outside-toplevel
+        from gui.widgets.character_exports import with_body_size
+        from core.npk.accessory_sockets import apply_bind_offsets
         worn = [hair_choice[0].get("mesh") if hair_choice and isinstance(hair_choice[0], dict) else None] + \
             [c[0] for c in choices if "\\clothes\\" in c[0].lower()]
         output = apply_bind_offsets(library, output, worn)

@@ -68,7 +68,7 @@ def game_tables_tag_names(library) -> dict:
     """{tag key: the game's name} (cached by game_tables); {} before the game data is loaded."""
     if library is None:
         return {}
-    from core.npk import game_tables  # pylint: disable=import-outside-toplevel
+    from core.npk import game_tables
     return game_tables.tag_names(library.tables)
 
 
@@ -186,7 +186,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         for label, fmt in (("GLB…", "glb"), ("PMX…", "pmx"), ("OBJ…", "obj")):
             export_menu.addAction(label).triggered.connect(lambda _checked=False, fmt=fmt: self._export(fmt))
         try:                                       # the PMX switches only change PMX exports: in their own submenu
-            from core.mesh_converter.formats.pmx import pmx_option_actions  # pylint: disable=import-outside-toplevel
+            from core.mesh_converter.formats.pmx import pmx_option_actions
             export_menu.addSeparator()
             pmx_menu = export_menu.addMenu("PMX options")
             pmx_menu.setObjectName("creatorPopover")
@@ -194,7 +194,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             for action in self.pmx_actions:
                 pmx_menu.addAction(action)
             pmx_menu.setToolTipsVisible(True)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             self.pmx_actions = ()
         export.setMenu(export_menu)
         for button in (add_scene, save, export):
@@ -318,11 +318,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.tabs = QtWidgets.QStackedWidget(self.stage)
         self.view3d = None
         try:
-            from gui.widgets.scene_render import SceneRenderWidget  # pylint: disable=import-outside-toplevel
+            from gui.widgets.scene_render import SceneRenderWidget
             self.view3d = SceneRenderWidget()
             self.view3d.show_bones = False
             self.tabs.addWidget(self.view3d)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self.tabs.addWidget(QtWidgets.QLabel(f"3D preview unavailable: {exc}"))
         self.texture_page = QtWidgets.QWidget()
         texture_layout = QtWidgets.QVBoxLayout(self.texture_page)
@@ -586,12 +586,12 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._signals.part.connect(self._part_loaded)
         self._signals.item_icons.connect(self._item_icons_loaded)
         self._signals.ui_sprites.connect(self._ui_sprites_loaded)
-        from gui.widgets.character_anim_export import _game_options  # pylint: disable=import-outside-toplevel
+        from gui.widgets.character_anim_export import _game_options
         threading.Thread(target=_load, args=(game, self._signals, _game_options()), daemon=True).start()
         threading.Thread(target=_load_ui_sprites_early, args=(game, self._signals), daemon=True).start()
 
     # -- rail, list and floating buttons -----------------------------------------------------------
-    def eventFilter(self, obj, event):  # pylint: disable=invalid-name
+    def eventFilter(self, obj, event):
         if obj is getattr(self, "stage", None) and event.type() == QtCore.QEvent.Type.Resize:
             self._layout_overlays()
         return super().eventFilter(obj, event)
@@ -642,7 +642,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             height = min(self.layers.sizeHint().height(), room)
             self.layers.setFixedHeight(height)
             self.layers.move(rect.width() - self.layers.width() - 12, self.action_bar.geometry().top() - 12 - height)
-            self.layers.setVisible(self.tabs.currentIndex() == 0 and bool(self.layers._groups))  # pylint: disable=protected-access
+            self.layers.setVisible(self.tabs.currentIndex() == 0 and bool(self.layers._groups))
             self.layers.raise_()
         left = self.view_controls.geometry().right() + 12
         self.notes.setFixedWidth(max(200, min(520, rect.width() - left - self.action_bar.width() - 36)))
@@ -766,7 +766,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def _item_filter_changed(self):
         for tiles in self.pages.findChildren(_Tiles):
-            tiles.apply_filter(tiles._filter)  # pylint: disable=protected-access
+            tiles.apply_filter(tiles._filter)
         self._update_filter_button()
 
     def _update_filter_button(self):
@@ -908,7 +908,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
     def _update_dye_buttons(self, *_args):
         if not hasattr(self, "dye_buttons"):
             return
-        from core.npk.hair_dye import hex_color  # pylint: disable=import-outside-toplevel
+        from core.npk.hair_dye import hex_color
         for button, combo in zip(self.dye_buttons, (self.hair_color1, self.hair_color2)):
             rgb = combo.currentData()
             button.color = hex_color(rgb) if rgb is not None else None
@@ -981,11 +981,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         return app.property("settings_manager") if app is not None else None
 
     def _update_size_buttons(self):
-        from gui.widgets.character_exports import body_size_adult  # pylint: disable=import-outside-toplevel
+        from gui.widgets.character_exports import body_size_adult
         self.size_buttons.button(1 if body_size_adult() else 0).setChecked(True)
 
     def _size_clicked(self, number):
-        from gui.widgets.character_exports import BODY_SIZE_SETTING  # pylint: disable=import-outside-toplevel
+        from gui.widgets.character_exports import BODY_SIZE_SETTING
         settings = self._settings()
         if settings is not None:
             settings.set(BODY_SIZE_SETTING, "adult" if number == 1 else "original", True)
@@ -994,10 +994,10 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def _sized_items(self, items):
         """The 3D pieces in body size II when it is chosen (the export's own deform, cached per mesh)."""
-        from gui.widgets.character_exports import body_size_adult  # pylint: disable=import-outside-toplevel
+        from gui.widgets.character_exports import body_size_adult
         if not body_size_adult() or self.library is None:
             return items
-        from core.mesh_converter import body_size  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter import body_size
         paths = tuple(self.wardrobe_paths()) + tuple(self.faces.get(self.face.currentData(), []))
         cache = self.__dict__.setdefault("_size_cache", {})
         if cache.get("paths") != paths:
@@ -1005,7 +1005,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             try:
                 deformer, _source = body_size.deformer_for(
                     lambda path: (self.library.index.read(path) or (None,))[0], list(paths), notes)
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 deformer = None
                 notes.append(str(exc))
             cache.clear()
@@ -1027,7 +1027,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     # -- game UI sprites -----------------------------------------------------------------------------
     def _ui_sprites_loaded(self, sprites):
-        from gui.widgets.scene_render import pil_to_qimage  # pylint: disable=import-outside-toplevel
+        from gui.widgets.scene_render import pil_to_qimage
         for name, image in sprites.items():
             self.sprites[name] = QtGui.QPixmap.fromImage(pil_to_qimage(image))
         QtCore.QTimer.singleShot(0, self._place_rail_glow)
@@ -1064,7 +1064,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             if found >= 0:
                 self.face.setCurrentIndex(found)
                 wanted = True
-        from core.npk.hair_dye import hex_color  # pylint: disable=import-outside-toplevel
+        from core.npk.hair_dye import hex_color
         for combo, first in ((self.hair_color1, "Original colour"), (self.hair_color2, "Same as colour 1")):
             combo.addItem(first, None)
             for color_id, rgb, _main in self.options["hair"]["colors"]:
@@ -1168,7 +1168,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             self.all_tiles.schedule()
 
     def _sex(self):
-        from core.npk.face_makeup import face_sex  # pylint: disable=import-outside-toplevel
+        from core.npk.face_makeup import face_sex
         return face_sex(self.face.currentData() or "")
 
     def _switch_sex(self, sex):
@@ -1177,8 +1177,8 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def _random_look(self, sex):
         """A random face preset, hairstyle and outfit of this sex (named items only, when there are any)."""
-        import random  # pylint: disable=import-outside-toplevel
-        from core.npk.face_makeup import face_sex  # pylint: disable=import-outside-toplevel
+        import random
+        from core.npk.face_makeup import face_sex
         keys = [p["key"] for p in getattr(self, "_all_presets", []) if face_sex(p["key"].split("|", 1)[0]) == sex]
         if not keys:
             return
@@ -1191,7 +1191,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             combo.setCurrentIndex(random.choice(rows))
 
     def _fill_presets(self, sex):
-        from core.npk.face_makeup import face_sex  # pylint: disable=import-outside-toplevel
+        from core.npk.face_makeup import face_sex
         blocker = QtCore.QSignalBlocker(self.preset)
         self.preset.clear()
         for preset in getattr(self, "_all_presets", []):
@@ -1289,11 +1289,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     # -- look --------------------------------------------------------------------------------
     def look(self):
-        from core.npk.face_makeup import Look  # pylint: disable=import-outside-toplevel
+        from core.npk.face_makeup import Look
         return Look(skin=self.skin.currentData(), **{kind: combo.currentData() for kind, combo in self.choices.items()})
 
     def _randomize(self):
-        import random  # pylint: disable=import-outside-toplevel
+        import random
         for combo in [self.skin] + list(self.choices.values()):
             if combo.count() > 1:
                 combo.setCurrentIndex(random.randrange(1 if combo is not self.skin else 0, combo.count()))
@@ -1482,7 +1482,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
     def _update_3d(self):
         if self.view3d is None or self.face_items is None or self.dressed is None or self.face_items[0] != self._mesh_key():
             return
-        from gui.widgets.scene_render import SceneObject, pil_to_qimage  # pylint: disable=import-outside-toplevel
+        from gui.widgets.scene_render import SceneObject, pil_to_qimage
         folder = self.face.currentData()
         face = folder.rsplit("\\", 1)[-1]
         look = self.look()
@@ -1585,13 +1585,13 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         else:
             self.brow_preview.hide()
 
-    def resizeEvent(self, event):  # pylint: disable=invalid-name
+    def resizeEvent(self, event):
         QtCore.QTimer.singleShot(0, self._place_rail_glow)
         QtCore.QTimer.singleShot(0, self._place_filter)
         super().resizeEvent(event)
         self._show_preview()
 
-    def showEvent(self, event):  # pylint: disable=invalid-name
+    def showEvent(self, event):
         super().showEvent(event)
         self._layout_overlays()
 
@@ -1631,7 +1631,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             QtWidgets.QMessageBox.information(self, "Add to Scene Viewer",
                                               "Some pieces are still loading; try again in a moment.")
             return
-        from gui.widgets.scene_viewer import show_viewer  # pylint: disable=import-outside-toplevel
+        from gui.widgets.scene_viewer import show_viewer
         face = folder.rsplit("\\", 1)[-1]
         sides = self.dressed.get("sides") or {None: self.preview_image}
         items, _eyes = dress_face_items(self.library, self.face_items[1], self._sex(), face, self.look(), sides,
@@ -1685,7 +1685,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
 
 def open_dialog(main_window, folder=None) -> None:
-    from gui.widgets.character_anim_export import _game_folder  # pylint: disable=import-outside-toplevel
+    from gui.widgets.character_anim_export import _game_folder
     game = _game_folder()
     if game is None:
         QtWidgets.QMessageBox.information(main_window, "Face makeup",
@@ -1704,7 +1704,7 @@ def _keep_with(main_window, window) -> None:
     window.destroyed.connect(lambda *_args, w=window: w in windows and windows.remove(w))
     if getattr(main_window, "_creator_close_watch", None) is None:
         class _CloseWatch(QtCore.QObject):
-            def eventFilter(self, obj, event):  # pylint: disable=invalid-name
+            def eventFilter(self, obj, event):
                 if event.type() == QtCore.QEvent.Type.Close:
                     # after the main window's own close handling, which may still cancel the close
                     QtCore.QTimer.singleShot(0, lambda: None if obj.isVisible() else

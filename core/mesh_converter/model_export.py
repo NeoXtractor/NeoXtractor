@@ -1,12 +1,7 @@
-"""
-Combine several NeoX meshes (rigs, placements and per-part textures) into one GLB or PMX.
+"""Combine several NeoX meshes into one GLB or PMX.
 
-Items are dicts:
-    name:   object name
-    mesh:   MeshData (NeoX space)
-    matrix: optional 4x4 column-vector placement in NeoX space
-    parts:  one dict per sub-mesh: material, texture (name/path), image (PIL or None),
-            alpha ('OPAQUE' | 'MASK' | 'BLEND'), cutoff
+Each item is a dict: name, mesh (MeshData), an optional 4x4 placement matrix, and parts (one per sub-mesh:
+material, texture, image, alpha mode, cutoff).
 """
 
 from __future__ import annotations
@@ -206,7 +201,7 @@ def _texture_names(materials) -> dict[int, str]:
 
 def _trs(matrix):
     """Column-vector 4x4 -> glTF translation, rotation (xyzw) and scale lists."""
-    from core.npk.neox_anim import matrix_quaternion  # pylint: disable=import-outside-toplevel
+    from core.npk.neox_anim import matrix_quaternion
     scale = np.linalg.norm(matrix[:3, :3], axis=0)
     rotation = matrix_quaternion(matrix[:3, :3] / np.maximum(scale, 1e-12))
     return matrix[:3, 3].tolist(), rotation.tolist(), scale.tolist()
@@ -394,7 +389,7 @@ def write_pmx(items: list[dict], target, bone_names: list[str] | None = None) ->
     PMX through the app's converter, with materials named per part and PNG textures beside it.
     bone_names optionally renames the merged bones (e.g. to fit a VMD's 15-byte names).
     """
-    from core.mesh_converter.formats import pmx as pmx_format  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter.formats import pmx as pmx_format
     mesh, materials = merge(items)
     if bone_names is not None:
         mesh.bone_source_names = list(mesh.bone_name)      # the HPMA names stay as English names

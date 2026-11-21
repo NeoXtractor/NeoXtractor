@@ -22,8 +22,8 @@ SETTING_FORMAT = "stage_export.format"
 
 def export_stage_file(index, scene, output, kind, include_hidden, progress, cancelled) -> Path:
     """Write a stage as one <output>/<stage>/<stage>.glb or .pmx, with a short report beside it."""
-    from core.mesh_converter import model_export  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import model_export
+    from core.npk.stage_export import StageLoader
     loader = StageLoader(index, progress=progress, cancelled=cancelled, include_hidden=include_hidden,
                          max_texture_size=8192)
     objects = loader.load(scene)
@@ -163,7 +163,7 @@ class StagesPage(QtWidgets.QWidget):
         settings = self._settings()
         try:
             return settings.get(key, default) if settings is not None else default
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             return default
 
     def _store(self, key, value):
@@ -232,7 +232,7 @@ class StagesPage(QtWidgets.QWidget):
                 scenes = index.scenes()
                 sizes = {scene: index.scene_size(scene) for scene in scenes}
                 self.signals.scenes_ready.emit(generation, (index, scenes, sizes), "")
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 self.signals.scenes_ready.emit(generation, None, str(exc))
 
         scan_memory.begin()         # the pack index this builds stays in memory
@@ -358,7 +358,7 @@ class StagesPage(QtWidgets.QWidget):
                                                          progress, self._cancel.is_set))
                 except InterruptedError:
                     break
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     errors.append(f"{scene}: {exc}")
             self.signals.finished.emit(written, "\n".join(errors))
 
@@ -369,7 +369,7 @@ class StagesPage(QtWidgets.QWidget):
         scenes = self._selected_scenes()
         if self.index is None or len(scenes) != 1:
             return
-        from gui.widgets import scene_viewer  # pylint: disable=import-outside-toplevel
+        from gui.widgets import scene_viewer
         scene_viewer.viewer_for(self.window_).open_stage(self.game, scenes[0], self._read_options())
 
     def _stage_menu(self, position):

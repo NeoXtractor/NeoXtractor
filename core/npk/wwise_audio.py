@@ -13,9 +13,9 @@ AUDIO_LABEL = "Audio"
 
 def install_detection() -> None:
     """Loose .wem / .ogg / .wav files share the sound banks' category (shown as "Audio")."""
-    import importlib  # pylint: disable=import-outside-toplevel
-    from core.npk import detection  # pylint: disable=import-outside-toplevel
-    from core.npk.enums import NPKEntryFileCategories  # pylint: disable=import-outside-toplevel
+    import importlib
+    from core.npk import detection
+    from core.npk.enums import NPKEntryFileCategories
     original = getattr(detection.get_file_category, "_original", detection.get_file_category)
 
     def get_file_category(extension):
@@ -27,7 +27,7 @@ def install_detection() -> None:
     for name in ("core.npk.detection", "core.npk.npk_file", "core.npk.related_archives", "core.wpk.wpk_file"):
         try:
             module = importlib.import_module(name)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             continue
         if hasattr(module, "get_file_category"):
             module.get_file_category = get_file_category
@@ -35,7 +35,7 @@ def install_detection() -> None:
 
 def install_category(app) -> None:
     """Name the sound bank category "Audio" in each main window's category list."""
-    from core.npk.enums import NPKEntryFileCategories  # pylint: disable=import-outside-toplevel
+    from core.npk.enums import NPKEntryFileCategories
     for window in app.topLevelWidgets():
         combo = getattr(window, "entry_category_filter_combobox", None)
         if combo is None:

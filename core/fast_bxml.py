@@ -1,18 +1,8 @@
-"""
-Faster binary XML (BXML) decoding, with the same text out.
+"""Faster binary XML (BXML) decoding, with the same output.
 
-core.formats.bxml (bytecode only in the exe) turns every .gim / .mtg / .sfx style binary XML into text, and
-"Scanning same-name archive metadata" does that for tens of thousands of files. Two parts of it were slow:
-
-- its string reader read one byte per call until the zero byte; the new body reads a chunk and finds the zero
-  byte in it, and string tables are split in one pass (same strings, same position afterwards);
-- it pretty-printed by serialising the tree, parsing that text again with minidom and writing it back out
-  (minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")). pretty_xml() writes minidom's exact
-  format straight from the tree instead. Trees it can't vouch for (text next to child elements, tails,
-  namespaces, characters XML can't carry or would normalise such as \\r) take the original round trip.
-
-install() swaps the string readers' bodies in place and gives the bxml module stand-ins for its ET and minidom
-names that take the fast path only for that one ET.tostring -> minidom.parseString pair.
+Strings are read a chunk at a time instead of byte by byte, and the pretty-printed text is written straight
+from the tree instead of round-tripping through minidom. Unusual trees (mixed text, tails, namespaces) still
+take the original path.
 """
 
 import re
@@ -74,7 +64,7 @@ def _escape(text: str) -> str:
 
 
 def _checked(value) -> str:
-    if type(value) is not str:  # pylint: disable=unidiomatic-typecheck
+    if type(value) is not str:
         raise _Unusual
     return value
 
@@ -156,7 +146,7 @@ class _MinidomNames:
         return getattr(_minidom, name)
 
     @staticmethod
-    def parseString(string, *args, **kwargs):  # pylint: disable=invalid-name
+    def parseString(string, *args, **kwargs):
         if isinstance(string, _Deferred):
             text = pretty_xml(string.root) if not args and not kwargs else None
             if text is not None:
@@ -179,7 +169,7 @@ def install() -> bool:
         return False
     reader.__code__ = _read_null_terminated_utf8.__code__
     pool.__code__ = _read_string_pool.__code__
-    reader._fast = True  # pylint: disable=protected-access
+    reader._fast = True
     _bxml.ET = _ETNames()
     _bxml.minidom = _MinidomNames()
     return True

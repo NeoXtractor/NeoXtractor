@@ -31,7 +31,7 @@ def read_options_for(archive=None):
     options = getattr(archive, "options", None)
     if options is not None and getattr(options, "decryption_key", None) is not None:
         return options
-    from core.npk.npk_file import NPKReadOptions  # pylint: disable=import-outside-toplevel
+    from core.npk.npk_file import NPKReadOptions
     return NPKReadOptions(decryption_key=HPMA_DECRYPTION_KEY)
 
 
@@ -240,8 +240,8 @@ def _texture_extension(data: bytes) -> str:
 
 def decode_texture(data: bytes):
     """Decode DDS/KTX/PVR/ASTC/PNG/TGA bytes into an RGB or RGBA PIL image."""
-    from core.images import convert_image  # pylint: disable=import-outside-toplevel
-    from PIL import Image  # pylint: disable=import-outside-toplevel
+    from core.images import convert_image
+    from PIL import Image
     kind = _texture_extension(data)
     image = convert_image(data, kind) if kind != 'tga' else None
     if image is None:
@@ -351,7 +351,7 @@ class StageExporter:
         data, actual = found
         try:
             image = decode_texture(data)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self.report.append(f'unreadable texture: {actual} ({exc})')
             return None
         name = Path(actual).stem
@@ -395,7 +395,7 @@ class StageExporter:
         return materials
 
     def _mesh(self, gltf, binary, gim_path, folder, caches):
-        from core.mesh_loader import MeshLoader  # pylint: disable=import-outside-toplevel
+        from core.mesh_loader import MeshLoader
         gim_data = self.index.read(gim_path)
         if gim_data is None:
             self.report.append(f'missing model: {gim_path}')
@@ -513,7 +513,7 @@ class StageLoader:
 
     def clip(self, model_path: str):
         """The model's auto-play animation loop (neox_anim.Clip), or None; cached per model."""
-        from core.npk.neox_anim import load_default_clip  # pylint: disable=import-outside-toplevel
+        from core.npk.neox_anim import load_default_clip
         model_path = clean_asset_path(model_path)
         if model_path not in self._clips:
             self._clips[model_path] = load_default_clip(self.index.read, model_path, self.report)
@@ -534,7 +534,7 @@ class StageLoader:
                     if max(image.size) > self.max_texture_size:
                         image.thumbnail((self.max_texture_size, self.max_texture_size))
                     self._textures[path] = image
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     self.report.append(f'unreadable texture: {found[1]} ({exc})')
         return self._textures[path]
 
@@ -571,7 +571,7 @@ class StageLoader:
 
     def model(self, model_path: str):
         """(MeshData, parts) for a .gim or .mesh path, or None when the mesh is missing."""
-        from core.mesh_loader import MeshLoader  # pylint: disable=import-outside-toplevel
+        from core.mesh_loader import MeshLoader
         model_path = clean_asset_path(model_path)
         if model_path in self._models:
             return self._models[model_path]

@@ -1,20 +1,8 @@
-"""
-Names for the game's Wwise sounds in the file list.
+"""Names for the game's Wwise sounds in the file list.
 
-wwise.npk holds ~22 000 sounds named only by their Wwise media id and ~3 500 sound banks with real names
-(vo_emotion_ronweasley.bnk). Two things name them better:
-
-- Opened on its own, wwise.npk names its entries by their hash (0x2245e0.wem): the murmur3 hash of the file's path
-  inside the pack. The install's file list (resdb) has every such path, often with a telling folder
-  (english\\vo_commonphrases_cassandra\\164289208.wem), so each hashed name gets its path back.
-- A bank's HIRC Sound objects (type 2) name the media id they play, so a numbered sound can also be labelled with
-  the bank that uses it (about 94% of them are, almost always by one bank).
-
-The file list shows "0x2245e0.wem · english\\vo_commonphrases_cassandra\\164289208.wem" (plus the bank when the path
-doesn't already say it), or "325694.wem · vo_emotion_ronweasley" for a numbered name, and its search matches all of
-that. The entry's own name (what extracting and renaming use) is unchanged. The tables are built in the background
-the first time such a name is shown and kept in scan_cache\\wwise_banks.json under a stamp of the wwise packs (path,
-size, modification time): rebuilt only when they change.
+Hashed names (0x2245e0.wem) get their path back from the install's resdb, and numbered sounds (325694.wem)
+are labelled with the bank that plays them. Only the shown name and the search change; extracting uses the
+entry's own name. The tables are cached in scan_cache\\wwise_banks.json.
 """
 
 from __future__ import annotations
@@ -94,7 +82,7 @@ def build_labels(index) -> dict[int, str]:
         try:
             data = index.read(path)
             data = data[0] if isinstance(data, tuple) else data
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             continue
         if not data:
             continue
@@ -106,16 +94,16 @@ def build_labels(index) -> dict[int, str]:
 
 def build_paths(index) -> dict[int, str]:
     """{entry hash: path inside the pack} for every wwise\\ file of the install (murmur3 of that path)."""
-    from core.npk.asset_paths import murmur3_32  # pylint: disable=import-outside-toplevel
+    from core.npk.asset_paths import murmur3_32
     return {murmur3_32(inner): inner for inner in (p.split("\\", 1)[1] for p in _wwise_paths(index))}
 
 
 # -- cache -------------------------------------------------------------------------------------------------------
 def _cache_file() -> Path:
     try:
-        from core.utils import get_application_path  # pylint: disable=import-outside-toplevel
+        from core.utils import get_application_path
         return Path(get_application_path()) / "scan_cache" / "wwise_banks.json"
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return Path(os.getcwd()) / "scan_cache" / "wwise_banks.json"
 
 
@@ -155,7 +143,7 @@ def load_or_build(index) -> tuple[dict[int, str], dict[int, str]]:
 
 def _build_in_background():
     try:
-        from gui.widgets.character_anim_export import _game_folder, _index  # pylint: disable=import-outside-toplevel
+        from gui.widgets.character_anim_export import _game_folder, _index
         game = _game_folder()
         if game is None:
             with _LOCK:
@@ -163,8 +151,8 @@ def _build_in_background():
                 _STATE["retry_at"] = time.monotonic() + RETRY_SECONDS
             return
         labels, paths = load_or_build(_index(game))
-    except Exception:  # pylint: disable=broad-except
-        from core.logger import get_logger  # pylint: disable=import-outside-toplevel
+    except Exception:
+        from core.logger import get_logger
         get_logger().exception("Could not read the sound banks for sound names")
         return
     with _LOCK:
@@ -174,7 +162,7 @@ def _build_in_background():
     for notify in list(_NOTIFY):
         try:
             notify()
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             pass
 
 
@@ -214,9 +202,9 @@ def labelled(filename):
 # -- the file list -----------------------------------------------------------------------------------------------
 def install(app=None) -> bool:
     """Name sound rows in the file list (display and search only); False if already done."""
-    from PySide6 import QtCore, QtWidgets  # pylint: disable=import-outside-toplevel
-    from gui.models import npk_file_model  # pylint: disable=import-outside-toplevel
-    from gui import npk_entry_filter  # pylint: disable=import-outside-toplevel
+    from PySide6 import QtCore, QtWidgets
+    from gui.models import npk_file_model
+    from gui import npk_entry_filter
     model_cls, filter_cls = npk_file_model.NPKFileModel, npk_entry_filter.NPKEntryFilter
     if getattr(model_cls.data, "_wwise_names", False):
         return False
@@ -253,7 +241,7 @@ def install(app=None) -> bool:
     relay.setParent(app or QtWidgets.QApplication.instance())
 
     def repaint():
-        from gui.widgets.npk_file_list import NPKFileList  # pylint: disable=import-outside-toplevel
+        from gui.widgets.npk_file_list import NPKFileList
         for window in QtWidgets.QApplication.topLevelWidgets():
             for view in window.findChildren(NPKFileList):
                 view.viewport().update()

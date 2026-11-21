@@ -1,12 +1,7 @@
-"""
-A faster core.logger.get_logger.
+"""A faster get_logger: it looks at the calling frame only, instead of inspect.stack() on every call.
 
-The original finds the caller's module with inspect.stack(), which builds every frame of the call stack and
-reads source lines for each one, on every call. Reading NPK files calls get_logger() thousands of times, so
-that cost shows up when opening packs and building the wardrobe lists. core/logger.py exists only as
-bytecode in the exe, so install() gives the existing function a new body in place: every module that already
-did `from core.logger import get_logger` gets the faster version too. Loggers are the same, named after the
-calling module (logging.basicConfig on the root logger handles them all).
+install() replaces the body of core.logger.get_logger in place, so modules that already imported it get the
+faster version too.
 """
 
 import inspect
@@ -37,5 +32,5 @@ def install() -> bool:
     if code.co_argcount != 1 or code.co_freevars or not all(n in names for n in ("inspect", "logging", "default_logger")):
         return False
     target.__code__ = _get_logger.__code__
-    target._fast = True  # pylint: disable=protected-access
+    target._fast = True
     return True

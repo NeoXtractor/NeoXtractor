@@ -91,13 +91,13 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
     Ask for a target file, then run build(progress, cancelled, report) -> items and
     write one .glb or .pmx in the background with a progress dialog.
     """
-    from core.mesh_converter import model_export  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import model_export
     app = QtWidgets.QApplication.instance()
     settings = app.property("settings_manager") if app is not None else None
     folder = ""
     try:
         folder = settings.get(SETTING_EXPORT_FOLDER, "") if settings is not None else ""
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         folder = ""
     name = re.sub(r'[<>:"/\\|?*]+', "_", default_name).strip() or "export"
     each = kind.startswith("each:")                   # one folder per mesh, written as it loads
@@ -180,7 +180,7 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
             if kind == "glb":
                 written = model_export.write_glb(items, target)
             elif kind == "vmd":
-                from core.mesh_converter import vmd_export  # pylint: disable=import-outside-toplevel
+                from core.mesh_converter import vmd_export
                 pairs = []
                 for number, item in enumerate(items):
                     if cancel.is_set():
@@ -203,7 +203,7 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
             _emit(job_id, "finished", str(written), "\n".join(notes)[:3000], "")
         except InterruptedError:
             _emit(job_id, "finished", "", "", "Export cancelled.")
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             _emit(job_id, "finished", "", "", f"Export failed: {exc}")
 
     dialog.show()
@@ -222,7 +222,7 @@ def body_size_adult() -> bool:
     settings = app.property("settings_manager") if app is not None else None
     try:
         return settings is not None and settings.get(BODY_SIZE_SETTING, "original") == "adult"
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return False
 
 
@@ -234,10 +234,10 @@ def with_body_size(index, items, mesh_paths, report):
     """items in the chosen body size (unchanged for Original, or when nothing here is a character part)."""
     if index is None or not body_size_adult() or not any(is_character_path(p) for p in mesh_paths):
         return items
-    from core.mesh_converter import body_size  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import body_size
     try:
         return body_size.adult_items(lambda p: (index.read(p) or (None,))[0], items, mesh_paths, report)
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         report.append(f"Adult size could not be applied: {exc}")
         return items
 
@@ -248,7 +248,7 @@ def outfit_body_items(loader, mesh_path: str, exclude=()) -> list[dict]:
     which points at a mesh in only_body (body, hands, neck) and skins it with the outfit's own
     <outfit>_body.mtg, so the piece comes out with the right texture.
     """
-    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
+    import xml.etree.ElementTree as ET
     if loader is None or "\\clothes\\" not in mesh_path.lower():
         return []
     gim_path = mesh_path.rsplit(".", 1)[0] + "_body.gim"
@@ -294,7 +294,7 @@ def export_character_selection(main_window, kind: str) -> None:
         default = common[-1] if common else (selected[0].text(0) if selected else "export")
 
     def build(progress, cancelled, report):
-        from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for
         game = game_root_for(archive.file_path) if getattr(archive, "file_path", None) else None
         loader = StageLoader(PackIndex(game, read_options_for(archive)), max_texture_size=8192) if game else None
         items, mesh_loader = [], MeshLoader()
@@ -307,7 +307,7 @@ def export_character_selection(main_window, kind: str) -> None:
             if model is None:
                 try:
                     mesh = mesh_loader.load_from_bytes(read_entry_data(archive, index))
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     report.append(f"{name}: {exc}")
                     continue
                 if mesh is None or not mesh.position:
@@ -367,7 +367,7 @@ def include_item_info() -> bool:
     settings = app.property("settings_manager") if app is not None else None
     try:
         return bool(settings.get(ITEM_INFO_SETTING, True)) if settings is not None else True
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return True
 
 
@@ -379,14 +379,14 @@ def _display_name(name: str) -> str:
 
 def save_item_icon(index, link, target) -> bool:
     """Save the item's icon (game path like image/clothes/x.png) as a PNG at target."""
-    from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import decode_texture
     found = index.read(link["icon"].replace("/", "\\"))
     if found is None:
         return False
     try:
         decode_texture(found[0]).save(target)
         return True
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return False
 
 
@@ -398,7 +398,7 @@ def save_metadata_textures(index, metadata_paths, used_textures, folder) -> int:
     Save every texture the metadata files name (skin tone variants, makeup masks, AO / mask maps)
     that the model itself does not use, as PNGs in folder. Returns how many were written.
     """
-    from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import decode_texture
     used = {str(path).lower().rsplit(".", 1)[0] for path in used_textures if path}
     wanted = {}
     for path in metadata_paths:
@@ -416,7 +416,7 @@ def save_metadata_textures(index, metadata_paths, used_textures, folder) -> int:
             continue
         try:
             image = decode_texture(found[0])
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             continue
         name = _safe_folder(reference.rsplit("\\", 1)[-1].rsplit(".", 1)[0])
         while name.lower() in names:
@@ -431,19 +431,14 @@ def save_metadata_textures(index, metadata_paths, used_textures, folder) -> int:
 def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False, faces_only: bool = False,
                                  hats_only: bool = False, face_shapes: bool = False) -> None:
     """
-    Export the meshes under the Characters selection, loaded, written and released a file at a time:
-      per mesh:   <output>/<selected folder>/<mesh>/<mesh>.<fmt>
-      per folder: <output>/<selected folder>/<folder>/<folder>.<fmt>, every mesh of that folder in one
-                  model with its own materials (a face folder: face, eyes, eyebrows, lashes)
-    Next to each model, <name>_textures/other holds the textures its metadata names but the model
-    does not use (skin tones, makeup masks, AO / mask maps).
-    faces_only: just the face folders (.../body/<face>/), each as one model: face, eyeballs, lashes, eyebrows.
-    hats_only: just the hats (.../hat/...), without each hat's mask/ folder of hairstyles trimmed to fit under it.
-    face_shapes: faces_only, plus one more model per face shape the game has for that face
-                 (<face>_NN.mb): <face>_shape_NN.<fmt>, the face, eyes and eyebrows reshaped.
+    Export the meshes under the Characters selection, one file at a time.
+
+    Writes <output>/<folder>/<mesh>/<mesh>.<fmt>, or one model per folder with per_folder. Textures the
+    metadata names but the model doesn't use go to <name>_textures/other. faces_only, hats_only and
+    face_shapes limit the export to faces, hats, or faces plus every face shape (<face>_shape_NN).
     """
     faces_only = faces_only or face_shapes
-    from gui.windows.character_folders_window import FOLDER_PATH_ROLE  # pylint: disable=import-outside-toplevel
+    from gui.windows.character_folders_window import FOLDER_PATH_ROLE
     characters = getattr(main_window, "_character_folders_window", None)
     app = QtWidgets.QApplication.instance()
     archive = app.property("npk_file") if app is not None else None
@@ -458,7 +453,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
         per_folder = True
         meshes = [(index, path) for index, path in meshes if path.lower().split("\\")[-3:-2] == ["body"]]
         # not the older face copy with built-in eyeballs (<face>_all_jr) next to the face itself
-        from gui.widgets.face_makeup_data import without_old_eye_faces  # pylint: disable=import-outside-toplevel
+        from gui.widgets.face_makeup_data import without_old_eye_faces
         kept = set(without_old_eye_faces([path for _index, path in meshes]))
         meshes = [(index, path) for index, path in meshes if path in kept]
         if not meshes:
@@ -521,8 +516,8 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
     unit = "folders" if per_folder else "meshes"
 
     def build(progress, cancelled, report, target):
-        from core.mesh_converter import model_export  # pylint: disable=import-outside-toplevel
-        from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter import model_export
+        from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for
         game = game_root_for(archive.file_path) if getattr(archive, "file_path", None) else None
         options = read_options_for(archive)
         index = PackIndex(game, options) if game else None
@@ -542,12 +537,12 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                 if path.lower().endswith(".mb") and "\\body\\" in path.lower():
                     shape_files.setdefault(path.rsplit("\\", 1)[0].lower(), []).append(path)
         if index is not None and include_item_info():
-            from core.npk import game_tables  # pylint: disable=import-outside-toplevel
+            from core.npk import game_tables
             progress("Reading the game's item tables (names and icons)…", 0, 0)
             try:
                 links = game_tables.mesh_links(game, options,
                                                lambda path: (index.read(path) or (None,))[0])
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 report.append(f"Item names and icons unavailable: {exc}")
         for number, (folder_parts, name, members, metadata_files) in enumerate(jobs):
             if cancelled():
@@ -568,7 +563,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                                 raise ValueError("not a readable mesh")
                             parts = loader.parts_for(path.rsplit(".", 1)[0] + ".gim", mesh) if loader is not None else []
                             model = (mesh, parts)
-                    except Exception as exc:  # pylint: disable=broad-except
+                    except Exception as exc:
                         report.append(f"{stem}: {exc}")
                         continue
                     items.append({"name": stem, "mesh": model[0], "parts": model[1]})
@@ -592,7 +587,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                 for shape_path in sorted(shape_files.get(face_folder, ())):
                     if cancelled():
                         raise InterruptedError
-                    from core.mesh_converter import face_shapes as shapes  # pylint: disable=import-outside-toplevel
+                    from core.mesh_converter import face_shapes as shapes
                     shape_name = shape_path.rsplit("\\", 1)[-1][:-3]
                     suffix = shape_name.rsplit("_", 1)[-1] if "_" in shape_name else shape_name
                     progress(f"Exporting {name}: face shape {suffix}  ({number + 1}/{len(jobs)})", number, len(jobs))
@@ -606,7 +601,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                                                    else shapes.apply_shape)(item["mesh"], bones)) for item in items]
                         writer(shaped, os.path.join(folder, f"{file_name}_shape_{_safe_folder(suffix)}.{fmt}"))
                         shapes_written += 1
-                    except Exception as exc:  # pylint: disable=broad-except
+                    except Exception as exc:
                         report.append(f"{name}: face shape {shape_name}: {exc}")
                 if link:
                     named += bool(link.get("name"))
@@ -618,7 +613,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                                                      os.path.join(folder, f"{file_name}_textures", "other"))
             except InterruptedError:
                 raise
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 report.append(f"{name}: {exc}")
             if loader is not None:
                 report.extend(f"{name}: {line}" for line in loader.report)
@@ -643,7 +638,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
 def game_tables_link(links, path):
     if not links:
         return None
-    from core.npk.game_tables import link_for  # pylint: disable=import-outside-toplevel
+    from core.npk.game_tables import link_for
     return link_for(links, path)
 
 
@@ -665,7 +660,7 @@ def export_item_icons(main_window) -> None:
     no item uses; to save the icons of the selected items under their item names, see
     export_selected_item_icons.
     """
-    from core.npk.stage_export import game_root_for  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import game_root_for
     app = QtWidgets.QApplication.instance()
     archive = app.property("npk_file") if app is not None else None
     game = game_root_for(archive.file_path) if archive is not None and getattr(archive, "file_path", None) else None
@@ -674,7 +669,7 @@ def export_item_icons(main_window) -> None:
         try:
             saved = settings.get("stage_export.game_folder", "")
             game = game_root_for(os.path.join(saved, "res", "x")) if saved else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             game = None
     if game is None:
         QtWidgets.QMessageBox.information(main_window, "Export icons",
@@ -682,7 +677,7 @@ def export_item_icons(main_window) -> None:
         return
 
     def build(progress, cancelled, report, target):
-        from core.npk.stage_export import PackIndex, decode_texture, read_options_for  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import PackIndex, decode_texture, read_options_for
         progress("Reading the game's file list…", 0, 0)
         index = PackIndex(game, read_options_for(archive))
         prefixes = tuple(folder.lower() + "\\" for folder in ICON_FOLDERS)
@@ -704,7 +699,7 @@ def export_item_icons(main_window) -> None:
                 continue
             try:
                 image = decode_texture(found[0])
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 report.append(f"unreadable: {path} ({exc})")
                 continue
             relative = path.split("\\")[1:]                      # drop "image"
@@ -726,10 +721,10 @@ def export_selected_item_icons(main_window) -> None:
     if characters is None:
         return
     try:
-        from gui.widgets import characters_items  # pylint: disable=import-outside-toplevel
+        from gui.widgets import characters_items
         index = characters_items._state.get("index")
         link_of = characters_items._link
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         index, link_of = None, None
     found = characters.entry_items(characters.tree.selectedItems(), True) or {}
     paths = sorted({str(path) for path in found.values() if str(path or "").lower().endswith(".mesh")})
@@ -745,7 +740,7 @@ def export_selected_item_icons(main_window) -> None:
         return
 
     def build(progress, cancelled, report, target):
-        from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import decode_texture
         done, used = 0, set()
         for number, (icon, name) in enumerate(sorted(icons.items(), key=lambda kv: kv[1].lower())):
             if cancelled():
@@ -757,7 +752,7 @@ def export_selected_item_icons(main_window) -> None:
                 continue
             try:
                 image = decode_texture(found_icon[0])
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 report.append(f"unreadable: {icon} ({exc})")
                 continue
             stem = re.sub(r'[\\/:*?"<>|]+', "_", name).strip() or "icon"
@@ -777,13 +772,13 @@ def export_selected_item_icons(main_window) -> None:
 def _selected_face_folder(main_window):
     """The face folder (.../body/male_body_10) of the Characters tab's current selection, or None."""
     try:
-        from gui.widgets.face_makeup_data import face_folder_of  # pylint: disable=import-outside-toplevel
-        from gui.windows.character_folders_window import FOLDER_PATH_ROLE, PATH_ROLE  # pylint: disable=import-outside-toplevel
+        from gui.widgets.face_makeup_data import face_folder_of
+        from gui.windows.character_folders_window import FOLDER_PATH_ROLE, PATH_ROLE
         for item in main_window._character_folders_window.tree.selectedItems():
             for role in (FOLDER_PATH_ROLE, PATH_ROLE):
                 folder = face_folder_of(item.data(0, role))
                 if folder:
                     return folder
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return None
     return None

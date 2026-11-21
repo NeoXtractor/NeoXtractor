@@ -98,7 +98,7 @@ class TexturePicker(QtWidgets.QDialog):
             if hasattr(archive, "source_label"):
                 try:
                     label += f"   ·  {archive.source_label(index)}"
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     get_logger().debug("No source label for entry %s", index, exc_info=True)
             shared = len(os.path.commonprefix([reference.lower(), name.lower()])) if reference else 0
             rows.append((-shared, label.lower(), label, index))
@@ -183,14 +183,14 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
             vmd.setToolTip("Each animated object as its own .pmx with textures plus a .vmd of its loop, for MMD.")
             vmd.triggered.connect(lambda _checked=False: self.export_scene("vmd"))
         try:
-            from core.mesh_converter.formats.pmx import pmx_option_actions  # pylint: disable=import-outside-toplevel
+            from core.mesh_converter.formats.pmx import pmx_option_actions
             export_menu.addSeparator()
             pmx_menu = export_menu.addMenu("PMX options")
             self.pmx_actions = pmx_option_actions(pmx_menu)
             for action in self.pmx_actions:
                 pmx_menu.addAction(action)
             pmx_menu.setToolTipsVisible(True)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             self.pmx_actions = ()
         export.setMenu(export_menu)
         layout.addWidget(export)
@@ -219,7 +219,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         self.view = SceneRenderWidget()
         self.view.upload_progress.connect(self._upload_progress)
         # As in NeoXtractor's mesh viewer: the scene's numbers top left, the camera keys bottom left
-        from gui.widgets.viewer_overlay import ViewOverlays  # pylint: disable=import-outside-toplevel
+        from gui.widgets.viewer_overlay import ViewOverlays
         self.overlays = ViewOverlays(self.view)
         splitter.addWidget(panel)
         splitter.addWidget(self.view)
@@ -260,7 +260,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
 
     def _game_index(self):
         """PackIndex for the open archive's game folder (cached), or None."""
-        from core.npk.stage_export import PackIndex, game_root_for, read_options_for  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import PackIndex, game_root_for, read_options_for
         archive = self.archive()
         game = game_root_for(archive.file_path) if archive is not None and getattr(archive, "file_path", None) else None
         if game is None:
@@ -430,7 +430,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         selected_paths = [path for _name, _index, path in specs if path]
 
         def work():
-            from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+            from core.npk.stage_export import StageLoader
             loader, results, errors, added_bodies = MeshLoader(), [], [], set()
             for number, (name, index, path) in enumerate(specs):
                 if self._cancel.is_set():
@@ -442,7 +442,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                         raise ValueError("not a readable mesh")
                     source = archive.source_label(index) if hasattr(archive, "source_label") else ""
                     results.append({"name": name, "mesh": mesh, "path": path, "source": source})
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     errors.append(f"{name}: {exc}")
                     continue
                 if game_index is None or not path:
@@ -460,7 +460,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                         results.append({"name": f"{body['name']}.mesh", "mesh": body["mesh"], "parts": body["parts"],
                                         "path": None, "source": f"body piece of {name}"})
                     errors.extend(f"{name}: {line}" for line in stage_loader.report)
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     errors.append(f"{name}: body piece not loaded ({exc})")
             if body_size_adult() and any(is_character_path(p) for p in selected_paths):
                 adult_index = game_index or self._game_index()
@@ -475,7 +475,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
 
     def open_stage(self, game, scene_path, options=None):
         """Load a stage with StageLoader (textures matched) into a new group."""
-        from core.npk.stage_export import PackIndex, StageLoader, read_options_for  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import PackIndex, StageLoader, read_options_for
         group = scene_path.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
         options = options or read_options_for(self.archive())
 
@@ -499,7 +499,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                 self.signals.loaded.emit((group, objects), "\n".join(sorted(set(loader.report)))[:2000])
             except InterruptedError:
                 self.signals.loaded.emit((group, []), "Cancelled")
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 self.signals.loaded.emit((group, []), str(exc))
 
         self.show()
@@ -585,7 +585,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
             if obj.visible != visible:
                 # Visibility only affects what is drawn: no GPU data needs rebuilding
                 obj.visible = visible
-                self.view._bones_dirty = True  # pylint: disable=protected-access
+                self.view._bones_dirty = True
                 self.view.update()
 
     def _object_items(self):
@@ -655,7 +655,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
             try:
                 qimage = pil_to_qimage(decode_image_bytes(read_entry_data(archive, index)))
                 self.signals.textures.emit([(targets, f"entry:{id(archive)}:{index}", qimage, label)], "")
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 self.signals.textures.emit([], f"{label}: {exc}")
 
         self._run(f"Decoding {label}…", work)
@@ -672,13 +672,13 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                     data = stream.read()
                 try:
                     image = decode_image_bytes(data)
-                except Exception:  # pylint: disable=broad-except
-                    from PIL import Image  # pylint: disable=import-outside-toplevel
-                    import io  # pylint: disable=import-outside-toplevel
+                except Exception:
+                    from PIL import Image
+                    import io
                     image = Image.open(io.BytesIO(data))
                     image.load()
                 self.signals.textures.emit([(targets, f"file:{path}", pil_to_qimage(image), os.path.basename(path))], "")
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 self.signals.textures.emit([], f"{os.path.basename(path)}: {exc}")
 
         self._run(f"Decoding {os.path.basename(path)}…", work)
@@ -714,7 +714,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         if index is None:
             self.status.setText("Open an archive from the game folder first, so its textures can be found.")
             return
-        from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import StageLoader
 
         def work():
             loader, results = StageLoader(index), []
@@ -746,7 +746,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                 obj.parts[number].alpha = "OPAQUE"
                 obj.parts[number].dirty = True
             self._refresh_labels(obj)
-        self.view._collect_textures()  # pylint: disable=protected-access
+        self.view._collect_textures()
         self.view.update()
         self._summary()
 
@@ -775,7 +775,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                     for obj in objects]
 
         def build(progress, cancelled, report):
-            from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for  # pylint: disable=import-outside-toplevel
+            from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for
             loader = None
             game = stage_game[0] if stage_game else (game_root_for(archive.file_path) if archive is not None
                                                       and getattr(archive, "file_path", None) else None)
@@ -798,14 +798,14 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                             data = stream.read()
                         try:
                             image = decode_image_bytes(data)
-                        except Exception:  # pylint: disable=broad-except
-                            from PIL import Image  # pylint: disable=import-outside-toplevel
-                            import io  # pylint: disable=import-outside-toplevel
+                        except Exception:
+                            from PIL import Image
+                            import io
                             image = Image.open(io.BytesIO(data))
                             image.load()
                     elif key.startswith("entry:") and archive is not None:
                         image = decode_image_bytes(read_entry_data(archive, int(key.rsplit(":", 1)[1])))
-                except Exception as exc:  # pylint: disable=broad-except
+                except Exception as exc:
                     report.append(f"texture {textures.get(key, key)}: {exc}")
                 images[key] = image
                 return image
@@ -888,7 +888,7 @@ def install(app) -> None:
                                      "outfit, body size I / II) and export it with the makeup baked in.")
 
             def open_makeup(_checked=False, w=window):
-                from gui.widgets import face_makeup_dialog  # pylint: disable=import-outside-toplevel
+                from gui.widgets import face_makeup_dialog
                 face_makeup_dialog.open_dialog(w)
 
             makeup_action.triggered.connect(open_makeup)
@@ -900,9 +900,9 @@ def install(app) -> None:
         window.addAction(add_action)
 
         try:
-            from gui.widgets import animations_page  # pylint: disable=import-outside-toplevel
+            from gui.widgets import animations_page
             animations_page.install(window)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             print(f"Animations tab not installed: {exc}")
 
         characters = getattr(window, "_character_folders_window", None)
@@ -916,7 +916,7 @@ def install(app) -> None:
                 face_folder = _selected_face_folder(w)
                 if face_folder:
                     def open_face_makeup(w=w, folder=face_folder):
-                        from gui.widgets import face_makeup_dialog  # pylint: disable=import-outside-toplevel
+                        from gui.widgets import face_makeup_dialog
                         face_makeup_dialog.open_dialog(w, folder)
                     menu.addAction(f"Main Character Creator ({ntpath.basename(face_folder)})…", open_face_makeup)
                 menu.addAction("Export all as one GLB…", lambda: export_character_selection(w, "glb"))
@@ -978,11 +978,11 @@ def install(app) -> None:
                 if settings is not None:
                     item_info.toggled.connect(lambda checked, st=settings: st.set(ITEM_INFO_SETTING, bool(checked), True))
                 try:
-                    from core.mesh_converter.formats.pmx import pmx_option_actions  # pylint: disable=import-outside-toplevel
+                    from core.mesh_converter.formats.pmx import pmx_option_actions
                     options.addSection("PMX")
                     for action in pmx_option_actions(options):
                         options.addAction(action)
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     get_logger().exception("Could not add the PMX options to the menu")
                 menu.addMenu(options)
                 menu._each_menu, menu._folder_menu, menu._faces_menu, menu._hats_menu = each, per_folder, faces, hats

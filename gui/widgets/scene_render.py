@@ -115,7 +115,7 @@ def pil_to_qimage(image) -> QtGui.QImage:
 
 
 def decode_image_bytes(data: bytes):
-    from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import decode_texture
     return decode_texture(data)
 
 
@@ -279,7 +279,7 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         settings = app.property("settings_manager") if app is not None else None
         try:
             self.setSampleCount(int(settings.get("graphics.msaa", 1)) if settings is not None else 1)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().warning("Could not set the MSAA sample count", exc_info=True)
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.setMinimumSize(320, 240)
@@ -465,7 +465,7 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
             self._blended = mesh_pipeline(True)
             self._grid_pipeline = line_pipeline(True)
             self._bone_pipeline = line_pipeline(False)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self.error = str(exc)
             return
 

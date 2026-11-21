@@ -22,7 +22,7 @@ _LOCK = threading.Lock()
 
 
 def _game_folder():
-    from core.npk.stage_export import game_root_for  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import game_root_for
     app = QtWidgets.QApplication.instance()
     archive = app.property("npk_file") if app is not None else None
     game = game_root_for(archive.file_path) if archive is not None and getattr(archive, "file_path", None) else None
@@ -31,21 +31,21 @@ def _game_folder():
         try:
             saved = settings.get("stage_export.game_folder", "")
             game = game_root_for(os.path.join(saved, "res", "x")) if saved else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             game = None
     return game
 
 
 def _game_options():
     """The open archive's read options (call on the GUI thread; see stage_export.read_options_for)."""
-    from core.npk.stage_export import read_options_for  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import read_options_for
     app = QtWidgets.QApplication.instance()
     return read_options_for(app.property("npk_file") if app is not None else None)
 
 
 def _index(game, options=None):
     """The pack index of a game folder, built once and shared."""
-    from core.npk.stage_export import PackIndex, read_options_for  # pylint: disable=import-outside-toplevel
+    from core.npk.stage_export import PackIndex, read_options_for
     with _LOCK:
         key = str(game)
         if key not in _INDEXES:
@@ -59,11 +59,11 @@ class _Signals(QtCore.QObject):
 
 
 def _load_names(game, options, signals):
-    from core.mesh_converter import character_anim  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import character_anim
     try:
         paths = _index(game, options).manifest()
         result = ({sex: character_anim.animation_names(paths, sex) for sex in character_anim.RIGS}, "")
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         result = ({}, str(exc))
     try:
         signals.loaded.emit(*result)
@@ -141,7 +141,7 @@ class AnimationExportDialog(QtWidgets.QDialog):
         settings = app.property("settings_manager") if app is not None else None
         try:
             return settings.get(key, default) if settings is not None else default
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             return default
 
     def _loaded(self, names, error):
@@ -190,7 +190,7 @@ class AnimationExportDialog(QtWidgets.QDialog):
         if settings is not None:
             try:
                 settings.set(SETTING_FORMAT, fmt, True)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 get_logger().warning("Could not save the export format setting", exc_info=True)
         sex = self.sex.currentData()
         self.accept()
@@ -198,11 +198,11 @@ class AnimationExportDialog(QtWidgets.QDialog):
 
 
 def export_animations(main_window, game, sex: str, names: list[str], fmt: str, options=None) -> None:
-    from gui.widgets.character_exports import start_export  # pylint: disable=import-outside-toplevel
+    from gui.widgets.character_exports import start_export
 
     def build(progress, cancelled, report, target):
-        from core.mesh_converter import character_anim as ca  # pylint: disable=import-outside-toplevel
-        from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter import character_anim as ca
+        from core.npk.stage_export import StageLoader
         progress("Reading the skeleton…", 0, len(names))
         index = _index(game, options)
 
@@ -244,7 +244,7 @@ def export_animations(main_window, game, sex: str, names: list[str], fmt: str, o
                     scaled += scales
                 else:
                     ca.write_glb(read_model, clip, sex, out + ("_character.glb" if fmt == "glb_character" else ".glb"), fmt == "glb_character")
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 report.append(f"{name}: {exc}")
                 continue
             done += 1

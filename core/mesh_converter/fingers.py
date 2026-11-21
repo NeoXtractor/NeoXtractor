@@ -1,19 +1,8 @@
-"""
-Five-finger hands for PMX export.
+"""Five-finger hands for PMX export.
 
-The game rigs three fingers per hand: thumb (finger0 / finger01), index (finger1 / finger11) and middle
-(finger2 / finger21); the ring and little fingers are modelled but skinned to the middle finger's bones, so
-they can only curl with it. This adds the bones MMD expects and moves those weights over:
-
-  * across the hand (from the middle finger towards the index), the vertices on the middle finger's bones fall
-    into three groups: middle, ring and little finger. The ring and little groups get bones of their own
-    (finger3 / finger31, finger4 / finger41 -> 薬指１/２, 小指１/２), placed like the middle finger's but over
-    their own finger, with a soft blend where the fingers meet the palm;
-  * every finger's long end segment is split in two (finger02, finger12, finger22, finger32, finger42 ->
-    親指２, 人指３, 中指３, 薬指３, 小指３), blended around the middle of the segment, so MMD motions that curl
-    the third joint work.
-
-Meshes whose hands don't fall into three clear groups (mittens, claws, no hands) are left as they were.
+The game skins the ring and little fingers to the middle finger's bones. This splits those vertices into three
+fingers, gives the ring and little fingers their own bones (薬指, 小指) and adds the third finger joint MMD
+motions expect. Hands that don't split cleanly (mittens, claws) are left as they are.
 """
 
 from __future__ import annotations
@@ -29,14 +18,14 @@ LABEL = "Five fingers (rig the ring and little fingers)"
 def enabled(settings=None) -> bool:
     if settings is None:
         try:
-            from PySide6 import QtWidgets  # pylint: disable=import-outside-toplevel
+            from PySide6 import QtWidgets
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             settings = None
     try:
         return bool(settings.get(SETTING, True)) if settings is not None else True
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return True
 
 

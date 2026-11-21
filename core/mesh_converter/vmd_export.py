@@ -37,7 +37,7 @@ def fit_name(name: str) -> str:
     A bone name within VMD's 15 bytes that depends only on the name (so a PMX and a VMD listing bones
     in different orders still agree): "bone_" dropped, then underscores, then a short checksum.
     """
-    import zlib  # pylint: disable=import-outside-toplevel
+    import zlib
 
     def size(text):
         return len(text.encode("shift_jis", "replace"))
@@ -106,7 +106,7 @@ def vmd_keyframes(mesh, clip, frames: int | None = None):
 def write_vmd(path, model_name: str, bone_names: list[str], keys, ik_off=()) -> Path:
     """ik_off: IK bones switched off from frame 0 (motions baked from the game drive the legs themselves)."""
     path = Path(path)
-    from core.mesh_converter import fingers  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import fingers
     bone_names, keys = fingers.copy_finger_keys(bone_names, keys)    # ring and little follow the middle finger
     out = bytearray(_sjis("Vocaloid Motion Data 0002", 30))
     out += _sjis(model_name, 20)
@@ -140,7 +140,7 @@ def write_pmx_vmd(item: dict, folder) -> tuple[Path, Path]:
     # Translate first so the PMX and the VMD use the same (MMD) bone names
     names = short_bone_names(bone_names.translate(list(mesh.bone_name)) if bone_names.enabled() else list(mesh.bone_name))
     pmx_path = model_export.write_pmx([single], folder / f"{name}.pmx", bone_names=names)
-    from core.mesh_converter import mmd_rig  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import mmd_rig
     rigged = bone_names.enabled() and mmd_rig.enabled()
     if rigged:                                       # bake against the rigged PMX's chains
         mesh.bone_parent = mmd_rig.vmd_parents(names, list(mesh.bone_parent))

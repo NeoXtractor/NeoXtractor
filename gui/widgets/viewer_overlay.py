@@ -36,12 +36,12 @@ def overlay_font() -> QtGui.QFont:
     if not _FONT:
         family = None
         try:
-            from core.utils import get_application_path  # pylint: disable=import-outside-toplevel
+            from core.utils import get_application_path
             font_id = QtGui.QFontDatabase.addApplicationFont(
                 os.path.join(str(get_application_path()), "data", "fonts", "Roboto-Regular.ttf"))
             families = QtGui.QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
             family = families[0] if families else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().debug("Could not load the viewer font", exc_info=True)
         font = QtGui.QFont(family) if family else QtGui.QFont()
         font.setPixelSize(14)
@@ -114,7 +114,7 @@ class ViewOverlays(QtCore.QObject):
         for widget in widgets:
             widget.raise_()
 
-    def eventFilter(self, obj, event):  # pylint: disable=invalid-name
+    def eventFilter(self, obj, event):
         if obj is self.view:
             kind = event.type()
             if kind in (QtCore.QEvent.Type.Resize, QtCore.QEvent.Type.Show):

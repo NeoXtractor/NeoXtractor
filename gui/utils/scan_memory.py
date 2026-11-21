@@ -1,14 +1,6 @@
-"""
-Keep the Scene Viewer, the Stages tab and exports from tripping the character-scan memory limit.
+"""Lets the Scene Viewer, Stages tab and exports hold memory without tripping the character-scan limit.
 
-core.process_memory stops character scans, and refuses to open a Characters folder, once the
-process holds more than SCAN_MEMORY_LIMIT (768 MiB). That limit is there to catch a runaway
-scan, but models and textures loaded elsewhere count toward it too, so after adding a model to
-the Scene Viewer the folders that were not open yet could no longer be opened.
-
-Work that is expected to hold memory brackets itself with begin() / end(); whatever it leaves
-allocated is added to the limit as an allowance (and taken off again when it is freed).
-Call both on the GUI thread.
+Wrap such work in begin() / end() on the GUI thread; whatever it keeps allocated is added to the limit.
 """
 
 from __future__ import annotations
@@ -30,7 +22,7 @@ def allowance() -> int:
 def _usage():
     try:
         return process_memory.private_memory_bytes()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return None
 
 

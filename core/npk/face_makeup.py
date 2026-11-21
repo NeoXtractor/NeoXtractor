@@ -1,20 +1,8 @@
-"""
-Character face makeup, baked into the face texture the way the game's face shader (shader/cartoon_face_common.hlsl)
-draws it at runtime.
+"""Face makeup baked into the face texture, the way the game's face shader draws it.
 
-The game keeps the face texture plain and layers the makeup on in the shader:
-  skin tone   the face's .mvar variants: another base texture (old tones 1-8) or base + BaseFaceColorTintMap
-              tinted with material_plus/new_skin_data.json (new tones 9+)
-  lips        TintColorB through the face's tint mask (<face>_eyes_NN: blue = lips, alpha = eyebrows),
-              colours in material_plus/mouth_color_data.json (face_lips.lips_color)
-  eyebrows    TintColorA through the same mask, material_plus/eyebrow_color_data.json (face_eyebrow)
-  blush/decal FaceMaskTex2: a small image stamped in UV space (centre SX/SY, width W, height W*HW_Ratio),
-              material_plus/blush_color / face_decal_to_blush / old_face_decal_to_blush _data.json
-  eyeshadow   FaceMaskTex: same, placement per face in eye_shadow_data.json, image named by face_edit.res_path
-Brightness of both stamps follows the skin tone (bright_face_tex / bright_face2_tex).
-
-Face UVs are mirrored (both cheeks share the texture), but some stamps are for one side only
-(FaceMaskOnlyLeft/Right): such looks bake one texture per side, and the face is split in two materials.
+Skin tone, lips, eyebrows, blush/decals and eyeshadow come from the face's .mvar variants, its tint mask and
+the colour tables in material_plus/. Looks with one-sided stamps bake one texture per side and split the face
+into two materials.
 """
 
 from __future__ import annotations
@@ -126,7 +114,7 @@ class MakeupLibrary:
 
     def image(self, path: str | None):
         """RGBA float32 array (0..1) of a game texture, or None."""
-        from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import decode_texture
         if not path:
             return None
         path = path.replace("/", "\\")
@@ -136,20 +124,20 @@ class MakeupLibrary:
             if found is not None:
                 try:
                     image = np.asarray(decode_texture(found[0]).convert("RGBA"), np.float32) / 255.0
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     image = None
             self._images[path] = image
         return self._images[path]
 
     def icon(self, option: Option):
         """PIL image of an option's icon, or None."""
-        from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import decode_texture
         for path in filter(None, [option.icon]):
             found = self.index.read(path.replace("/", "\\"))
             if found is not None:
                 try:
                     return decode_texture(found[0])
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     return None
         return None
 
@@ -213,7 +201,7 @@ class MakeupLibrary:
         The iris texture of the separate eye meshes (*_eye_l / *_eye_r) for the look's eye type and colour,
         or None when the look sets neither. Animated iris patterns are baked at their first frame.
         """
-        from PIL import Image  # pylint: disable=import-outside-toplevel
+        from PIL import Image
         if look.eyetype is None and look.eyecolor is None:
             return None
         report = report if report is not None else []
@@ -341,7 +329,7 @@ class MakeupLibrary:
         eyebrow mask (<face>_eyebrow_01, eyebrow_mask_split_data.json) with colours from
         eyebrow_color_split_data.json. None when the look has no eyebrow colour or the face has no eyebrow mesh.
         """
-        from PIL import Image  # pylint: disable=import-outside-toplevel
+        from PIL import Image
         report = report if report is not None else []
         if look.eyebrow is None:
             return None
@@ -385,7 +373,7 @@ class MakeupLibrary:
         Eyebrow colour on a separate eyebrow mesh's texture (PIL), approximated with the face shader's
         eyebrow tint (the game's split-eyebrow shader recolours by mask channels).
         """
-        from PIL import Image  # pylint: disable=import-outside-toplevel
+        from PIL import Image
         values = self.mp("eyebrow_color").get(str(option.row.get("eyebrow_color")))
         if image is None or not values:
             return image
@@ -447,7 +435,7 @@ class MakeupLibrary:
         Returns the face texture to user with the makeup baked in. side can be None for both cheeks, or "left" / "right"
         to apply cheek stamps to one side only ("left" is the face's +X half).
         """
-        from PIL import Image  # pylint: disable=import-outside-toplevel
+        from PIL import Image
         report = report if report is not None else []
         s, number = SEXES[sex], face_number(folder) or 1
         skins = {n: (base, tint) for n, _label, base, tint in self.skins(folder)}
@@ -623,7 +611,7 @@ def _sample(image, u, v):
 def _resize(image, width, height):
     if image.shape[0] == height and image.shape[1] == width:
         return image
-    from PIL import Image  # pylint: disable=import-outside-toplevel
+    from PIL import Image
     pil = Image.fromarray((np.clip(image, 0, 1) * 255).astype(np.uint8), "RGBA").resize((width, height), Image.BILINEAR)
     return np.asarray(pil, np.float32) / 255.0
 

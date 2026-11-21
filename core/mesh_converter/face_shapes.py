@@ -1,12 +1,8 @@
-"""
-Face shape variants (the game's .mb files next to each face).
+"""Face shape variants, from the game's <face>_NN.mb files.
 
-A face folder (.../body/male_body_10/) has one face mesh plus eyes, lashes and eyebrows, all skinned to
-the same face bones. Each <face>_NN.mb holds new bind matrices for about 80 of those bones
-(uint16 count, then count × [uint16 bone index, 4×4 float32 row-vector matrix]); the game moves the
-bones there to reshape the face (nose, jaw, eyes, mouth). Baking one: every vertex follows its bones
-from the original bind to the new one (linear blend skinning), and the skeleton's rest pose becomes
-the new one, so the result still poses and animates.
+Each .mb holds new bind matrices for about 80 face bones (uint16 count, then count x [uint16 bone index,
+4x4 float32 matrix]). Baking moves every vertex from the old bind to the new one, so the reshaped face still
+poses and animates.
 """
 
 from __future__ import annotations

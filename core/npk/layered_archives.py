@@ -1,11 +1,7 @@
-"""
-Open the game's two installs as one stack: the base install (<game>\\res, res2, ...) and
-the patch layer the launcher downloads into Documents (Documents\\res to res4), newest first.
+"""Treat the base install and the launcher's update folder (Documents\\res ...) as one, newest first.
 
-core.npk.related_archives combines only the res* folders next to the opened pack, so opening the
-base character.npk never saw the Documents copies (tens of thousands of newer or changed files),
-and metadata lookups never searched them either. Both go through resource_roots() /
-related_archive_paths(), which this module replaces: every install of the game, Documents first.
+Replaces related_archives.resource_roots() and related_archive_paths(), so opening a pack and looking up
+metadata see both.
 """
 
 from __future__ import annotations
@@ -24,7 +20,7 @@ def _layers(game: Path) -> list[Path]:
 
 
 def install() -> None:
-    from core.npk import related_archives as ra  # pylint: disable=import-outside-toplevel
+    from core.npk import related_archives as ra
     if getattr(ra, "_layered", False):
         return
     original_roots = ra.resource_roots
@@ -64,8 +60,8 @@ SCAN_LIMIT = 1536 * 1024 * 1024
 
 
 def _raise_scan_limit() -> None:
-    import sys  # pylint: disable=import-outside-toplevel
-    from core import process_memory  # pylint: disable=import-outside-toplevel
+    import sys
+    from core import process_memory
     if process_memory.SCAN_MEMORY_LIMIT < SCAN_LIMIT:
         process_memory.SCAN_MEMORY_LIMIT = SCAN_LIMIT
     tracker = sys.modules.get("gui.utils.scan_memory")      # the Scene Viewer's allowance builds on top of it

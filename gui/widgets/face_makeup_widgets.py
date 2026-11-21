@@ -105,8 +105,8 @@ def game_fonts(game) -> dict[str, str]:
     {"title": family, "body": family} for the fonts found (registered once per run); {} when none are.
     "decorative" is set when the title is the game's decorative face.
     """
-    import os  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import game_layers  # pylint: disable=import-outside-toplevel
+    import os
+    from core.npk.stage_export import game_layers
     if _GAME_FONTS:
         return dict(_GAME_FONTS)
     # every layer: the game folder is <install>\Documents when an archive was opened from the patch copy
@@ -271,7 +271,7 @@ class _RoundTileDelegate(QtWidgets.QStyledItemDelegate):
         super().__init__(parent)
         self.sprites = sprites
 
-    def sizeHint(self, option, index):  # pylint: disable=invalid-name
+    def sizeHint(self, option, index):
         return QtCore.QSize(TILE.width() - 2, TILE.height() - 2)
 
     def paint(self, painter, option, index):
@@ -345,7 +345,7 @@ class _HaloLayer(QtWidgets.QWidget):
     def of(cls, host, sprites):
         layer = getattr(host, "_halo_layer", None)
         if layer is None:
-            layer = host._halo_layer = cls(host, sprites)  # pylint: disable=protected-access
+            layer = host._halo_layer = cls(host, sprites)
         return layer
 
     def add(self, view):
@@ -353,7 +353,7 @@ class _HaloLayer(QtWidgets.QWidget):
             self.views.append(view)
         self.raise_()
 
-    def eventFilter(self, obj, event):  # pylint: disable=invalid-name
+    def eventFilter(self, obj, event):
         if obj is self.parentWidget() and event.type() == QtCore.QEvent.Type.Resize:
             self.setGeometry(obj.rect())
             self.raise_()
@@ -386,7 +386,7 @@ class _HaloLayer(QtWidgets.QWidget):
             self.update(spot)
         self._last = spots
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         circles = self.circles()
         if not circles:
             return
@@ -495,14 +495,14 @@ class _Tiles(QtWidgets.QListView):
         rows = max(1, -(-shown // columns))
         self.setFixedHeight(rows * TILE.height() + 4)
 
-    def resizeEvent(self, event):  # pylint: disable=invalid-name
+    def resizeEvent(self, event):
         super().resizeEvent(event)
         self._fit()
 
-    def wheelEvent(self, event):  # pylint: disable=invalid-name
+    def wheelEvent(self, event):
         event.ignore()                      # the panel scrolls, not each grid
 
-    def viewportEvent(self, event):  # pylint: disable=invalid-name
+    def viewportEvent(self, event):
         if event.type() == QtCore.QEvent.Type.ToolTip:
             index = self.indexAt(event.pos())
             if index.isValid():
@@ -527,7 +527,7 @@ class _AllTiles(_Tiles):
 
     keep_first = False
 
-    def __init__(self, sources, sprites):              # pylint: disable=super-init-not-called
+    def __init__(self, sources, sprites):
         QtWidgets.QListView.__init__(self)
         self.sources = sources                         # [(combo, can be taken off)]
         self._filter = ""
@@ -652,7 +652,7 @@ class _DragScroll(QtCore.QObject):
         for button in self.area.findChildren(QtWidgets.QAbstractButton):
             self.watch(button)
 
-    def eventFilter(self, obj, event):  # pylint: disable=invalid-name
+    def eventFilter(self, obj, event):
         kind = event.type()
         try:
             bar = self.area.verticalScrollBar()
@@ -702,7 +702,7 @@ class _ExpandArrow(QtWidgets.QAbstractButton):
         self.setToolTip("Show fewer items" if expanded else "Show more items at once")
         self.update()
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -743,7 +743,7 @@ class _SearchBox(QtWidgets.QFrame):
         line_edit.setStyleSheet("background: transparent; border: none; color: #eadfc8; font-size: 20px;")
         layout.addWidget(line_edit)
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -784,10 +784,10 @@ class _FilterRow(QtWidgets.QAbstractButton):
         self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_Hover)
 
-    def sizeHint(self):  # pylint: disable=invalid-name
+    def sizeHint(self):
         return QtCore.QSize(180, ROW)
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -862,7 +862,7 @@ class _FilterPanel(QtWidgets.QFrame):
         self.set_wide(False)
         self._show()
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         """The game's fine rules under the headings and between the columns (the overlay draws the backdrop)."""
         line = _sprite(self.sprites, "pic_tongyong_xialafenxian")
         if line is None:
@@ -960,7 +960,7 @@ class _FilterButton(QtWidgets.QToolButton):
         self.setFixedSize(180, 36)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_Hover)
 
-    def paintEvent(self, event):  # pylint: disable=invalid-name
+    def paintEvent(self, event):
         box = _sprite(self.sprites, "pic_shaixuan_di")
         if box is not None:
             painter = QtGui.QPainter(self)
@@ -1047,7 +1047,7 @@ class _ScrollMarker(QtWidgets.QWidget):
         _knob_h, travel = self._knob_span()
         bar.setValue(round(max(0.0, min(1.0, knob_top / travel)) * bar.maximum()))
 
-    def mousePressEvent(self, event):  # pylint: disable=invalid-name
+    def mousePressEvent(self, event):
         if event.button() != QtCore.Qt.MouseButton.LeftButton:
             return
         bar = self.area.verticalScrollBar()
@@ -1060,15 +1060,15 @@ class _ScrollMarker(QtWidgets.QWidget):
         self._grab = y - top
         self.rest.stop()
 
-    def mouseMoveEvent(self, event):  # pylint: disable=invalid-name
+    def mouseMoveEvent(self, event):
         if self._grab is not None:
             self._scroll_to(event.position().y() - self._grab)
 
-    def mouseReleaseEvent(self, _event):  # pylint: disable=invalid-name
+    def mouseReleaseEvent(self, _event):
         self._grab = None
         self.rest.start()
 
-    def leaveEvent(self, _event):  # pylint: disable=invalid-name
+    def leaveEvent(self, _event):
         if self._grab is None:
             self.rest.start()
 
@@ -1081,7 +1081,7 @@ class _ScrollMarker(QtWidgets.QWidget):
             setattr(self, attr + "_of", sprite)
         return getattr(self, attr)
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         line = self._turned("pro_huixiang_line_huang", "_line")
         knob = self._turned("pro_huixiang_line2_huang", "_knob")
         if line is None or knob is None:
@@ -1114,17 +1114,17 @@ class _SlotTabs(QtWidgets.QWidget):
         self.setFixedHeight(58)
         self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
 
-    def addTab(self, label, sprite=None):  # pylint: disable=invalid-name
+    def addTab(self, label, sprite=None):
         self.tabs.append((label, sprite))
         self.update()
 
     def count(self):
         return len(self.tabs)
 
-    def currentIndex(self):  # pylint: disable=invalid-name
+    def currentIndex(self):
         return self._current
 
-    def setCurrentIndex(self, index):  # pylint: disable=invalid-name
+    def setCurrentIndex(self, index):
         if index != self._current and 0 <= index < len(self.tabs):
             self._current = index
             self.update()
@@ -1134,7 +1134,7 @@ class _SlotTabs(QtWidgets.QWidget):
         width = self.width() / max(1, len(self.tabs))
         return QtCore.QRectF(index * width, 0, width, self.height() - 4)
 
-    def mousePressEvent(self, event):  # pylint: disable=invalid-name
+    def mousePressEvent(self, event):
         for index in range(len(self.tabs)):
             if self.tab_rect(index).contains(event.position()):
                 self.setCurrentIndex(index)
@@ -1148,7 +1148,7 @@ class _SlotTabs(QtWidgets.QWidget):
                     return True
         return super().event(event)
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -1226,7 +1226,7 @@ class _LayerPanel(QtWidgets.QFrame):
         self.setFixedWidth(270)
         self._fold(True)
 
-    def eventFilter(self, obj, event):  # pylint: disable=invalid-name
+    def eventFilter(self, obj, event):
         if obj is self.tree.viewport() and event.type() == QtCore.QEvent.Type.Resize:
             self.tree.setColumnWidth(0, max(40, obj.width() - self.tree.columnWidth(self.EYE)))
         return False
@@ -1298,7 +1298,7 @@ class _LayerPanel(QtWidgets.QFrame):
         self.refresh()
         self.changed.emit()
 
-    def sizeHint(self):  # pylint: disable=invalid-name
+    def sizeHint(self):
         rows = self.tree.topLevelItemCount() + sum(
             self.tree.topLevelItem(i).childCount() for i in range(self.tree.topLevelItemCount())
             if self.tree.topLevelItem(i).isExpanded())
@@ -1313,7 +1313,7 @@ class _Backdrop(QtWidgets.QWidget):
         super().__init__(parent)
         self.sprites = sprites
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         backdrop = _sprite(self.sprites, "bg_huixiang_youdi")
         if backdrop is None:
             return
@@ -1337,7 +1337,7 @@ class _Tag(QtWidgets.QLabel):
                            + (f' font-family: "{font_family}";' if font_family else ""))
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-    def paintEvent(self, event):  # pylint: disable=invalid-name
+    def paintEvent(self, event):
         box = _sprite(self.sprites, "pic_tongyong_biaoqian")
         if box is not None:
             painter = QtGui.QPainter(self)
@@ -1442,7 +1442,7 @@ class _ItemTitle(QtWidgets.QWidget):
             x += 8
         return max(120, min(width, max(used, row)))
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         line = _sprite(self.sprites, "pic_tongyong_xian")
         if line is not None and self._rule_y is not None and self._text:
             painter = QtGui.QPainter(self)
@@ -1463,7 +1463,7 @@ class _ToggleRow(QtWidgets.QAbstractButton):
         self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_Hover)
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -1503,7 +1503,7 @@ class _HidePopup(QtWidgets.QFrame):
             layout.addWidget(row)
             self.rows[kind] = row
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         frame = _sprite(self.sprites, "pic_tongyong_xialadi")
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -1538,7 +1538,7 @@ class _RoundButton(QtWidgets.QAbstractButton):
         self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_Hover)
 
-    def paintEvent(self, _event):  # pylint: disable=invalid-name
+    def paintEvent(self, _event):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -1596,7 +1596,7 @@ class _SwatchPopup(QtWidgets.QFrame):
 
     def __init__(self, parent, combo: QtWidgets.QComboBox, sprites, first_tip: str):
         super().__init__(parent, QtCore.Qt.WindowType.Popup)
-        from core.npk.hair_dye import hex_color  # pylint: disable=import-outside-toplevel
+        from core.npk.hair_dye import hex_color
         self.setObjectName("creatorPopup")
         grid = QtWidgets.QGridLayout(self)
         grid.setContentsMargins(8, 8, 8, 8)

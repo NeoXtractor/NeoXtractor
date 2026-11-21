@@ -1,8 +1,6 @@
-"""
-MMD bone names for HPMA skeletons, used when writing PMX.
+"""MMD bone names for HPMA skeletons, used when writing PMX.
 
-The built-in table comes from the user's HPMA → MMD sheet (哈皮马提取骨骼对照). A file named
-pmx_bone_names.xlsx, .csv or .txt next to neoxtractor.exe adds to it or overrides it: first
+A pmx_bone_names.xlsx, .csv or .txt next to NeoXtractor adds to the built-in table or overrides it: first
 column the HPMA bone, second the PMX name (csv/txt: comma or tab separated, # for comments).
 """
 
@@ -47,9 +45,9 @@ _cache: dict = {"key": None, "table": None}
 
 def _app_folder() -> str:
     try:
-        from core.utils import get_application_path  # pylint: disable=import-outside-toplevel
+        from core.utils import get_application_path
         return str(get_application_path())
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return os.getcwd()
 
 
@@ -111,8 +109,8 @@ def table() -> dict[str, str]:
                     source, target = source.strip(), target.strip()
                     if source and target:
                         result[source.lower()] = target
-            except Exception:  # pylint: disable=broad-except
-                from core.logger import get_logger  # pylint: disable=import-outside-toplevel
+            except Exception:
+                from core.logger import get_logger
                 get_logger().exception("Could not read %s; using the built-in bone names", path)
         _cache["key"], _cache["table"] = key, result
     return _cache["table"]
@@ -139,14 +137,14 @@ def translate(names: list[str]) -> list[str]:
 def enabled(settings=None) -> bool:
     if settings is None:
         try:
-            from PySide6 import QtWidgets  # pylint: disable=import-outside-toplevel
+            from PySide6 import QtWidgets
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             settings = None
     if settings is None:
         return True
     try:
         return bool(settings.get(SETTING, True))
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return True

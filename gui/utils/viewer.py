@@ -1,7 +1,7 @@
 """
 Viewer utility functions for viewers.
 
-Modified from NeoXtractor (AGPL-3.0) in 2026 by this patch set: see NOTICE.md.
+Modified from NeoXtractor (AGPL-3.0) in 2026: see NOTICE.md.
 """
 
 from gui.widgets.viewer import Viewer

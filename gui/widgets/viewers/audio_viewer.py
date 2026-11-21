@@ -1,6 +1,6 @@
 """Playable WEM audio viewer with transcoding export.
 
-Modified from NeoXtractor (AGPL-3.0) in 2026 by this patch set (see NOTICE.md): for Harry Potter: Magic Awakened the
+Modified from NeoXtractor (AGPL-3.0) in 2026 (see NOTICE.md): for Harry Potter: Magic Awakened the
 info line also names the sound (_sound_label).
 """
 
@@ -26,9 +26,9 @@ EXPORT_TARGETS = {
 def _sound_label(name: str) -> str | None:
     """HPMA: what a numbered or hashed sound name stands for (its bank, or its path), from core.npk.wwise_names."""
     try:
-        from core.npk import wwise_names  # pylint: disable=import-outside-toplevel
+        from core.npk import wwise_names
         return wwise_names.label_for(name)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return None
 
 

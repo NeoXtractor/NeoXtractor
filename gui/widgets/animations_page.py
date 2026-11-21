@@ -1,11 +1,7 @@
-"""
-The "Animations" entry of the main window's category list: every animation in the game, in the game's own
-folders as in the Characters tab (each animations_ folder holds the clips of one skeleton). The picked clip plays
-on its model in the main window's viewer area, where textures and meshes are previewed.
+"""The Animations category: every animation in the game, grouped by skeleton like the Characters tab.
 
-Right-clicking a clip exports it. Export GLB saves the model with the clip. Export VMD saves a VMD for the player
-character, to play on the PMX models this app exports; for any other model it saves the model as PMX with the clip
-as VMD.
+The selected clip plays on its model in the viewer area. Right-click a clip to export it as GLB, or as VMD
+(with the model as PMX when it isn't the player character).
 """
 
 from __future__ import annotations
@@ -78,9 +74,9 @@ class AnimationsPage(QtWidgets.QWidget):
         bar.addStretch(1)
         viewer_layout.addLayout(bar)
         try:
-            from gui.widgets.scene_render import SceneRenderWidget  # pylint: disable=import-outside-toplevel
+            from gui.widgets.scene_render import SceneRenderWidget
             self.view = SceneRenderWidget()
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self.view = QtWidgets.QLabel(f"3D preview unavailable: {exc}")
         viewer_layout.addWidget(self.view, 1)
         # Over the view, as in the mesh viewer: the clip's numbers top left, the keys bottom left, and the model
@@ -90,7 +86,7 @@ class AnimationsPage(QtWidgets.QWidget):
                               "model from the same folder can be chosen.")
         self.model.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.model.hide()
-        from gui.widgets.viewer_overlay import ViewOverlays  # pylint: disable=import-outside-toplevel
+        from gui.widgets.viewer_overlay import ViewOverlays
         self.overlays = ViewOverlays(self.view, corner=self.model)
 
         self._signals = _Signals(self)
@@ -111,7 +107,7 @@ class AnimationsPage(QtWidgets.QWidget):
     # -- loading -----------------------------------------------------------------------------
     def activate(self):
         """Called when the page is shown: scan the game's animations once per game folder."""
-        from gui.widgets.character_anim_export import _game_folder, _game_options  # pylint: disable=import-outside-toplevel
+        from gui.widgets.character_anim_export import _game_folder, _game_options
         game = _game_folder()
         if game is None:
             self.info.setText("Open any Harry Potter: Magic Awakened .npk first, so the game folder is known.")
@@ -241,7 +237,7 @@ class AnimationsPage(QtWidgets.QWidget):
                               ("Vertices", len(mesh.position)), ("Triangles", len(mesh.face))])
         if not hasattr(self.view, "add_object"):
             return
-        from gui.widgets.scene_render import SceneObject  # pylint: disable=import-outside-toplevel
+        from gui.widgets.scene_render import SceneObject
         if self.preview_object is not None:
             self.view.remove_objects([self.preview_object])
         obj = SceneObject(clip_name, mesh, None, model_path, "")
@@ -278,12 +274,12 @@ class AnimationsPage(QtWidgets.QWidget):
 
 
 def _scan(game, options, signals):
-    from core.npk import anim_library  # pylint: disable=import-outside-toplevel
-    from gui.widgets.character_anim_export import _index  # pylint: disable=import-outside-toplevel
+    from core.npk import anim_library
+    from gui.widgets.character_anim_export import _index
     try:
         index = _index(game, options)
         payload, error = (index, anim_library.scan(index.manifest())), ""
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         payload, error = None, str(exc)
     try:
         signals.scanned.emit(payload, error)
@@ -293,9 +289,9 @@ def _scan(game, options, signals):
 
 def _preview_payload(index, group, clip_name, model_path):
     """((mesh, parts with QImages, clip, matched bones), error)."""
-    from core.npk import anim_library  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
-    from gui.widgets.scene_render import pil_to_qimage  # pylint: disable=import-outside-toplevel
+    from core.npk import anim_library
+    from core.npk.stage_export import StageLoader
+    from gui.widgets.scene_render import pil_to_qimage
     read = lambda p: (index.read(p) or (None,))[0]  # noqa: E731
     try:
         clip = anim_library.load_clip(read, group, clip_name)
@@ -303,7 +299,7 @@ def _preview_payload(index, group, clip_name, model_path):
         if "Unsupported" in str(exc):
             return None, "This animation is stored in a format that can't be read yet."
         return None, f"Could not read this animation: {exc}"
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         return None, f"Could not read this animation: {exc}"
     if not model_path:
         return None, "No model found next to this animation."
@@ -332,12 +328,12 @@ def _load_preview(generation, index, group, clip_name, model_path, signals):
 
 def export_animation(main_window, index, group, clip_name, model_path, kind):
     """GLB: model + animation. VMD: the player rigs as VMD (for exported PMX), other models as PMX + VMD."""
-    from gui.widgets.character_exports import start_export  # pylint: disable=import-outside-toplevel
+    from gui.widgets.character_exports import start_export
 
     def build(progress, cancelled, report, target):
-        from core.mesh_converter import character_anim, model_export, vmd_export  # pylint: disable=import-outside-toplevel
-        from core.npk import anim_library  # pylint: disable=import-outside-toplevel
-        from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter import character_anim, model_export, vmd_export
+        from core.npk import anim_library
+        from core.npk.stage_export import StageLoader
         read = lambda p: (index.read(p) or (None,))[0]  # noqa: E731
         progress(f"Exporting {clip_name}…", 0, 1)
         clip = anim_library.load_clip(read, group, clip_name)
@@ -392,21 +388,21 @@ def install(window) -> None:
                 label.setVisible(False)
             try:
                 preview.set_control_bar_visible(False)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 pass
             page.viewer.show()
         elif page.viewer.isVisible():
             page.viewer.hide()
             try:
                 preview.clear()                    # back to "select an entry" for the file list
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 get_logger().debug("Could not reset the preview area", exc_info=True)
 
     def changed(_index):
         if combo.currentData() == "animations":
             try:
                 window.filter.filter_type = None
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 get_logger().debug("Could not clear the type filter", exc_info=True)
             stack.setCurrentWidget(page)
             show_player(True)
@@ -432,18 +428,18 @@ def install(window) -> None:
                 page.tree.setCurrentItem(item)
             glb = menu.addAction("Export GLB…")
             glb.setToolTip("The model with this animation, as an animated GLB.")
-            glb.triggered.connect(lambda _checked=False: page._export("glb"))  # pylint: disable=protected-access
+            glb.triggered.connect(lambda _checked=False: page._export("glb"))
             vmd = menu.addAction("Export VMD…")
             vmd.setToolTip("Player character: a VMD for the PMX models exported from this app. "
                            "Other models: the model as PMX with this motion as VMD.")
-            vmd.triggered.connect(lambda _checked=False: page._export("vmd"))  # pylint: disable=protected-access
+            vmd.triggered.connect(lambda _checked=False: page._export("vmd"))
             menu.addSeparator()
         action = menu.addAction("Export character animations (VMD / GLB)…")
         action.setToolTip("Save the male / female character animations (dances, runs, idles, spells…) as VMD motions "
                           "for the exported PMX models, or as animated GLB files.")
 
         def open_export():
-            from gui.widgets import character_anim_export  # pylint: disable=import-outside-toplevel
+            from gui.widgets import character_anim_export
             character_anim_export.open_dialog(window)
 
         action.triggered.connect(open_export)

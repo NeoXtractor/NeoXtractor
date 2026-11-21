@@ -1,14 +1,8 @@
-"""
-MMD bone setup for PMX exports.
+"""MMD bone setup for PMX exports.
 
-Only bones whose names come from the bone translation table (bone_names: 上半身, 頭, 左腕, 左足D, ...) are
-re-arranged into the usual MMD chains; every other bone (face, hair, cloth, "upper", ...) keeps the parent it
-had. Added on top, following the layout of hand-made MMD rigs:
-  全ての親 → センター → グルーブ → 上半身 / 下半身
-  左足 / 左ひざ / 左足首 / 左つま先 (driven by 左足ＩＫ and 左つま先ＩＫ); the weighted 左足D / 左ひざD / 左足首D
-  copy their rotation (付与), so the mesh follows the IK legs
-  bone tails pointing down each chain, and display frames (センター, ＩＫ, 体(上), 腕, 指, 体(下), 足, その他)
-VMD motions baked from the game key 左足 / 左ひざ / 左足首 instead of the D bones and turn the IK off.
+Bones named in the bone table (bone_names) are arranged into the usual MMD chains, with 全ての親, センター,
+グルーブ, leg IK and D bones that follow the IK legs. Other bones keep their parents. Bone tails and display
+frames are added too.
 """
 
 from __future__ import annotations
@@ -32,14 +26,14 @@ def _switch(key, settings) -> bool:
     """A PMX export switch from the app's settings; on when there are no settings or the key is unset."""
     if settings is None:
         try:
-            from PySide6 import QtWidgets  # pylint: disable=import-outside-toplevel
+            from PySide6 import QtWidgets
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
         except ImportError:
             settings = None
     try:
         return bool(settings.get(key, True)) if settings is not None else True
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return True
 
 
@@ -88,7 +82,7 @@ def build(bones, translated_names):
     bones: pymeshio pmx.Bone list (parents before children, PMX space). translated_names: names that came
     from the translation table. Returns (bones in their new order, {old index: new index}, display slots).
     """
-    from pymeshio import common, pmx  # pylint: disable=import-outside-toplevel
+    from pymeshio import common, pmx
     names = [b.name for b in bones]
     index = {n: i for i, n in enumerate(names)}
     translated = {n for n in translated_names if n in index}
@@ -322,7 +316,7 @@ def merge_twin_helpers(mesh):
         weights.append(tuple(w for w, _b in pairs))
     if not changed:
         return mesh
-    import copy  # pylint: disable=import-outside-toplevel
+    import copy
     merged_mesh = copy.copy(mesh)
     merged_mesh.vertex_bone = joints
     merged_mesh.vertex_weight = weights
@@ -341,7 +335,7 @@ def raise_shoulders(model, report=None) -> float:
     sleeve. Both sides get the same lift; bones are never lowered. Only the bone positions move (not the mesh or
     the weights). Returns the upper-arm lift applied.
     """
-    from pymeshio import common  # pylint: disable=import-outside-toplevel
+    from pymeshio import common
     bones = model.bones
     index = {bone.name: i for i, bone in enumerate(bones)}
     if not all(n in index for n in ("首", "頭", "左肩", "右肩", "左腕", "右腕")):
@@ -378,7 +372,7 @@ def remove_unused(model) -> int:
     (センター, the IK and FK legs that drive the D bones, the eyes) and every ancestor of a kept bone stay.
     Vertex weights, parents, tails, IK, grants and display frames are renumbered. Returns how many were removed.
     """
-    from pymeshio import common, pmx  # pylint: disable=import-outside-toplevel
+    from pymeshio import common, pmx
     bones = model.bones
     used = set()
     for vertex in model.vertices:
@@ -458,8 +452,8 @@ def link_tails(bones, only=None) -> None:
     目 forward, 下半身 down between the legs, 足首D at 足先EX. With `only` (a set of names), the other bones
     keep their zero-length tail.
     """
-    import re  # pylint: disable=import-outside-toplevel
-    from pymeshio import common, pmx  # pylint: disable=import-outside-toplevel
+    import re
+    from pymeshio import common, pmx
     count = len(bones)
     children: dict[int, list[int]] = {}
     for i, bone in enumerate(bones):

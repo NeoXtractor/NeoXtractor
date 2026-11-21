@@ -32,10 +32,10 @@ _LOCK = threading.Lock()
 
 def _library(game, options=None):
     """(MakeupLibrary, face folders {folder: [mesh paths]}, files {folder: [all files]}), built once per game."""
-    from core.npk.face_makeup import MakeupLibrary  # pylint: disable=import-outside-toplevel
-    from core.npk.game_tables import RootTables  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import read_options_for  # pylint: disable=import-outside-toplevel
-    from gui.widgets.character_anim_export import _index  # pylint: disable=import-outside-toplevel
+    from core.npk.face_makeup import MakeupLibrary
+    from core.npk.game_tables import RootTables
+    from core.npk.stage_export import read_options_for
+    from gui.widgets.character_anim_export import _index
     options = options or read_options_for(None)
     with _LOCK:
         key = str(game)
@@ -70,14 +70,14 @@ def _hair_data(game, library):
     game colours with preset variants instead of dye (color_hair: Spring Curls, Royal Grace...), and the dye
     colours.
     """
-    from core.npk import game_tables, hair_dye  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import read_options_for  # pylint: disable=import-outside-toplevel
+    from core.npk import game_tables, hair_dye
+    from core.npk.stage_export import read_options_for
     dye = hair_dye.HairDye(library.index, library.tables)
     hairs = [dict(h) for h in dye.hairs()]
     try:
         links = game_tables.mesh_links(game, getattr(library, "read_options", None) or read_options_for(None),
                                        lambda path: (library.index.read(path) or (None,))[0])
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         links = {}
     for hair in hairs:
         link = game_tables.link_for(links, hair["mesh"]) if links else None
@@ -98,13 +98,13 @@ def _basic_hairs(library, listed) -> list[dict]:
     whose dress rows hold the model (<folder>\\<folder>_NN.gim, one per preset colour). The first colour is
     the one shown; qs / rs stay None (no dye).
     """
-    from core.npk import game_tables  # pylint: disable=import-outside-toplevel
+    from core.npk import game_tables
     try:
         tables = library.tables
         styles, items, dresses = (tables.keyed_rows(name) for name in ("color_hair", "item", "role_dress"))
         english = {key: row.get("text_en", "") for key, row in tables.keyed_rows("item_text_os_en").items()
                    if isinstance(row, dict)}
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return []
     found = []
     for style_id, style in sorted(styles.items(), key=lambda kv: str(kv[0])):
@@ -152,9 +152,9 @@ def _wardrobe(library, links):
     recolours becomes one entry. Models with no dress row are added at the end, except incomplete remakes, which are
     hidden. Also returns, for each hat, the trimmed hairstyles it uses.
     """
-    import json  # pylint: disable=import-outside-toplevel
-    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
-    from core.npk import game_tables  # pylint: disable=import-outside-toplevel
+    import json
+    import xml.etree.ElementTree as ET
+    from core.npk import game_tables
     kinds = {kind for kind, _label in WARDROBE}
     found = {"male": {k: [] for k in kinds}, "female": {k: [] for k in kinds}}
     masks: dict[str, dict[str, str]] = {}
@@ -346,15 +346,15 @@ def _wardrobe(library, links):
 
 def _read_texture(library, texture):
     """A texture as RGBA (the game ships .dds for the .tga a material names), or None."""
-    import io  # pylint: disable=import-outside-toplevel
-    from PIL import Image  # pylint: disable=import-outside-toplevel
+    import io
+    from PIL import Image
     for candidate in (texture.rsplit(".", 1)[0] + ".dds", texture, texture.rsplit(".", 1)[0] + ".png"):
         found = library.index.read(candidate)
         if found is None:
             continue
         try:
             return Image.open(io.BytesIO(found[0])).convert("RGBA")
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             continue
     return None
 
@@ -365,7 +365,7 @@ def _mvar_textures(library, path, texture) -> dict[str, str] | None:
     A variant can give each material its own texture (a coat on one sheet, sleeves on another, a tassel on a
     third); materials a variant leaves out keep their own.
     """
-    import json  # pylint: disable=import-outside-toplevel
+    import json
     stem = path.rsplit(".", 1)[0]
     found = None
     for candidate in (stem + ".mvar", re.sub(r"_all$", "", stem) + ".mvar"):
@@ -407,7 +407,7 @@ def incomplete_remake(library, gim) -> bool:
     asks for more materials than its .mtg defines (the new mesh arrived, the new material and textures did
     not), so the old texture lands on the new UV layout. Only checked for models with colour-variant rows.
     """
-    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
+    import xml.etree.ElementTree as ET
     stem = gim.rsplit(".", 1)[0]
     if library.index.read(stem + ".mvar") is not None:
         return False
@@ -502,14 +502,14 @@ def attachment_items(library, path, sockets, report):
     The extra pieces the game hangs on rig sockets for an outfit: sockets is the dress row's socket_list (ids in
     the attachments table, each a model and a socket), e.g. the fur shawl of male_clothes_199_hgmdal on 199_pijian.
     """
-    from core.npk import accessory_sockets  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+    from core.npk import accessory_sockets
+    from core.npk.stage_export import StageLoader
     ids = list(sockets or ())
     if not ids:
         return []
     try:
         table = library.tables.keyed_rows("attachments")
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return []
     sex = "female" if "\\girl\\" in path.lower() else "male"
     sockets = accessory_sockets.for_library(library)
@@ -546,8 +546,8 @@ def load_wardrobe_items(library, path, report, texture=None, sockets=(), sex=Non
     the pieces its dress row hangs on sockets (sockets: the wardrobe entry's attachment ids). sex: the wearer's,
     whose rig the socketed pieces hang on (brooches live in the girl folder for both sexes); by default the file's.
     """
-    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+    import xml.etree.ElementTree as ET
+    from core.npk.stage_export import StageLoader
     items = load_face_items(library, [path], [], None, report)
     if texture:
         items = _recolour(library, items, texture, report, path)
@@ -566,7 +566,7 @@ def load_wardrobe_items(library, path, report, texture=None, sockets=(), sex=Non
                 items.append({"name": name, "mesh": model[0], "parts": [dict(p) for p in model[1]], "body_piece": True})
         return items
     # Earrings, glasses, hats: the game hangs these on sockets of the character rig
-    from core.npk.accessory_sockets import for_library  # pylint: disable=import-outside-toplevel
+    from core.npk.accessory_sockets import for_library
     sockets = for_library(library)
     sex = sex or ("female" if "\\girl\\" in path.lower() else "male")
     return sockets.attach(items, path, sex, report)
@@ -591,7 +591,7 @@ def hair_original(hair_data, hair):
     """The hairstyle's own texture (PIL) for its cut-out edges, cached."""
     originals = hair_data["originals"]
     if hair["folder"] not in originals:
-        from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import StageLoader
         model = StageLoader(hair_data["dye"].index).model(hair["mesh"])
         originals[hair["folder"]] = next((part.get("image") for part in (model[1] if model else [])
                                           if part.get("image") is not None), None)
@@ -609,7 +609,7 @@ def bake_hair(hair_data, hair_choice, notes):
     color2 = color2 if color2 is not None else color1
     try:
         return hair_data["dye"].bake(hair, color1, color2, hair_original(hair_data, hair))
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         notes.append(f"Hair dye: {exc}")
         return None
 
@@ -629,7 +629,7 @@ def offered_shapes(library) -> dict[str, list[str]]:
             if model and suffix not in offered.setdefault(model, []):
                 offered[model].append(suffix)
         return offered
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return {}
 
 
@@ -650,7 +650,7 @@ def skin_icons(library) -> dict[str, dict[int, tuple[int, str]]]:
                 continue
             sex = "male" if row.get("sex") == 1 else "female"
             result[sex].setdefault(int(row.get("model_mtg_id", 0)), (int(row.get("order", 999)), str(row.get("icon", ""))))
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         get_logger().warning("Could not read the skin tone table (face_skincolor)", exc_info=True)
     return result
 
@@ -688,7 +688,7 @@ def face_presets(library, faces, files) -> list[dict]:
                 item_of.setdefault(row["mini_type"], row)
         rows = sorted(tables.keyed_rows("role_face").values(),
                       key=lambda r: (r.get("sex", 0), r.get("hide_in_ui", 0), r.get("sort", 0), r.get("id", 0)))
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         rows, models, english, item_of = [], {}, {}, {}
     for row in rows:
         folder = folder_of.get(str(models.get(row.get("shape_id")) or "").lower())
@@ -785,9 +785,9 @@ def without_old_eye_faces(mesh_paths):
 
 def load_face_items(library, mesh_paths, files, shape_path, report, progress=None, cancelled=None):
     """The face folder's meshes as export items (face, eyes, lashes, eyebrows), in the chosen face shape."""
-    from core.mesh_converter import face_shapes  # pylint: disable=import-outside-toplevel
-    from core.npk.stage_export import StageLoader  # pylint: disable=import-outside-toplevel
-    from gui.widgets.character_exports import textured_model  # pylint: disable=import-outside-toplevel
+    from core.mesh_converter import face_shapes
+    from core.npk.stage_export import StageLoader
+    from gui.widgets.character_exports import textured_model
     metadata = [p for p in files if p.lower().endswith((".gim", ".mtg", ".mvar"))]
     mesh_paths = without_old_eye_faces(mesh_paths)
     loader = StageLoader(library.index, max_texture_size=8192)
@@ -835,7 +835,7 @@ _HALVES: dict[int, tuple] = {}
 
 def _halves(mesh):
     """The left/right halves of a face mesh, made once per mesh (so redraws reuse them)."""
-    from core.npk import face_makeup  # pylint: disable=import-outside-toplevel
+    from core.npk import face_makeup
     found = _HALVES.get(id(mesh))
     if found is None or found[0] is not mesh:
         if len(_HALVES) > 32:
@@ -849,7 +849,7 @@ def dress_face_items(library, items, sex, face, look, baked, eye, brow):
     Copies of the face items wearing the look: the baked face texture (split into left/right halves
     when the look has a one-cheek decal), the iris and eyebrow textures. Returns (items, eye meshes dressed).
     """
-    from core.npk import face_makeup  # pylint: disable=import-outside-toplevel
+    from core.npk import face_makeup
     sides = tuple(baked)
     output, eye_meshes = [], 0
     # Faces have either old one-piece eyeballs (<sex>_eye_jyq_NN) or separate left/right eyes. Prefer the
@@ -906,7 +906,7 @@ _FACE_SOCKETS: dict = {}
 
 def face_sockets(library, sex, face) -> dict:
     """Socket name -> (bone, MatrixToBone) from the face's <face>_all.gim (the pupil sockets tongkong_l / _r)."""
-    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
+    import xml.etree.ElementTree as ET
     key = (sex, face)
     if key not in _FACE_SOCKETS:
         found = {}
@@ -940,12 +940,12 @@ def pupil_items(library, look, eyes, sex=None, face=None) -> list:
     if mesh_path not in _PUPIL_MODELS:
         try:
             _PUPIL_MODELS[mesh_path] = load_face_items(library, [mesh_path], [], None, [])
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _PUPIL_MODELS[mesh_path] = []
     models = _PUPIL_MODELS[mesh_path]
     if not models:
         return []
-    import copy  # pylint: disable=import-outside-toplevel
+    import copy
     sockets = face_sockets(library, sex, face) if sex and face else {}
     wanted = [n for n in (look.eyetype.row.get("eye_bind_param") or [])[1:] if isinstance(n, str)]
     output = []

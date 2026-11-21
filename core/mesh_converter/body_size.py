@@ -1,17 +1,8 @@
-"""
-Character body size: the game's "size 0" (as modelled) and "size 1" (the adult body, body_dress 240002 = plan1).
+"""Character body size: the game's "size 0" (as modelled) and "size 1" (the adult body, plan1).
 
-The adult body is a skeleton deform. Every outfit has <outfit>.sdm next to its .gim (JSON):
-    {"plan_map": {"plan1": {"symmetry": true, "toe_ik": true, "root_height": 10.086,
-        "skeleton_list": [["bip001 l thigh", 1.04, 1, 1, false], ["bip001 head", 0.92, 0.92, 0.92, true], ...]}}}
-Each entry scales a bone in its own axes (x runs along the bone, so x lengthens a limb and moves the
-bones below it); the last flag says whether the scale also applies to the bone's children (the head's
-scale shrinks the face and hair with it). "symmetry" mirrors left entries to the right.
-
-The character skeleton the meshes use is flat (every leg bone hangs off "lower", every arm bone off
-"upper"), so the game deforms through a proper biped hierarchy instead, model/character/skeleton_deformer/
-<sex>.skeleton (comm/body_type/config.json, hierarchy_skeleton_rules), and carries the result over by bone
-name. toe_ik keeps the feet on the ground; root_height is the resulting hip height.
+Each outfit's .sdm file lists bone scales for plan1. The game applies them on the biped hierarchy in
+model/character/skeleton_deformer/<sex>.skeleton rather than on the meshes' flat skeleton, and copies the
+result over by bone name; this does the same.
 """
 
 from __future__ import annotations
@@ -79,7 +70,7 @@ class BodyDeformer:
     """One plan's deform, solved on the deformer skeleton; apply() carries it to any mesh of the character."""
 
     def __init__(self, plan: dict, deformer_skeleton):
-        from core.mesh_converter.character_anim import rest_worlds  # pylint: disable=import-outside-toplevel
+        from core.mesh_converter.character_anim import rest_worlds
         self.plan = plan
         entries: dict[str, tuple[np.ndarray, bool]] = {}
         for name, sx, sy, sz, carry in plan.get("skeleton_list", []):
@@ -171,7 +162,7 @@ class BodyDeformer:
 
 def deformer_for(read, mesh_paths, report: list):
     """(BodyDeformer, source name) for a character made of these meshes, or (None, "")."""
-    from core.npk import neox_anim  # pylint: disable=import-outside-toplevel
+    from core.npk import neox_anim
     plan, sex, source = plan_for(read, mesh_paths, report)
     if plan is None or sex is None:
         return None, ""

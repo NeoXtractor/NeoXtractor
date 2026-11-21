@@ -652,7 +652,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 archive_file = IDXWPKFile(path, read_options)
             else:
                 raise ValueError(f"Unsupported archive type: {path}")
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self._loading_failed(str(exc))
             return
 
@@ -690,7 +690,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.loading_complete_signal.emit()
             except CharacterScanCancelled:
                 self.loading_complete_signal.emit()
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 self.loading_error_signal.emit(str(exc))
 
         QtCore.QThreadPool.globalInstance().start(_load_entries)

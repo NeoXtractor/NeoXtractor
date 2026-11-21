@@ -1,13 +1,8 @@
-"""
-The game's data tables (dbx_new\\<table>.dbxz / .dbxhz, inside the root res.npk packs) and what they say
-about character meshes: each mesh's item icon and its English item name.
+"""The game's data tables (dbx_new, inside the root res.npk) and what they say about character meshes.
 
-Table format: .dbxz = zlib(records), record = uint32 size + LZ4 block holding one MessagePack row;
-.dbxhz = zlib(MessagePack {key: [offset, length, part]}), part n living in <table>_<n>.dbxz.
-
-Links: role_dress (dress id -> model .gim -> the .mesh it draws), item (type 200 rows whose mini_type is
-the dress id -> icon_path, name key), item_text_os_en (name key -> English text). Hairstyle cuts
-(<hair>_a) share their hairstyle's item. Built once per game and cached next to the app.
+A .dbxz is zlib-compressed records (uint32 size + an LZ4 block holding one MessagePack row); a .dbxhz indexes
+them. role_dress, item and item_text_os_en together give each mesh its item icon and English name. The result
+is cached next to the app.
 """
 
 from __future__ import annotations
@@ -166,8 +161,8 @@ class RootTables:
     """Reads dbx_new tables from the root res.npk packs (Documents patch layer first)."""
 
     def __init__(self, game: Path, options):
-        from core.npk.npk_file import NPKFile  # pylint: disable=import-outside-toplevel
-        from core.npk.stage_export import murmur3_32  # pylint: disable=import-outside-toplevel
+        from core.npk.npk_file import NPKFile
+        from core.npk.stage_export import murmur3_32
         self._hash = murmur3_32
         self.packs = []
         self._rows: dict[str, dict] = {}                # decoded tables, shared by every caller (read-only)
@@ -219,7 +214,7 @@ class RootTables:
             size = struct.unpack_from("<I", raw, offset)[0]
             try:
                 out[key] = _MsgPack(lz4_block(raw[offset + 4:offset + 4 + length], size)).read()
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 continue
         return out
 
@@ -270,7 +265,7 @@ def build_links(tables: RootTables, read_game_file) -> dict[str, dict]:
     # (female_hair_01_0N.gim for every female style), so these links replace whatever that gave.
     try:
         styles = tables.keyed_rows("color_hair")
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         styles = {}
     for style_id, style in styles.items():
         item = items.get(style_id)
@@ -289,9 +284,9 @@ def build_links(tables: RootTables, read_game_file) -> dict[str, dict]:
 
 def _cache_path() -> Path:
     try:
-        from core.utils import get_application_path  # pylint: disable=import-outside-toplevel
+        from core.utils import get_application_path
         return Path(get_application_path()) / "item_links_cache.json"
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return Path(os.getcwd()) / "item_links_cache.json"
 
 
@@ -311,7 +306,7 @@ def mesh_links(game, options, read_game_file) -> dict[str, dict]:
                 return saved["links"]
         except FileNotFoundError:
             pass
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             get_logger().warning("Ignoring an unreadable item link cache %s", cache, exc_info=True)
         links = build_links(tables, read_game_file) if tables.packs else {}
         try:
@@ -345,7 +340,7 @@ def item_tags(tables, item_id) -> tuple:
         return ()
     try:
         row = tables.keyed_rows("item").get(item_id)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return ()
     return tuple(str(t) for t in (row.get("item_tags") or ())) if isinstance(row, dict) else ()
 
@@ -359,13 +354,13 @@ def tag_names(tables) -> dict:
             for row in tables.keyed_rows("item").values():
                 if isinstance(row, dict):
                     wanted.update(str(t) for t in (row.get("item_tags") or ()))
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             pass
         names = {}
         for table in TAG_TEXT_TABLES:
             try:
                 rows = tables.keyed_rows(table)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 continue
             for tag in wanted - set(names):
                 row = rows.get(tag)
@@ -383,7 +378,7 @@ def item_traits(tables, item_id) -> tuple:
         return ()
     try:
         row = tables.keyed_rows("item").get(item_id)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return ()
     tags = set(row.get("item_tags") or ()) if isinstance(row, dict) else set()
     return tuple(key for key in _TRAIT_KEYS if key in tags)
@@ -395,7 +390,7 @@ def item_rarity(tables, item_id) -> int | None:
         return None
     try:
         row = tables.keyed_rows("item").get(item_id)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return None
     rarity = row.get("rarity") if isinstance(row, dict) else None
     return rarity if rarity in RARITY_NAMES else None

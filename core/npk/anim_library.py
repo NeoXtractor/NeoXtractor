@@ -116,8 +116,8 @@ def load_clip(read, group: Group, name: str):
     A neox_anim.Clip for one clip of a group; read(path) returns a file's bytes or None. Both layouts are read (ACL
     and plain keyframes); a clip in neither raises ValueError("Unsupported animation ...").
     """
-    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
-    from core.npk import neox_anim  # pylint: disable=import-outside-toplevel
+    import xml.etree.ElementTree as ET
+    from core.npk import neox_anim
     raw_path = f"{group.folder}{B}{name}.rawanimation"
     data = read(raw_path)
     if data is None:                                  # the descriptor may point elsewhere
@@ -126,7 +126,7 @@ def load_clip(read, group: Group, name: str):
             try:
                 dependency = ET.fromstring(descriptor).find(".//Dependency/FileName")
                 if dependency is not None and dependency.get("Value"):
-                    raw_path = neox_anim._join(group.folder, dependency.get("Value"))  # pylint: disable=protected-access
+                    raw_path = neox_anim._join(group.folder, dependency.get("Value"))
                     data = read(raw_path)
             except ET.ParseError:
                 data = None
@@ -135,7 +135,7 @@ def load_clip(read, group: Group, name: str):
     animation = neox_anim.Animation(data)
     skeleton_data = None
     if animation.skeleton_path:
-        skeleton_data = read(neox_anim._join(raw_path.rsplit(B, 1)[0], animation.skeleton_path))  # pylint: disable=protected-access
+        skeleton_data = read(neox_anim._join(raw_path.rsplit(B, 1)[0], animation.skeleton_path))
     skeleton_data = skeleton_data or read(group.skeleton)
     if skeleton_data is None:
         raise FileNotFoundError(f"{name}: skeleton not found")

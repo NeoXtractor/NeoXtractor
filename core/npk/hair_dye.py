@@ -1,11 +1,7 @@
-"""
-Hair dye, baked into the hair texture the way the game's cartoon shader (LUT_TINT) draws it.
+"""Hair dye baked into the hair texture, the way the game's cartoon shader (LUT_TINT) does it.
 
-Dyeable hairstyles (table hair_color_tex) have two extra textures: <hair>_qs (the hair with its colour
-taken out) and <hair>_rs (the dye mask: red runs from the second colour (0) to the first (1), green marks
-the rest of the dyed area). The game sets TintColorR = colour 1, TintColorG = colour 2 and
-TintRGLerpColor = their average, and the shader blends: mask.r 0 → colour 2, 0.5 → average, 1 → colour 1,
-hard-lit onto the colourless hair wherever the mask is set. Colours come from table hair_color.
+Dyeable hairstyles have a colourless texture (<hair>_qs) and a dye mask (<hair>_rs); the mask blends between
+the two colours picked from the hair_color table.
 """
 
 from __future__ import annotations
@@ -57,14 +53,14 @@ class HairDye:
         return self._hairs
 
     def image(self, path):
-        from core.npk.stage_export import decode_texture  # pylint: disable=import-outside-toplevel
+        from core.npk.stage_export import decode_texture
         if path not in self._images:
             found = self.index.read(path)
             image = None
             if found is not None:
                 try:
                     image = np.asarray(decode_texture(found[0]).convert("RGBA"), np.float32) / 255.0
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     image = None
             self._images[path] = image
         return self._images[path]
@@ -74,7 +70,7 @@ class HairDye:
         Returns the dyed hair texture. alpha_source is the hair's original texture, which is used to keep its specific
         edges.
         """
-        from PIL import Image  # pylint: disable=import-outside-toplevel
+        from PIL import Image
         base = self.image(hair["qs"])
         mask = self.image(hair["rs"])
         if base is None or mask is None:

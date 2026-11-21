@@ -32,5 +32,5 @@ class CharacterScanWorker(QtCore.QRunnable):
             self.signals.finished.emit(self.generation, catalog, "")
         except CharacterScanCancelled:
             self.signals.finished.emit(self.generation, None, "cancelled")
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self.signals.finished.emit(self.generation, None, str(exc))
