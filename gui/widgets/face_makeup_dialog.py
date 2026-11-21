@@ -86,6 +86,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.generation = 0
         self.preview_image = None
         self.setWindowTitle("Main Character Creator")
+        self.setWindowFlag(QtCore.Qt.WindowType.WindowMinimizeButtonHint, True)
         self.setWindowFlag(QtCore.Qt.WindowType.WindowMaximizeButtonHint, True)
         screen = QtGui.QGuiApplication.primaryScreen()
         area = screen.availableGeometry() if screen is not None else QtCore.QRect(0, 0, 1600, 1000)
