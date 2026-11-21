@@ -15,3 +15,7 @@ settings.json
 *.npk
 *.idx
 *.wpk
+
+# Caches written next to the app while it runs (they hold local game paths)
+scan_cache/
+item_links_cache.json

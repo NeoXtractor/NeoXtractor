@@ -1,3 +1,30 @@
+# NeoXtractor – Harry Potter: Magic Awakened build (source)
+
+This branch is the full source of the HPMA build of NeoXtractor: real file names for the game's packs, the
+Characters, Animations and Stages pages, the Scene Viewer, the Main Character Creator, MMD (PMX/VMD) export and the
+game's sound names. It is based on NeoXtractor as of April 2026; the same features are being offered to
+NeoXtractor itself as pull requests against its current version.
+
+> The additions were written with AI assistance (Claude Code). The original author of NeoXtractor has been told.
+
+Licensed under the GNU AGPL v3.0, like NeoXtractor: see [LICENSE](LICENSE). What was changed, and the third-party
+data used, is listed in [NOTICE.md](NOTICE.md). No game files are included.
+
+## Running from source
+
+You need Python 3.12, [uv](https://docs.astral.sh/uv/) and a game install.
+
+```
+uv sync
+uv run main.py
+```
+
+Pick the "Harry Potter: Magic Awakened" config, then open any `.npk` under the game's `res` folder. The
+Characters, Animations and Stages pages are in the category list; the Scene Viewer and Main Character Creator are
+under Tools.
+
+---
+
 # NeoXtractor
 
 ![Python versions](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)

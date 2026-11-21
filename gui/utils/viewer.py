@@ -1,6 +1,11 @@
-"""Viewer utility functions for viewers."""
+"""
+Viewer utility functions for viewers.
+
+Modified from NeoXtractor (AGPL-3.0) in 2026 by this patch set: see NOTICE.md.
+"""
 
 from gui.widgets.viewer import Viewer
+from gui.widgets.viewers.audio_viewer import AudioViewer
 from gui.widgets.viewers.bnk_viewer import BnkViewer
 from gui.widgets.viewers.cocos_viewer.cocos_viewer import CocosViewer
 from gui.widgets.viewers.code_editor import CodeEditor
@@ -15,40 +20,26 @@ ALL_VIEWERS: list[type[Viewer]] = [
     MeshViewer,
     TextureViewer,
     BnkViewer,
+    AudioViewer,
     CocosViewer,
     PycViewer,
 ]
 
 
-def find_best_viewer(extension: str, is_text=False) -> type[Viewer]:
+def find_best_viewer(extension: str, is_text: bool = False) -> type[Viewer]:
     """
-    Finds and selects the most appropriate previewer widget for the given NPK entry.
-    This method iterates through available previewers and selects one based on the file extension
-    of the NPK entry. If a previewer declares compatibility with the entry's extension through
-    its 'accepted_extensions' attribute, that previewer is selected. If no specialized previewer
-    is found, it defaults to a code editor for text files or a hex viewer for binary files.
-    Args:
-        extension (str): The file extension to find a previewer for
-        is_text (bool): Whether the file is a text file or not
-    Returns:
-        Type[QtWidgets.QWidget]: The class of the selected previewer widget
+    The viewer for a file extension: the first one that lists it, else the code editor for text and the
+    hex viewer for anything else.
     """
-
     normalized_extension = str(extension or "").lower().lstrip(".")
-    # Meshes always open in the mesh viewer, even when another viewer
-    # (such as the hex viewer) also lists the extension.
-
-
     if normalized_extension == "mesh":
         return MeshViewer
-
     for previewer in ALL_VIEWERS:
-        if hasattr(previewer, "accepted_extensions"):
-            accepted_extensions = {
-                str(value).lower().lstrip(".")
-                for value in getattr(previewer, "accepted_extensions")
-            }
-            if normalized_extension in accepted_extensions:
-                return previewer
-
-    return CodeEditor if is_text else HexViewer
+        if not hasattr(previewer, "accepted_extensions"):
+            continue
+        accepted_extensions = {str(value).lower().lstrip(".") for value in getattr(previewer, "accepted_extensions")}
+        if normalized_extension in accepted_extensions:
+            return previewer
+    if is_text:
+        return CodeEditor
+    return HexViewer

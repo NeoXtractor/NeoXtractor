@@ -1,0 +1,73 @@
+{
+  "name": "Wardrobe (dark gold)",
+  "base": "dark",
+  "description": "Warm near-black panels with gold accents, after Magic Awakened's wardrobe screens",
+
+  "colors": {
+    "palette": {
+      "background": "#161412",
+      "surface": "#1f1b17",
+      "surface_variant": "#2a241d",
+      "primary": "#d6aa5a",
+      "primary_variant": "#b88d43",
+      "secondary": "#e6cf9c",
+      "accent": "#c9783a",
+      "text": "#eadfc8",
+      "text_secondary": "#a99b82",
+      "text_disabled": "#5f5547",
+      "border": "#3a3226",
+      "border_focus": "#d6aa5a",
+      "hover": "#2e271f",
+      "selected": "#4a3a22",
+      "pressed": "#574428",
+      "disabled": "#1c1915",
+      "error": "#d9534f",
+      "warning": "#e0a03a",
+      "success": "#7fae5a",
+      "info": "#6fa3c7"
+    },
+
+    "hex_viewer": {
+      "header_color_begin": "#2a241d",
+      "header_color_end": "#1f1b17",
+      "header_separator_color": "#3a3226",
+      "header_text_color": "#a99b82",
+      "address_color": "#d6aa5a",
+      "hex_color": "#eadfc8",
+      "ascii_color": "#c9a46b",
+      "highlight_bg_color": "#4a3a22",
+      "highlight_fg_color": "#ffffff",
+      "selection_bg_color": "#6b5530",
+      "selection_fg_color": "#ffffff",
+      "row_color": "#161412",
+      "alternate_row_color": "#1c1916"
+    },
+
+    "code_viewer": {
+      "background": "#161412",
+      "text": "#eadfc8",
+      "line_number_background": "#1f1b17",
+      "line_number_text": "#7d715e",
+      "current_line_background": "#2a241d",
+      "selection_background": "#6b5530",
+      "selection_text": "#ffffff",
+
+      "syntax": {
+        "keyword": "#d6aa5a",
+        "string": "#d19a66",
+        "comment": "#7d8a63",
+        "number": "#b5cea8",
+        "function": "#e6cf9c",
+        "type": "#8fb8a8",
+        "operator": "#d8ccb4",
+        "preprocessor": "#c792b8",
+        "escape": "#e0b46c",
+        "variable": "#a9c3d6",
+        "constant": "#e0a03a",
+        "class": "#8fb8a8",
+        "attribute": "#c9a46b",
+        "error": "#e06c6c"
+      }
+    }
+  }
+}

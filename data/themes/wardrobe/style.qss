@@ -1,0 +1,521 @@
+/* Wardrobe (dark gold) theme for NeoXtractor: the dark layout with warm panels and gold accents */
+
+/* =============================================================================
+   MAIN APPLICATION
+   ============================================================================= */
+
+QMainWindow {
+    background-color: @background;
+    color: @text;
+}
+
+QWidget {
+    background-color: @background;
+    color: @text;
+}
+
+*[disabled="true"] {
+    background-color: @disabled;
+    color: @text_disabled;
+}
+
+/* =============================================================================
+   BUTTONS
+   ============================================================================= */
+
+QPushButton {
+    background-color: @surface;
+    border: 1px solid @border;
+    padding: 6px 12px;
+    border-radius: 4px;
+    color: @text;
+    font-weight: 500;
+    min-width: 60px;
+}
+
+QPushButton:hover {
+    background-color: @hover;
+    border-color: @primary;
+}
+
+QPushButton:pressed {
+    background-color: @pressed;
+}
+
+QPushButton:disabled {
+    background-color: @disabled;
+    color: @text_disabled;
+    border-color: @border;
+}
+
+QPushButton:default {
+    background-color: @primary;
+    color: @background;
+    border-color: @primary_variant;
+}
+
+QPushButton:default:hover {
+    background-color: @primary_variant;
+}
+
+/* =============================================================================
+   MENU BAR AND MENUS
+   ============================================================================= */
+
+QMenuBar {
+    background-color: @surface;
+    color: @text;
+    border-bottom: 1px solid @border;
+    padding: 2px;
+}
+
+QMenuBar::item {
+    background-color: transparent;
+    padding: 6px 12px;
+    border-radius: 3px;
+}
+
+QMenuBar::item:selected {
+    background-color: @hover;
+}
+
+QMenuBar::item:pressed {
+    background-color: @selected;
+}
+
+QMenu {
+    background-color: @surface;
+    color: @text;
+    border: 1px solid @border;
+    border-radius: 4px;
+    padding: 4px 0px;
+}
+
+QMenu::item {
+    padding: 6px 20px;
+    border: none;
+}
+
+QMenu::item:selected {
+    background-color: @hover;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: @border;
+    margin: 4px 0px;
+}
+
+/* =============================================================================
+   TOOLBAR
+   ============================================================================= */
+
+QToolBar {
+    background-color: @surface;
+    border: 1px solid @border;
+    spacing: 3px;
+    padding: 3px;
+}
+
+QToolButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    padding: 6px;
+    border-radius: 3px;
+}
+
+QToolButton:hover {
+    background-color: @hover;
+    border-color: @border;
+}
+
+QToolButton:pressed {
+    background-color: @pressed;
+}
+
+QToolButton:checked {
+    background-color: @selected;
+    border-color: @primary;
+}
+
+/* =============================================================================
+   STATUS BAR
+   ============================================================================= */
+
+QStatusBar {
+    background-color: @surface;
+    color: @text;
+    border-top: 1px solid @border;
+    padding: 4px;
+}
+
+QStatusBar::item {
+    border: none;
+}
+
+/* =============================================================================
+   TEXT INPUTS
+   ============================================================================= */
+
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background-color: @background;
+    border: 1px solid @border;
+    padding: 6px;
+    border-radius: 4px;
+    color: @text;
+    selection-background-color: @selected;
+}
+
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border: 2px solid @border_focus;
+    padding: 5px;
+}
+
+QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled {
+    background-color: @disabled;
+    color: @text_disabled;
+}
+
+/* =============================================================================
+   DIALOGS
+   ============================================================================= */
+
+QDialog {
+    background-color: @background;
+    color: @text;
+}
+
+QLabel {
+    color: @text;
+    background-color: transparent;
+}
+
+QLabel:disabled {
+    color: @text_disabled;
+}
+
+/* =============================================================================
+   TABS
+   ============================================================================= */
+
+QTabWidget::pane {
+    border: 1px solid @border;
+    background-color: @background;
+    border-radius: 4px;
+}
+
+QTabBar::tab {
+    background-color: @surface_variant;
+    color: @text;
+    padding: 8px 16px;
+    border: 1px solid @border;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background-color: @background;
+    border-bottom: 1px solid @background;
+}
+
+QTabBar::tab:hover:!selected {
+    background-color: @hover;
+}
+
+QTabBar::tab:first {
+    margin-left: 0px;
+}
+
+/* =============================================================================
+   SPLITTERS
+   ============================================================================= */
+
+QSplitter::handle {
+    background-color: @border;
+}
+
+QSplitter::handle:horizontal {
+    width: 3px;
+}
+
+QSplitter::handle:vertical {
+    height: 3px;
+}
+
+QSplitter::handle:hover {
+    background-color: @primary;
+}
+
+/* =============================================================================
+   SCROLL BARS
+   ============================================================================= */
+
+QScrollBar:vertical {
+    background-color: @surface_variant;
+    width: 16px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: @text_secondary;
+    border-radius: 8px;
+    min-height: 20px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: @text;
+}
+
+QScrollBar:horizontal {
+    background-color: @surface_variant;
+    height: 16px;
+    margin: 0px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: @text_secondary;
+    border-radius: 8px;
+    min-width: 20px;
+    margin: 2px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: @text;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line {
+    border: none;
+    background: none;
+}
+
+/* =============================================================================
+   PROGRESS BARS
+   ============================================================================= */
+
+QProgressBar {
+    border: 1px solid @border;
+    border-radius: 4px;
+    text-align: center;
+    background-color: @surface_variant;
+    color: @text;
+}
+
+QProgressBar::chunk {
+    background-color: @primary;
+    border-radius: 3px;
+}
+
+/* =============================================================================
+   LIST AND TREE WIDGETS
+   ============================================================================= */
+
+QListWidget, QListView, QTreeWidget {
+    background-color: @background;
+    border: 1px solid @border;
+    border-radius: 4px;
+    color: @text;
+    alternate-background-color: @surface_variant;
+}
+
+QListWidget::item, QListView::item, QTreeWidget::item {
+    padding: 4px;
+    border: none;
+}
+
+QListWidget::item:selected, QListView::item:selected, QTreeWidget::item:selected {
+    background-color: @selected;
+    color: @text;
+}
+
+QListWidget::item:hover, QListView::item:hover, QTreeWidget::item:hover {
+    background-color: @hover;
+}
+
+QTreeWidget::branch {
+    background-color: transparent;
+}
+
+QTreeWidget::branch:has-children:!has-siblings:closed,
+QTreeWidget::branch:closed:has-children:has-siblings {
+    border-image: none;
+    image: none;
+}
+
+QTreeWidget::branch:open:has-children:!has-siblings,
+QTreeWidget::branch:open:has-children:has-siblings {
+    border-image: none;
+    image: none;
+}
+
+/* =============================================================================
+   CHECKBOXES AND RADIO BUTTONS
+   ============================================================================= */
+
+QCheckBox, QRadioButton {
+    color: @text;
+    spacing: 8px;
+}
+
+/* =============================================================================
+   COMBO BOXES
+   ============================================================================= */
+
+QComboBox {
+    border: 1px solid @border;
+    border-radius: 4px;
+    padding: 0 4px;
+}
+
+QComboBox:disabled {
+    background-color: @disabled;
+    color: @text_disabled;
+    border-color: @border;
+}
+
+/* =============================================================================
+   WARDROBE ACCENTS (gold details on top of the dark layout)
+   ============================================================================= */
+
+QMenuBar::item:selected, QMenu::item:selected {
+    background-color: @selected;
+    color: @secondary;
+}
+
+QToolButton:checked, QPushButton:checked {
+    background-color: @selected;
+    border: 1px solid @primary;
+    color: @secondary;
+}
+
+QPushButton:focus {
+    border-color: @primary_variant;
+}
+
+QTabBar::tab:selected {
+    color: @secondary;
+    border-top: 2px solid @primary;
+}
+
+QHeaderView::section {
+    background-color: @surface;
+    color: @secondary;
+    border: none;
+    border-right: 1px solid @border;
+    border-bottom: 1px solid @border;
+    padding: 4px 6px;
+}
+
+QTreeView, QTableView {
+    background-color: @background;
+    alternate-background-color: @surface;
+    border: 1px solid @border;
+    color: @text;
+    selection-background-color: @selected;
+    selection-color: @secondary;
+}
+
+QTreeView::item:selected, QTableView::item:selected, QListView::item:selected,
+QListWidget::item:selected, QTreeWidget::item:selected {
+    background-color: @selected;
+    color: @secondary;
+}
+
+QTreeView::item:hover, QTableView::item:hover {
+    background-color: @hover;
+}
+
+QCheckBox::indicator, QRadioButton::indicator, QGroupBox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid @primary_variant;
+    background-color: @background;
+}
+
+QCheckBox::indicator, QGroupBox::indicator {
+    border-radius: 3px;
+}
+
+QRadioButton::indicator {
+    border-radius: 7px;
+}
+
+QCheckBox::indicator:checked, QGroupBox::indicator:checked, QRadioButton::indicator:checked {
+    background-color: @primary;
+    border-color: @secondary;
+}
+
+QCheckBox::indicator:hover, QRadioButton::indicator:hover {
+    border-color: @secondary;
+}
+
+QGroupBox {
+    border: 1px solid @border;
+    border-radius: 6px;
+    margin-top: 14px;
+    padding-top: 6px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+    color: @secondary;
+}
+
+QComboBox:hover, QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover {
+    border-color: @primary_variant;
+}
+
+QComboBox QAbstractItemView {
+    background-color: @surface;
+    border: 1px solid @primary_variant;
+    selection-background-color: @selected;
+    selection-color: @secondary;
+}
+
+QSpinBox, QDoubleSpinBox {
+    background-color: @background;
+    border: 1px solid @border;
+    color: @text;
+    padding: 2px 4px;
+}
+
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+    background-color: #5a4a32;
+}
+
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+    background-color: @primary_variant;
+}
+
+QProgressBar::chunk {
+    background-color: @primary_variant;
+}
+
+QSlider::groove:horizontal {
+    height: 4px;
+    background-color: @surface_variant;
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    width: 14px;
+    margin: -6px 0;
+    border-radius: 7px;
+    background-color: @primary;
+    border: 1px solid @secondary;
+}
+
+QToolTip {
+    background-color: @surface_variant;
+    color: @text;
+    border: 1px solid @primary_variant;
+    padding: 4px;
+}
+
+QSplitter::handle:hover {
+    background-color: @primary_variant;
+}
