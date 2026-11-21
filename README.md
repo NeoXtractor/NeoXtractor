@@ -1,10 +1,10 @@
 # NeoXtractor – Harry Potter: Magic Awakened build (source)
 
-This branch is the full source of the HPMA build of NeoXtractor: real file names for the most game's packs, the
+This branch is the full source of the HPMA build of NeoXtractor: real file names for most of the game's packs, the
 Characters, Animations and Stages pages, the Scene Viewer, the Main Character Creator, MMD (PMX/VMD) export and the
-game's sound names. (Meant to be supported by HPMA but could try on other games based on Neox engine) It is based on NeoXtractor with adjustments made with Harry Potter Magic Awakened game in mind.
+game's sound names. It is made for HPMA, but you can try it on other games built on the NeoX engine. It is based on NeoXtractor, adjusted with Harry Potter: Magic Awakened in mind.
 
-The fork was made with AI assistance of Claude. The original creator of Neoxtractor has been told beforehand.
+The fork was made with AI assistance of Claude. The original creator of NeoXtractor has been told beforehand.
 
 Licensed under the GNU AGPL v3.0, like NeoXtractor: see [LICENSE](LICENSE). What was changed, and the third-party
 data used, is listed in [NOTICE.md](NOTICE.md). No game files are included.
