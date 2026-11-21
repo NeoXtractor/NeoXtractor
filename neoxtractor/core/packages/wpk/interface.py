@@ -62,7 +62,7 @@ from neoxtractor.core.utils.logger import get_logger
 
 from .decryption import try_decode_payload_stage1
 from .naming import strip_trailing_hex
-from .payload import unwrap_nested_payloads
+from .payload import resolve_payload_window, unwrap_nested_payloads
 
 FORMAT = "wpk"
 PRIORITY = 50
@@ -70,6 +70,9 @@ OPTIONS_TYPE = ReadOptions
 
 _MAGIC_PART = b"FKPW"
 _MAGIC_ENTRY = b"1DPW"
+# A compact (28-byte-index) store holds bare stage-1 payloads: its first
+# bytes are an entry's stage-1 tag rather than a container magic.
+_STAGE1_TAGS = (b"PC", b"AC", b"XC")
 _PART_HEADER_LEN = 0x0C
 _PART_VERSION = b"\x00\x01"
 _PART_PKG_ID_OFF = 0x06
@@ -98,6 +101,7 @@ class _BlockRecord:
     hdr_size: int
     payload_size: int
     content_hash: bytes | None
+    windowed: bool = False
 
 
 def _pkg_id_from_name(stem: str) -> int | None:
@@ -145,6 +149,21 @@ def matches(
             key=None,
             companions=(),
             parents=(ParentPref(Role.INDEX, f"../{directory_name}.idx"),),
+            wants=(),
+        )
+    if head[:2] in _STAGE1_TAGS and want_ask is not None:
+        # A compact store of bare stage-1 payloads: its entries carry no
+        # self-describing header, so it is only ever claimed as an index's
+        # part -- the same trailing-hex filename rule as a FKPW part.
+        stem = os.path.splitext(os.path.basename(file.path))[0]
+        base = strip_trailing_hex(stem)
+        return Claim(
+            format=FORMAT,
+            entry=file.path,
+            role=Role.DATA,
+            key=_pkg_id_from_name(stem),
+            companions=(),
+            parents=(ParentPref(Role.INDEX, base + ".idx"),),
             wants=(),
         )
     return None
@@ -237,9 +256,37 @@ class WPKArchive(Archive):
                     self._read_part_header(handle)
                 except IntegrityMismatch as exc:
                     part_reason = str(exc)
+            compact = head[:2] in _STAGE1_TAGS
             for off, known_sizes, known_sig in blocks:
                 if part_reason is not None:
                     results.append((None, part_reason))
+                    continue
+                if compact:
+                    # A bare stage-1 store: the index is the whole truth for
+                    # this block -- no embedded header to honour, so the
+                    # record is built from the index's sizes and hash.
+                    hdr, payload, _pad = known_sizes
+                    total = hdr + payload
+                    if off + total > size:
+                        results.append(
+                            (
+                                None,
+                                f"the store ends before the block the index names "
+                                f"at 0x{off:X}",
+                            )
+                        )
+                        continue
+                    results.append((len(self._records), None))
+                    self._records.append(
+                        _BlockRecord(
+                            offset=off,
+                            total_size=total,
+                            hdr_size=hdr,
+                            payload_size=payload,
+                            content_hash=known_sig,
+                            windowed=True,
+                        )
+                    )
                     continue
                 try:
                     record = self._read_block_header(
@@ -527,7 +574,24 @@ class WPKArchive(Archive):
         ``decoded=True`` promises content.
         """
         context = f"{self.path} block={key} off=0x{record.offset:X}"
-        if record.hdr_size > 0 and record.hdr_size <= len(raw):
+        if record.windowed:
+            # A compact store: the record's trailing u16 is not a trustworthy
+            # skip distance, so the window is resolved from the bytes at the
+            # record offset (embedded 1DPW, bare stage-1, or shifted).
+            span = max(record.hdr_size + record.payload_size, _MIN_ENTRY_HEADER)
+            with self._source.open() as handle:
+                handle.seek(record.offset)
+                buf = handle.read(span)
+            window = resolve_payload_window(
+                lambda abs_off, length: buf[
+                    abs_off - record.offset : abs_off - record.offset + length
+                ],
+                record.offset,
+                record.payload_size,
+                record.hdr_size,
+            )
+            payload = window.payload
+        elif record.hdr_size > 0 and record.hdr_size <= len(raw):
             end = record.hdr_size + record.payload_size
             payload = raw[record.hdr_size : end] if record.payload_size > 0 else raw[record.hdr_size :]
         else:

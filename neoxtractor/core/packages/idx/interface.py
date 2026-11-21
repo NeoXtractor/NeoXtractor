@@ -72,6 +72,7 @@ PRIORITY = 100
 _MAGIC_INDEX = b"SKPW"
 _IDX_HEAD_SIZE = 0x20
 _IDX_REC_SIZE = 0x24
+_IDX_REC_SIZE_COMPACT = 0x1C
 
 # The layout only ever assigns 0-15 (a part) or 255 (a slot store) to the
 # package id; anything else names data this resource set cannot carry.
@@ -163,6 +164,19 @@ class IDXArchive(Archive):
 
     # --- loading -----------------------------------------------------------
 
+    @staticmethod
+    def _detect_record_size(total: int, count: int) -> int:
+        """Pick the record size (36 or 28 bytes) from the file size.
+
+        Layout: 0x20 header + count * rec_size + optional 4-byte trailer.
+        Falls back to the 36-byte layout when nothing matches exactly.
+        """
+        for rec_size in (_IDX_REC_SIZE, _IDX_REC_SIZE_COMPACT):
+            body = _IDX_HEAD_SIZE + count * rec_size
+            if total in (body, body + 4):
+                return rec_size
+        return _IDX_REC_SIZE
+
     def find_index(self) -> None:
         """Read the record table; payload stays in the child stores."""
         with self._source.open() as handle:
@@ -170,26 +184,43 @@ class IDXArchive(Archive):
         if len(blob) < _IDX_HEAD_SIZE or blob[:4] != _MAGIC_INDEX:
             raise EOFError(f"{self.path}: not a readable SKPW index header")
         count = struct.unpack_from("<I", blob, 0x0C)[0]
-        need = _IDX_HEAD_SIZE + count * _IDX_REC_SIZE
+        rec_size = self._detect_record_size(len(blob), count)
+        need = _IDX_HEAD_SIZE + count * rec_size
         if len(blob) < need:
             raise EOFError(
                 f"{self.path}: index truncated, {count} records claimed but "
-                f"only {(len(blob) - _IDX_HEAD_SIZE) // _IDX_REC_SIZE} readable"
+                f"only {(len(blob) - _IDX_HEAD_SIZE) // rec_size} readable"
             )
         for i in range(count):
-            off = _IDX_HEAD_SIZE + i * _IDX_REC_SIZE
-            self._records.append(
-                _IndexRecord(
-                    content_hash=blob[off:off + 0x10],
-                    ordinal=struct.unpack_from("<I", blob, off + 0x10)[0],
-                    pkg_id=blob[off + 0x14],
-                    flags=blob[off + 0x15],
-                    offset=struct.unpack_from("<I", blob, off + 0x18)[0],
-                    payload_size=struct.unpack_from("<I", blob, off + 0x1C)[0],
-                    hdr_size=struct.unpack_from("<H", blob, off + 0x20)[0],
-                    pad_size=struct.unpack_from("<H", blob, off + 0x22)[0],
+            off = _IDX_HEAD_SIZE + i * rec_size
+            if rec_size == _IDX_REC_SIZE_COMPACT:
+                # 28-byte record: hash16 | payload u32 | offset u32 |
+                # pkg u16 | trailing u16 (per-entry tag on this generation).
+                self._records.append(
+                    _IndexRecord(
+                        content_hash=blob[off:off + 0x10],
+                        ordinal=0,
+                        pkg_id=struct.unpack_from("<H", blob, off + 0x18)[0],
+                        flags=0,
+                        offset=struct.unpack_from("<I", blob, off + 0x14)[0],
+                        payload_size=struct.unpack_from("<I", blob, off + 0x10)[0],
+                        hdr_size=struct.unpack_from("<H", blob, off + 0x1A)[0],
+                        pad_size=0,
+                    )
                 )
-            )
+            else:
+                self._records.append(
+                    _IndexRecord(
+                        content_hash=blob[off:off + 0x10],
+                        ordinal=struct.unpack_from("<I", blob, off + 0x10)[0],
+                        pkg_id=blob[off + 0x14],
+                        flags=blob[off + 0x15],
+                        offset=struct.unpack_from("<I", blob, off + 0x18)[0],
+                        payload_size=struct.unpack_from("<I", blob, off + 0x1C)[0],
+                        hdr_size=struct.unpack_from("<H", blob, off + 0x20)[0],
+                        pad_size=struct.unpack_from("<H", blob, off + 0x22)[0],
+                    )
+                )
 
     def attach_stores(self, unit: Unit) -> None:
         """Build a child archive per attached store and route every record.
