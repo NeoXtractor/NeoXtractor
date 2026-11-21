@@ -77,8 +77,10 @@ Characters tree (or select them and press **Ctrl+Shift+A**), from the creator, o
 
 ### Stages
 
-Choose **Stages** in the category list. It lists every stage scene, grouped by stage (if no pack is open, choose
-the game folder). Select scenes, pick a format (GLB, PMX + textures, or glTF + .bin + textures) and press
+Choose **Stages** in the category list. It needs no particular file, only the game folder: it takes it from
+whichever HPMA `.npk` is open (even a small one such as `res\model\event.npk`), or you choose the folder with
+the page's button. It then reads the game's packs by itself and lists every stage scene, grouped by
+stage. Select scenes, pick a format (GLB, PMX + textures, or glTF + .bin + textures) and press
 **Export Selected…**; tick **Include collision / navigation helpers** to keep those meshes. **Open in Scene
 Viewer** loads one scene with its textures already matched.
 
