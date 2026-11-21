@@ -42,6 +42,9 @@ class NewConfigDialog(QDialog):
         self.key_edit.setMaximum(2147483647)   # int32 max
         self.key_edit.setValue(0)  # Default value
         self.form_layout.addRow("Decryption Key (Use 0 for no key):", self.key_edit)
+        self.character_roots_edit = QLineEdit("model\\canon, model\\partner")
+        self.character_roots_edit.setPlaceholderText("Comma-separated metadata roots, e.g. model\\canon")
+        self.form_layout.addRow("Character metadata roots:", self.character_roots_edit)
 
         # Buttons
         self.button_box = QDialogButtonBox(
@@ -72,6 +75,11 @@ class NewConfigDialog(QDialog):
             read_options=NPKReadOptions(
                 decryption_key=None if self.key_edit.value() == 0 else self.key_edit.value(),
                 info_size=None if self.info_size_edit.value() == 0 else self.info_size_edit.value(),
-            )
+            ),
+            character_folder_roots=[
+                root.strip()
+                for root in self.character_roots_edit.text().split(",")
+                if root.strip()
+            ],
         )
         return config

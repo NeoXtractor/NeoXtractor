@@ -53,6 +53,11 @@ class EditConfigDialog(QDialog):
         else:
             self.key_edit.setValue(config.read_options.decryption_key)
         self.form_layout.addRow("Decryption Key (Use 0 for no key):", self.key_edit)
+        self.character_roots_edit = QLineEdit(
+            ", ".join(config.character_folder_roots)
+        )
+        self.character_roots_edit.setPlaceholderText("Comma-separated metadata roots, e.g. model\\canon")
+        self.form_layout.addRow("Character metadata roots:", self.character_roots_edit)
 
         # Entry signature name map section
         map_label = QLabel("Entry Signature Name Map:")
@@ -160,6 +165,11 @@ class EditConfigDialog(QDialog):
                 info_size=None if self.info_size_edit.value() == 0 else self.info_size_edit.value(),
             ),
             entry_signature_name_map=entry_signature_name_map,
+            character_folder_roots=[
+                root.strip()
+                for root in self.character_roots_edit.text().split(",")
+                if root.strip()
+            ],
         )
 
         return new_config

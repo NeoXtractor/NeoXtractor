@@ -8,7 +8,7 @@ from PySide6 import QtGui, QtWidgets
 from gui.settings_manager import SettingsManager
 from gui.theme import ThemeManager
 from gui.widgets.color_triangle_widget import ColorTriangleWidget
-from gui.widgets.managed_rhi_widget import ManagedRhiWidget
+from gui.widgets.managed_rhi_widget import ManagedRhiWidget, get_managed_rhi_widgets
 if TYPE_CHECKING:
     from gui.windows.main_window import MainWindow
 
@@ -249,7 +249,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         # Apply MSAA to all QRhiWidgets
         msaa = self._settings_manager.get("graphics.msaa", 1)
-        rhi_widgets: list[ManagedRhiWidget] = main_window.app.property("managed_rhi_widgets")
+        rhi_widgets: list[ManagedRhiWidget] = get_managed_rhi_widgets(main_window.app)
         if rhi_widgets is None:
             # If no managed RHI widgets list exists, we cannot proceed.
             return

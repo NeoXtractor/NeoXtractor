@@ -62,6 +62,12 @@ class ThemeManager(QtCore.QObject):
 
         # Apply system theme in any cases (settings is not loaded at this point)
         self._apply_system_theme()
+        self._app.paletteChanged.connect(self._system_palette_changed)
+
+    def _system_palette_changed(self, _palette):
+        """Refresh system-following widgets when Qt adopts new native colors."""
+        if self._current_theme is None:
+            self.theme_changed.emit("system")
 
     def get_current_theme(self) -> str | None:
         """Get the currently active theme."""
@@ -73,6 +79,8 @@ class ThemeManager(QtCore.QObject):
         Args:
             theme: Theme name or None for system theme
         """
+        if theme == "system":
+            theme = None
         if theme == self._current_theme:
             return
 

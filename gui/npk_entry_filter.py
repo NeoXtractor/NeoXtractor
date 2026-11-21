@@ -36,7 +36,7 @@ class NPKEntryFilter:
             return
 
         for row in range(model.rowCount()):
-            npk_entry = npk_file.find_entry_by_id(row)
+            npk_entry = getattr(npk_file, "peek_entry", npk_file.find_entry_by_id)(row)
             filename_lower = model.get_filename(model.index(row)).lower()
             is_slot_file = getattr(npk_entry, "is_slot_file", False)
 
@@ -69,7 +69,7 @@ class NPKEntryFilter:
             elif self.filter_type == npk_entry.category:
                 if self.filter_type == NPKEntryFileCategories.MESH:
                     # Only do the expensive biped head check if needed
-                    show_item = not self.mesh_biped_head or ransack_agent(npk_entry.data, "biped head")
+                    show_item = not self.mesh_biped_head or ransack_agent(npk_file.find_entry_by_id(row).data, "biped head")
                 else:
                     show_item = True
             else:

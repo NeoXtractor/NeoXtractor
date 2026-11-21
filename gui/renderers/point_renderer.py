@@ -116,6 +116,7 @@ class PointRenderer:
         """
         Clear all points from the renderer.
         """
+        self._points = []
         self._new_points = []
 
     def initialize(self, cb: QtGui.QRhiCommandBuffer,
@@ -228,8 +229,17 @@ class PointRenderer:
                 arr = (ctypes.c_float * len(self._point_color))(*self._point_color)
                 resource_updates.updateDynamicBuffer(self._frag_ubuf, 0, ctypes.sizeof(arr), cast(int, arr))
 
-        if self._new_points:
+        if self._new_points is not None:
+            for name in ("_vbuf", "_ibuf"):
+                buffer = getattr(self, name)
+                if buffer is not None:
+                    buffer.destroy()
+                    setattr(self, name, None)
             point_count = len(self._new_points)
+            if point_count == 0:
+                self._points = []
+                self._new_points = None
+                return
 
             self._vbuf = self._rhi.newBuffer(QtGui.QRhiBuffer.Type.Immutable,
                                              QtGui.QRhiBuffer.UsageFlag.VertexBuffer,
@@ -276,7 +286,7 @@ class PointRenderer:
         it uses non-indexed drawing. Rendering is skipped if the pipeline or vertex buffer is not initialized.
         """
 
-        if self._pipeline is None or self._vbuf is None:
+        if self._pipeline is None or self._vbuf is None or not self._points:
             return
 
         cb.setGraphicsPipeline(self._pipeline)

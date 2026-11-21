@@ -12,8 +12,8 @@ from gui.widgets.viewers.texture_viewer import TextureViewer
 ALL_VIEWERS: list[type[Viewer]] = [
     HexViewer,
     CodeEditor,
-    TextureViewer,
     MeshViewer,
+    TextureViewer,
     BnkViewer,
     CocosViewer,
     PycViewer,
@@ -34,9 +34,21 @@ def find_best_viewer(extension: str, is_text=False) -> type[Viewer]:
         Type[QtWidgets.QWidget]: The class of the selected previewer widget
     """
 
+    normalized_extension = str(extension or "").lower().lstrip(".")
+    # Meshes always open in the mesh viewer, even when another viewer
+    # (such as the hex viewer) also lists the extension.
+
+
+    if normalized_extension == "mesh":
+        return MeshViewer
+
     for previewer in ALL_VIEWERS:
         if hasattr(previewer, "accepted_extensions"):
-            if extension in getattr(previewer, "accepted_extensions"):
+            accepted_extensions = {
+                str(value).lower().lstrip(".")
+                for value in getattr(previewer, "accepted_extensions")
+            }
+            if normalized_extension in accepted_extensions:
                 return previewer
 
     return CodeEditor if is_text else HexViewer

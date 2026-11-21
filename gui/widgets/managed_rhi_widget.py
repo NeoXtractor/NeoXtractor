@@ -1,8 +1,21 @@
 """Provides managed RHI widget."""
 
 from PySide6 import QtWidgets
+from weakref import WeakSet
+from shiboken6 import isValid
 
 from gui.settings_manager import SettingsManager
+
+
+def get_managed_rhi_widgets(application=None):
+    application = application or QtWidgets.QApplication.instance()
+    if application is None:
+        return []
+    # A Python attribute holds a weak set: a Qt property would keep every
+    # widget alive and leave deleted wrappers behind.
+    registry = getattr(application, "_managed_rhi_widgets", ())
+    return [widget for widget in registry if isValid(widget)]
+
 
 class ManagedRhiWidget(QtWidgets.QRhiWidget):
     """
@@ -17,13 +30,9 @@ class ManagedRhiWidget(QtWidgets.QRhiWidget):
             # If no QApplication instance exists, we cannot proceed.
             return
 
-        managed_rhi_widgets = application.property("managed_rhi_widgets")
-        if managed_rhi_widgets is None:
-            # If no managed RHI widgets list exists, create one.
-            managed_rhi_widgets = []
-
-        managed_rhi_widgets.append(self)
-        application.setProperty("managed_rhi_widgets", managed_rhi_widgets)
+        if not hasattr(application, "_managed_rhi_widgets"):
+            application._managed_rhi_widgets = WeakSet()
+        application._managed_rhi_widgets.add(self)
 
         settings_manager: SettingsManager = application.property("settings_manager")
         if settings_manager is None:

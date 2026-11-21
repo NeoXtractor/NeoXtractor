@@ -215,8 +215,9 @@ class MeshRenderer:
         Sets the mesh data to be rendered.
         """
         self._mesh_data = value
+        # Bone markers always belong to the previous mesh.
+        self._bone_points_renderer.clear_points()
         if value is None:
-            self._bone_points_renderer.clear_points()
             if self._mesh_vbuf is not None:
                 self._mesh_vbuf.destroy()
                 self._mesh_vbuf = None

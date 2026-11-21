@@ -22,6 +22,9 @@ class PreviewWidget(QtWidgets.QWidget):
 
     def __init__(self, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
+        # Per instance: a class-level list would be shared by every preview.
+        self._previewers = []
+        self._current_entry = None
 
         self.message_label = QtWidgets.QLabel(SELECT_ENTRY_TEXT)
         self.message_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
@@ -113,9 +116,9 @@ class PreviewWidget(QtWidgets.QWidget):
             previewer.setVisible(True)
 
         # Set the previewer selector to the selected previewer
-        self.previewer_selector.setCurrentIndex(
-            self.previewer_selector.findData(previewer)
-        )
+        blocker = QtCore.QSignalBlocker(self.previewer_selector)
+        self.previewer_selector.setCurrentIndex(self.previewer_selector.findData(previewer))
+        del blocker
 
         if self._current_entry is None:
             return

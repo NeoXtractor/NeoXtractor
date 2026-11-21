@@ -43,7 +43,7 @@ def convert(mesh: MeshData) -> bytes:
         def build_joint(index, parent_index):
             matrix = mesh.bone_matrix[index]
             # Extract translation from matrix for PMX
-            x, y, z = matrix[0, 3], matrix[1, 3], matrix[2, 3]
+            x, y, z = matrix[3, 0], matrix[3, 1], matrix[3, 2]
             bone_pool.append(pmx.Bone(
                 name=mesh.bone_name[index],
                 english_name=mesh.bone_name[index],

@@ -36,6 +36,7 @@ class NPKFileModel(QtCore.QAbstractListModel):
             )
 
         self._npk_file = npk_file
+        self._file_names_cache = {}
         app = cast(QtCore.QCoreApplication, QtWidgets.QApplication.instance())
         self._game_config: Config = app.property("game_config")
         self._theme_config: ThemeManager = ThemeManager.instance()
@@ -54,13 +55,15 @@ class NPKFileModel(QtCore.QAbstractListModel):
     ) -> Any:
         if not index.isValid():
             return None
+        if role == QtCore.Qt.ItemDataRole.ToolTipRole and hasattr(self._npk_file, "source_label"):
+            return self._npk_file.source_label(index.row()) + "\n" + self.get_filename(index)
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
             filename = self.get_filename(index)
             if not self._npk_file.is_entry_loaded(index.row()):
                 return filename
 
             # Entry is loaded at this point, get it from cache.
-            entry = self._npk_file.find_entry_by_id(index.row())
+            entry = getattr(self._npk_file, "peek_entry", self._npk_file.find_entry_by_id)(index.row())
 
             if entry.data_flags & NPKEntryDataFlags.ERROR:
                 return f"{filename} (Error)"
@@ -73,7 +76,7 @@ class NPKFileModel(QtCore.QAbstractListModel):
                 return self._loading_icon
 
             # Entry is loaded at this point, get it from cache.
-            entry = self._npk_file.find_entry_by_id(index.row())
+            entry = getattr(self._npk_file, "peek_entry", self._npk_file.find_entry_by_id)(index.row())
 
             if entry.data_flags & NPKEntryDataFlags.ERROR:
                 return self._errored_icon
@@ -83,20 +86,20 @@ class NPKFileModel(QtCore.QAbstractListModel):
             return self._file_icon
         if role == QtCore.Qt.ItemDataRole.ForegroundRole:
             if self._npk_file.is_entry_loaded(index.row()):
-                entry = self._npk_file.find_entry_by_id(index.row())
+                entry = getattr(self._npk_file, "peek_entry", self._npk_file.find_entry_by_id)(index.row())
                 if entry.data_flags & NPKEntryDataFlags.ERROR:
                     return QtGui.QBrush(QtGui.QColorConstants.Red)
         if role == QtCore.Qt.ItemDataRole.BackgroundRole:
             if self._npk_file.is_entry_loaded(index.row()):
-                entry = self._npk_file.find_entry_by_id(index.row())
+                entry = getattr(self._npk_file, "peek_entry", self._npk_file.find_entry_by_id)(index.row())
                 if entry.state == State.UNLOADED:
                     return QtGui.QBrush(QtGui.QColorConstants.Red)
                 elif entry.state == State.CACHED:
-                    return QtGui.QBrush(
-                        self._theme_config.get_color("palette.background")
-                    )
+                    # Loaded rows keep the view's own background so they
+                    # follow the theme.
+                    return None
                 elif entry.state == State.PRIMARY_LOAD:
-                    return QtGui.QBrush(QtGui.QColorConstants.Green)
+                    return None
                 elif entry.state == State.SECONDARY_LOAD:
                     return QtGui.QBrush(QtGui.QColorConstants.DarkYellow)
         if role == QtCore.Qt.ItemDataRole.UserRole:

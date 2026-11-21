@@ -4,14 +4,16 @@ import os
 from sys import prefix
 from typing import cast
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from core.config import Config
 from core.npk.class_types import NPKEntry, State
 from gui.models.npk_file_model import NPKFileModel
+from gui.theme import ThemeManager
 from gui.utils.config import save_config_manager_to_settings
 from gui.utils.npk import get_npk_file
 from gui.utils.viewer import ALL_VIEWERS
+from gui.utils.file_list_theme import apply_file_list_theme
 
 
 class NPKFileList(QtWidgets.QListView):
@@ -26,6 +28,19 @@ class NPKFileList(QtWidgets.QListView):
     def __init__(self, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
 
+        # Follow the active theme. Native list painters can ignore palette
+        # roles, so the colors are applied to the viewport as well.
+
+        self._theme_manager = None
+        try:
+            self._theme_manager = ThemeManager.instance()
+            self._theme_manager.theme_changed.connect(self._apply_theme_palette)
+        except RuntimeError:
+            # No QApplication yet (tests or tools importing the widget);
+            # keep Qt's default palette.
+            self._theme_manager = None
+        self._apply_theme_palette()
+
         self._disabled = False
         self._select_after_enabled: QtCore.QModelIndex | None = None
 
@@ -39,6 +54,14 @@ class NPKFileList(QtWidgets.QListView):
 
         # Connect double-click signal to handler
         self.doubleClicked.connect(self.on_item_double_clicked)
+
+    def _apply_theme_palette(self, _theme_name: str | None = None) -> None:
+        """Apply theme colors to both the view and its native viewport."""
+
+        if self._theme_manager is None:
+            return
+
+        apply_file_list_theme(self, self._theme_manager)
 
     def setDisabled(self, disabled: bool):
         """
@@ -120,7 +143,7 @@ class NPKFileList(QtWidgets.QListView):
         entry.state = State.PRIMARY_LOAD
 
         if not previous.row() == -1:
-            npk_file.find_entry_by_id(previous.row()).state = State.CACHED
+            getattr(npk_file, "peek_entry", npk_file.find_entry_by_id)(previous.row()).state = State.CACHED
 
         self.preview_entry.emit(row_index, entry)
 
@@ -208,7 +231,7 @@ class NPKFileList(QtWidgets.QListView):
         if npk_file is None:
             return False
         for index in indexes:
-            entry = npk_file.find_entry_by_id(index.row())
+            entry = getattr(npk_file, "peek_entry", npk_file.find_entry_by_id)(index.row())
             if getattr(entry, "has_decoded_view", False):
                 return True
         return False
@@ -279,6 +302,10 @@ class NPKFileList(QtWidgets.QListView):
                             safe_filename = f"unknown_file_{row_index}"
 
                         file_path = os.path.join(dir_path, safe_filename)
+                        if hasattr(npk_file, "export_path"):
+                            relative = npk_file.export_path(row_index, safe_filename).replace("\\", os.sep)
+                            file_path = os.path.join(dir_path, relative)
+                            os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
                         try:
                             with open(file_path, "wb") as f:
