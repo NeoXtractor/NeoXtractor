@@ -7,7 +7,12 @@ stage-1 decode, then strip nested wrappers):
 * a ``FKPW`` part -- a shard holding many ``1DPW`` blocks at aligned offsets;
   its package id is the single trailing hex token of its own filename;
 * a bare ``1DPW`` slot file -- one entry that is itself the whole file,
-  identified by its content hash.
+  identified by its content hash;
+* a version-0 store -- the shard a version-0 (28-byte) index names: entries
+  stored bare (no ``1DPW`` wrapper), each starting straight into its stage-1
+  header, so the file itself carries no self-describing header and every
+  entry's position and length come from the index.  It is claimed only as an
+  index's part, never standalone.
 
 The module is a child in a unit (``role=DATA``, a ``parents`` preference for
 its index); opened alone it stands alone -- a part enumerates its own grid, a
@@ -62,7 +67,7 @@ from neoxtractor.core.utils.logger import get_logger
 
 from .decryption import try_decode_payload_stage1
 from .naming import strip_trailing_hex
-from .payload import resolve_payload_window, unwrap_nested_payloads
+from .payload import unwrap_nested_payloads
 
 FORMAT = "wpk"
 PRIORITY = 50
@@ -70,7 +75,7 @@ OPTIONS_TYPE = ReadOptions
 
 _MAGIC_PART = b"FKPW"
 _MAGIC_ENTRY = b"1DPW"
-# A compact (28-byte-index) store holds bare stage-1 payloads: its first
+# A version-0 (28-byte-index) store holds bare stage-1 payloads: its first
 # bytes are an entry's stage-1 tag rather than a container magic.
 _STAGE1_TAGS = (b"PC", b"AC", b"XC")
 _PART_HEADER_LEN = 0x0C
@@ -101,7 +106,6 @@ class _BlockRecord:
     hdr_size: int
     payload_size: int
     content_hash: bytes | None
-    windowed: bool = False
 
 
 def _pkg_id_from_name(stem: str) -> int | None:
@@ -124,6 +128,13 @@ def matches(
     A non-``None`` want_ask says a parent pulled this file; the only parent
     a wpk store serves is the index, so a pull declared by any other format
     is declined -- the file stays available for the idx to claim itself.
+
+    A version-1 store always opens with its own container magic (``FKPW`` or
+    ``1DPW``), so magic alone settles its identity.  A file with no container
+    magic is claimed only when an index pulled it -- and then it can only be a
+    version-0 store: a pulled file that were version-1 would already have
+    matched on its magic above.  That single residual case is why no query
+    back to the declaring index is needed to confirm the version here.
     """
     if want_ask is not None and want_ask[0] != "idx":
         return None
@@ -152,7 +163,7 @@ def matches(
             wants=(),
         )
     if head[:2] in _STAGE1_TAGS and want_ask is not None:
-        # A compact store of bare stage-1 payloads: its entries carry no
+        # A version-0 store of bare stage-1 payloads: its entries carry no
         # self-describing header, so it is only ever claimed as an index's
         # part -- the same trailing-hex filename rule as a FKPW part.
         stem = os.path.splitext(os.path.basename(file.path))[0]
@@ -256,18 +267,18 @@ class WPKArchive(Archive):
                     self._read_part_header(handle)
                 except IntegrityMismatch as exc:
                     part_reason = str(exc)
-            compact = head[:2] in _STAGE1_TAGS
+            version0 = head[:2] in _STAGE1_TAGS
             for off, known_sizes, known_sig in blocks:
                 if part_reason is not None:
                     results.append((None, part_reason))
                     continue
-                if compact:
-                    # A bare stage-1 store: the index is the whole truth for
-                    # this block -- no embedded header to honour, so the
-                    # record is built from the index's sizes and hash.
+                if version0:
+                    # A version-0 store: the index is the whole authority --
+                    # the record carries no header to honour, and its
+                    # payload starts exactly at the named offset.  Only the
+                    # store's own length can contradict it.
                     hdr, payload, _pad = known_sizes
-                    total = hdr + payload
-                    if off + total > size:
+                    if hdr or off + payload > size:
                         results.append(
                             (
                                 None,
@@ -280,11 +291,10 @@ class WPKArchive(Archive):
                     self._records.append(
                         _BlockRecord(
                             offset=off,
-                            total_size=total,
-                            hdr_size=hdr,
+                            total_size=payload,
+                            hdr_size=0,
                             payload_size=payload,
                             content_hash=known_sig,
-                            windowed=True,
                         )
                     )
                     continue
@@ -574,24 +584,7 @@ class WPKArchive(Archive):
         ``decoded=True`` promises content.
         """
         context = f"{self.path} block={key} off=0x{record.offset:X}"
-        if record.windowed:
-            # A compact store: the record's trailing u16 is not a trustworthy
-            # skip distance, so the window is resolved from the bytes at the
-            # record offset (embedded 1DPW, bare stage-1, or shifted).
-            span = max(record.hdr_size + record.payload_size, _MIN_ENTRY_HEADER)
-            with self._source.open() as handle:
-                handle.seek(record.offset)
-                buf = handle.read(span)
-            window = resolve_payload_window(
-                lambda abs_off, length: buf[
-                    abs_off - record.offset : abs_off - record.offset + length
-                ],
-                record.offset,
-                record.payload_size,
-                record.hdr_size,
-            )
-            payload = window.payload
-        elif record.hdr_size > 0 and record.hdr_size <= len(raw):
+        if record.hdr_size > 0 and record.hdr_size <= len(raw):
             end = record.hdr_size + record.payload_size
             payload = raw[record.hdr_size : end] if record.payload_size > 0 else raw[record.hdr_size :]
         else:

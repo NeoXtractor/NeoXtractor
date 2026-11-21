@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import struct
 import zlib
-from typing import Callable, NamedTuple
 
 from neoxtractor.core.packages.errors import PayloadDecodeError
 from neoxtractor.core.utils.logger import get_logger
@@ -322,74 +321,3 @@ def unwrap_nested_payloads(data: bytes, *, context: str) -> bytes:
             data[:8].hex().upper(),
         )
     return data
-
-
-# --- payload window resolution (IDX generations) --------------------------
-
-_EMBEDDED_MAGIC = b"1DPW"
-_STAGE1_TAGS = (b"PC", b"AC", b"XC")
-_MAX_WRAPPER_HEADER = 0x100
-_EMBEDDED_SIZE_OFF = 0x20
-_EMBEDDED_HDR_OFF = 0x24
-_MIN_EMBEDDED_HEADER_SIZE = 0x30
-
-
-class PayloadWindow(NamedTuple):
-    """The resolved payload plus how it was found.
-
-    ``source`` is ``"embedded"`` (a ``1DPW`` wrapper at the record offset,
-    skipped by its own header), ``"bare"`` (the payload starts exactly at
-    the record offset), ``"record_hdr"`` (shifted by the record's trailing
-    u16), or ``"fallback"`` (an unresolved layout, kept raw).
-    """
-
-    payload: bytes
-    hdr_size: int
-    source: str
-
-
-def resolve_payload_window(
-    read: "Callable[[int, int], bytes]",
-    file_offset: int,
-    payload_size: int,
-    hdr_size: int,
-) -> PayloadWindow:
-    """Locate where one IDX entry's payload really starts, from the bytes.
-
-    NeoX ships (at least) two IDX generations whose trailing ``u16`` means
-    different things, so the window is resolved from what sits at the
-    record offset rather than from the record itself:
-
-    * a ``1DPW`` wrapper -> skip by the wrapper's own header (embedded);
-    * a bare stage-1 payload (``PC``/``AC``/``XC`` head) -> start at 0;
-    * otherwise, if the record's u16 shifts onto a stage-1 head -> use it.
-
-    ``read`` takes an absolute offset and a length, so callers can back it
-    with a file handle, an mmap, or an in-memory buffer.
-    """
-
-    def take(offset: int, length: int) -> bytes:
-        if length <= 0:
-            return b""
-        return read(file_offset + offset, length)
-
-    head = take(0, _MIN_EMBEDDED_HEADER_SIZE)
-    if head[:4] == _EMBEDDED_MAGIC and len(head) >= _MIN_EMBEDDED_HEADER_SIZE:
-        inner_hdr = int.from_bytes(head[_EMBEDDED_HDR_OFF:_EMBEDDED_HDR_OFF + 2], "little")
-        inner_size = int.from_bytes(head[_EMBEDDED_SIZE_OFF:_EMBEDDED_SIZE_OFF + 4], "little")
-        if 8 <= inner_hdr <= _MAX_WRAPPER_HEADER:
-            size = inner_size or payload_size
-            body = take(inner_hdr, size)
-            if len(body) == size:
-                return PayloadWindow(body, inner_hdr, "embedded")
-
-    bare = take(0, payload_size)
-    if bare[:2] in _STAGE1_TAGS:
-        return PayloadWindow(bare, 0, "bare")
-
-    if hdr_size:
-        shifted = take(hdr_size, payload_size)
-        if shifted[:2] in _STAGE1_TAGS:
-            return PayloadWindow(shifted, hdr_size, "record_hdr")
-
-    return PayloadWindow(bare, 0, "fallback")

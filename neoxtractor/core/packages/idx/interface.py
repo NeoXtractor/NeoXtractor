@@ -28,13 +28,22 @@ content hash is the index's own primary key, so ``get_res`` resolves ``INDEX``
 and ``CONTENT_HASH`` references; ``NAME`` and ``SIGNATURE`` are
 ``UnsupportedRef``.
 
-On-disk layout: header at ``0x20``, ``0x24``-byte records, the package id a
-single byte at record ``+0x14`` (the byte after it is a separate flags field
--- reading the id too wide pairs every record with the wrong part).  Block
-header validation lives in the child store: each record is handed to
-:meth:`WPKArchive.load_index_blocks` with its sizes and hash as authority, so
-a header that contradicts the index raises ``IntegrityMismatch`` at load and
-no block-grid rules live here.
+On-disk layout: header at ``0x20``, then ``count`` fixed-size records, then
+a 4-byte checksum trailer that must equal the header's tag at ``+0x04``. 
+The header byte at ``0x08`` names the version: ``1`` writes 36-byte records,
+``0`` the 28-byte version-0 records, anything else is unreadable here.  A
+36-byte record carries the package id as a single byte
+at ``+0x14`` (the byte after it is a separate flags field -- reading the id
+too wide pairs every record with the wrong part) and a signed sort key
+(the loader's ordering input, not an ordinal) at ``+0x10``.  A version-0
+record stores ``payload u32 @0x10``, ``offset u32 @0x14``, the package id
+as one byte at ``+0x18``, a flags low byte at ``+0x19``, and a pad size at
+``+0x1A``; it carries no wrapper header and no sort key, so those decode to
+``0`` and its full flags byte is the hash's high nibble OR'd with its own
+low byte.  Block header validation lives in the child store: each record is
+handed to :meth:`WPKArchive.load_index_blocks` with its sizes and hash as
+authority, so a header that contradicts the index raises
+``IntegrityMismatch`` at load and no block-grid rules live here.
 """
 
 from __future__ import annotations
@@ -62,6 +71,7 @@ from neoxtractor.core.packages.errors import (
     NoSuchEntry,
     PayloadDecodeError,
     UnsupportedRef,
+    VersionUnsupported,
 )
 from neoxtractor.core.packages.wpk.interface import WPKArchive, OPTIONS_TYPE
 from neoxtractor.core.packages.wpk.naming import id_globs, slot_want
@@ -72,7 +82,7 @@ PRIORITY = 100
 _MAGIC_INDEX = b"SKPW"
 _IDX_HEAD_SIZE = 0x20
 _IDX_REC_SIZE = 0x24
-_IDX_REC_SIZE_COMPACT = 0x1C
+_IDX_REC_SIZE_V0 = 0x1C
 
 # The layout only ever assigns 0-15 (a part) or 255 (a slot store) to the
 # package id; anything else names data this resource set cannot carry.
@@ -86,7 +96,7 @@ class _IndexRecord:
     """One decoded IDX row, kept private to the archive."""
 
     content_hash: bytes
-    ordinal: int
+    sort_key: int
     pkg_id: int
     flags: int
     offset: int
@@ -164,19 +174,6 @@ class IDXArchive(Archive):
 
     # --- loading -----------------------------------------------------------
 
-    @staticmethod
-    def _detect_record_size(total: int, count: int) -> int:
-        """Pick the record size (36 or 28 bytes) from the file size.
-
-        Layout: 0x20 header + count * rec_size + optional 4-byte trailer.
-        Falls back to the 36-byte layout when nothing matches exactly.
-        """
-        for rec_size in (_IDX_REC_SIZE, _IDX_REC_SIZE_COMPACT):
-            body = _IDX_HEAD_SIZE + count * rec_size
-            if total in (body, body + 4):
-                return rec_size
-        return _IDX_REC_SIZE
-
     def find_index(self) -> None:
         """Read the record table; payload stays in the child stores."""
         with self._source.open() as handle:
@@ -184,35 +181,57 @@ class IDXArchive(Archive):
         if len(blob) < _IDX_HEAD_SIZE or blob[:4] != _MAGIC_INDEX:
             raise EOFError(f"{self.path}: not a readable SKPW index header")
         count = struct.unpack_from("<I", blob, 0x0C)[0]
-        rec_size = self._detect_record_size(len(blob), count)
+        version = blob[0x08]
+        if version == 1:
+            rec_size = _IDX_REC_SIZE
+        elif version == 0:
+            rec_size = _IDX_REC_SIZE_V0
+        else:
+            raise VersionUnsupported(
+                "idx", self.path, version, "version 0 or 1"
+            )
         need = _IDX_HEAD_SIZE + count * rec_size
         if len(blob) < need:
             raise EOFError(
                 f"{self.path}: index truncated, {count} records claimed but "
                 f"only {(len(blob) - _IDX_HEAD_SIZE) // rec_size} readable"
             )
+        if len(blob) < need + 4:
+            raise EOFError(
+                f"{self.path}: index has no checksum trailer after "
+                f"{count} records"
+            )
+        tag = struct.unpack_from("<I", blob, 0x04)[0]
+        trailer = struct.unpack_from("<I", blob, need)[0]
+        if trailer != tag:
+            raise PayloadDecodeError(
+                "idx",
+                self.path,
+                "corrupt",
+                f"checksum trailer 0x{trailer:08X} disagrees with the "
+                f"header tag 0x{tag:08X} at +0x04",
+            )
         for i in range(count):
             off = _IDX_HEAD_SIZE + i * rec_size
-            if rec_size == _IDX_REC_SIZE_COMPACT:
-                # 28-byte record: hash16 | payload u32 | offset u32 |
-                # pkg u16 | trailing u16 (per-entry tag on this generation).
+            if rec_size == _IDX_REC_SIZE_V0:
+                content_hash = blob[off:off + 0x10]
                 self._records.append(
                     _IndexRecord(
-                        content_hash=blob[off:off + 0x10],
-                        ordinal=0,
-                        pkg_id=struct.unpack_from("<H", blob, off + 0x18)[0],
-                        flags=0,
+                        content_hash=content_hash,
+                        sort_key=0,
+                        pkg_id=blob[off + 0x18],
+                        flags=(content_hash[15] & 0xF0) | (blob[off + 0x19] & 0x0F),
                         offset=struct.unpack_from("<I", blob, off + 0x14)[0],
                         payload_size=struct.unpack_from("<I", blob, off + 0x10)[0],
-                        hdr_size=struct.unpack_from("<H", blob, off + 0x1A)[0],
-                        pad_size=0,
+                        hdr_size=0,
+                        pad_size=struct.unpack_from("<H", blob, off + 0x1A)[0],
                     )
                 )
             else:
                 self._records.append(
                     _IndexRecord(
                         content_hash=blob[off:off + 0x10],
-                        ordinal=struct.unpack_from("<I", blob, off + 0x10)[0],
+                        sort_key=struct.unpack_from("<I", blob, off + 0x10)[0],
                         pkg_id=blob[off + 0x14],
                         flags=blob[off + 0x15],
                         offset=struct.unpack_from("<I", blob, off + 0x18)[0],
@@ -301,7 +320,7 @@ class IDXArchive(Archive):
                     status=self._status_for(key),
                     extra={
                         "pkg_id": rec.pkg_id,
-                        "ordinal": rec.ordinal,
+                        "sort_key": rec.sort_key,
                         "flags": rec.flags,
                         **({"fault": self._corrupted[key]} if key in self._corrupted else {}),
                     },
