@@ -9,8 +9,9 @@ from __future__ import annotations
 import os
 import threading
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 from core.logger import get_logger
+from gui.utils.file_list_theme import tree_icons
 
 GROUP_ROLE = QtCore.Qt.ItemDataRole.UserRole + 51
 CLIP_ROLE = QtCore.Qt.ItemDataRole.UserRole + 52
@@ -39,24 +40,12 @@ class AnimationsPage(QtWidgets.QWidget):
         self.search.setPlaceholderText("Search animations or models (e.g. dance, run, hippogriff, idle)…")
         self.search.setClearButtonEnabled(True)
         layout.addWidget(self.search)
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        layout.addWidget(splitter, 1)
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setHeaderLabels(["Animation", "Clips"])
         self.tree.setColumnWidth(0, 300)
         self.tree.setUniformRowHeights(True)
-        splitter.addWidget(self.tree)
-
-        details = QtWidgets.QWidget()
-        form = QtWidgets.QVBoxLayout(details)
-        form.setContentsMargins(4, 4, 4, 4)
-        self.info = QtWidgets.QLabel("Open any Harry Potter: Magic Awakened .npk, then pick an animation.")
-        self.info.setWordWrap(True)
-        self.info.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
-        form.addWidget(self.info)
-        form.addStretch(1)
-        splitter.addWidget(details)
-        splitter.setSizes([640, 160])
+        self._folder_icon, self._file_icon = tree_icons(self.tree)
+        layout.addWidget(self.tree, 1)
 
         # The player, shown in the main window's viewer area while this page is open (see install)
         self.viewer = QtWidgets.QWidget()
@@ -93,6 +82,7 @@ class AnimationsPage(QtWidgets.QWidget):
         from gui.widgets.viewer_overlay import ViewOverlays
 
         self.overlays = ViewOverlays(self.view, corner=self.model)
+        self._status("Open any Harry Potter: Magic Awakened .npk, then pick an animation.")
 
         self._signals = _Signals(self)
         self._signals.scanned.connect(self._scanned)
@@ -109,28 +99,32 @@ class AnimationsPage(QtWidgets.QWidget):
     def _show_clip_info(self, rows):
         self.overlays.set_info(rows)
 
+    def _status(self, text):
+        """Where the page stands (reading the list, how many animations, errors), over the preview."""
+        self._show_clip_info([("Status", text)])
+
     def activate(self):
         """Called when the page is shown: scan the game's animations once per game folder."""
         from gui.widgets.character_anim_export import _game_folder, _game_options
 
         game = _game_folder()
         if game is None:
-            self.info.setText("Open any Harry Potter: Magic Awakened .npk first, so the game folder is known.")
+            self._status("Open any Harry Potter: Magic Awakened .npk first, so the game folder is known.")
             return
         if self.game is not None and str(game) == str(self.game):
             return  # this game is listed, or its scan is still running
         self.game = game
-        self.info.setText("Reading the game's file list…")
+        self._status("Reading the game's file list…")
         threading.Thread(target=_scan, args=(game, _game_options(), self._signals), daemon=True).start()
 
     def _scanned(self, payload, error):
         if error:
             self.game = None  # so opening Animations again tries once more
-            self.info.setText(f"Could not list the animations: {error}")
+            self._status(f"Could not list the animations: {error}")
             return
         self.index, self.groups = payload
         total = sum(len(g.clips) for g in self.groups)
-        self.info.setText(f"{total:,} animations of {len(self.groups):,} models. Pick one to preview it.")
+        self._status(f"{total:,} animations of {len(self.groups):,} models. Pick one to preview it.")
         self._fill()
 
     def _fill(self):
@@ -163,6 +157,7 @@ class AnimationsPage(QtWidgets.QWidget):
                         parent if parent is not None else self.tree, [parts[depth - 1], ""]
                     )
                     node.setToolTip(0, "\\".join(parts[:depth]))
+                    node.setIcon(0, self._folder_icon)
                     folders[key] = node
                 totals[key] = totals.get(key, 0) + len(group.clips)
                 parent = node
@@ -170,13 +165,13 @@ class AnimationsPage(QtWidgets.QWidget):
                 parent if parent is not None else self.tree, [parts[-1], f"{len(group.clips):,}"]
             )
             item.setToolTip(0, f"{group.folder}\nPlays on {group.label}")
+            item.setIcon(0, self._folder_icon)
             item.setData(0, GROUP_ROLE, group)
             if clips is None:
                 item.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
             else:
                 for clip in clips[: SEARCH_LIMIT - shown]:
-                    child = QtWidgets.QTreeWidgetItem(item, [clip, ""])
-                    child.setData(0, CLIP_ROLE, (group, clip))
+                    self._clip_item(item, group, clip)
                 shown += len(clips)
                 item.setExpanded(True)
             if words and shown >= SEARCH_LIMIT:
@@ -190,8 +185,12 @@ class AnimationsPage(QtWidgets.QWidget):
         if group is None or item.childCount():
             return
         for clip in group.clips:
-            child = QtWidgets.QTreeWidgetItem(item, [clip, ""])
-            child.setData(0, CLIP_ROLE, (group, clip))
+            self._clip_item(item, group, clip)
+
+    def _clip_item(self, parent, group, clip):
+        child = QtWidgets.QTreeWidgetItem(parent, [clip, ""])
+        child.setData(0, CLIP_ROLE, (group, clip))
+        child.setIcon(0, self._file_icon)
 
     def _selected(self, item, _previous):
         if item is None:
@@ -224,7 +223,6 @@ class AnimationsPage(QtWidgets.QWidget):
         group, clip = self.current
         self.generation += 1
         model = self.model.currentData()
-        self.info.setText(f"<b>{clip}</b> — {group.label}<br>Loading…")
         self._show_clip_info([("Clip", clip), ("Owner", group.label), ("Status", "Loading…")])
         threading.Thread(
             target=_load_preview, args=(self.generation, self.index, group, clip, model, self._signals), daemon=True
@@ -236,15 +234,10 @@ class AnimationsPage(QtWidgets.QWidget):
         group, clip_name = self.current
         model_path = self.model.currentData()
         if error:
-            self.info.setText(f"<b>{clip_name}</b> — {group.label}<br>{error}<br><small>{group.folder}</small>")
-            self._show_clip_info([("Clip", clip_name), ("Owner", group.label)])
+            self._show_clip_info([("Clip", clip_name), ("Owner", group.label), ("Error", error)])
         if payload is None:
             return
         mesh, parts, clip, matched = payload
-        self.info.setText(
-            f"<b>{clip_name}</b> — {group.label}<br><small>Model: {model_path}<br>"
-            f"Animation: {group.folder}\\{clip_name}<br>Skeleton: {group.skeleton}</small>"
-        )
         self._show_clip_info(
             [
                 ("Clip", clip_name),

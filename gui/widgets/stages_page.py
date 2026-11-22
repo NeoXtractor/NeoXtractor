@@ -14,6 +14,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from core.npk.npk_file import NPKReadOptions
 from core.npk.stage_export import PackIndex, StageExporter, game_layers, game_root_for, read_options_for, resource_dirs
 from gui.utils import scan_memory
+from gui.utils.file_list_theme import tree_icons
 
 STAGES_DATA = "stages"
 SETTING_GAME_FOLDER = "stage_export.game_folder"  # remembered for the other exports' fallback
@@ -112,6 +113,7 @@ class StagesPage(QtWidgets.QWidget):
         layout.addWidget(self.folder_label)
 
         self.tree = QtWidgets.QTreeWidget()
+        self._folder_icon, self._file_icon = tree_icons(self.tree)
         self.tree.setHeaderLabels(["Stage", "Scenes", "Size"])
         self.tree.sortByColumn(0, QtCore.Qt.SortOrder.AscendingOrder)
         self.tree.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -286,6 +288,7 @@ class StagesPage(QtWidgets.QWidget):
             parent.setData(1, QtCore.Qt.ItemDataRole.UserRole, len(members))
             parent.setData(2, QtCore.Qt.ItemDataRole.UserRole, largest)
             parent.setToolTip(2, "Size of the stage's largest scene file; bigger usually means more objects.")
+            parent.setIcon(0, self._folder_icon)
             for scene in members:
                 parts = scene.split("\\")
                 at = len(parts) - 1 - parts[::-1].index(stage) if stage in parts[:-1] else len(parts) - 2
@@ -296,6 +299,7 @@ class StagesPage(QtWidgets.QWidget):
                 child.setData(0, QtCore.Qt.ItemDataRole.UserRole, scene)
                 child.setData(2, QtCore.Qt.ItemDataRole.UserRole, sizes.get(scene, 0))
                 child.setToolTip(0, scene)
+                child.setIcon(0, self._file_icon)
                 parent.addChild(child)
             self.tree.addTopLevelItem(parent)
         self.tree.setUpdatesEnabled(True)

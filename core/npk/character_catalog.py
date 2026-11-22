@@ -1,6 +1,6 @@
 """Typed, metadata-backed character assets and material texture relationships."""
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 
 from core.npk.asset_paths import AssetPathIndex, normalize_path
 from core.npk.character_folders import scan_character_folders, normalize_character_folder_roots
@@ -36,16 +36,6 @@ class CharacterCatalog:
     unmapped: list[int]
     scanned_entries: int
     manifest_used: bool
-
-    def to_dict(self):
-        return {
-            "schema_version": 3,
-            "scanned_entries": self.scanned_entries,
-            "manifest_used": self.manifest_used,
-            "folders": self.folders,
-            "unmapped_entries": self.unmapped,
-            "assets": [{**asdict(a), "sources": sorted(a.sources)} for a in self.assets.values()],
-        }
 
 
 def build_character_catalog(npk_file, roots=None, signature_name_map=None, *, progress=None, cancelled=None):

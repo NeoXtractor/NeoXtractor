@@ -1,18 +1,17 @@
 """Embedded Characters filter: real meshes and material-linked textures."""
 
-import json
 from pathlib import Path
 from threading import Event
 from time import perf_counter
 from types import SimpleNamespace
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 import shiboken6
 from core.npk.class_types import NPKEntry
 from core.process_memory import check_scan_memory, ScanMemoryLimitExceeded
 from gui.theme import ThemeManager
 from gui.utils.viewer import ALL_VIEWERS
 from gui.utils.character_scan import CharacterScanWorker
-from gui.utils.file_list_theme import apply_file_list_theme
+from gui.utils.file_list_theme import apply_file_list_theme, tree_icons
 from gui.utils.character_tree_index import CharacterTreeIndex
 
 PATH_ROLE = QtCore.Qt.ItemDataRole.UserRole
@@ -47,11 +46,9 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
         self._cancel_event = None
         self._workers = {}
         self._render_iterator = None
-        self._item_count = 0
         self._filters_dirty = False
         self._tree_index = None
         self._directory_items = {}
-        self._folder_icon = self._file_icon = None
         self._render_timer = QtCore.QTimer(self)
         self._render_timer.setInterval(1)
         self._render_timer.timeout.connect(self._advance_render)
@@ -74,6 +71,7 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
         self.explorer_heading = QtWidgets.QLabel("Characters Explorer")
         layout.addWidget(self.explorer_heading)
         self.tree = QtWidgets.QTreeWidget()
+        self._folder_icon, self._file_icon = tree_icons(self.tree)
         self.tree.setColumnCount(2)
         self.tree.setHeaderHidden(True)
         self.tree.setAlternatingRowColors(False)
@@ -111,18 +109,14 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             self.catalog = None
             self._tree_index = None
             self._directory_items.clear()
-            self._item_count = 0
         self.npk_file, self.roots = npk_file, roots
         self.signature_name_map = signature_name_map or {}
         self.refresh()
 
     def _folder_item(self, parent, label, detail=""):
         item = QtWidgets.QTreeWidgetItem([label, detail])
-        if self._folder_icon is None:
-            self._folder_icon = self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirIcon)
         item.setIcon(0, self._folder_icon)
         parent.addChild(item)
-        self._item_count += 1
         return item
 
     def _asset_item(self, parent, asset, label=None, key=None):
@@ -141,11 +135,8 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
         item.setData(0, ASSET_KEY_ROLE, key)
         item.setToolTip(0, asset.path)
         item.setToolTip(1, asset.evidence + (f" · entry {asset.entry_index}" if entry is not None else ""))
-        if self._file_icon is None:
-            self._file_icon = self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileIcon)
         item.setIcon(0, self._file_icon)
         parent.addChild(item)
-        self._item_count += 1
         if asset.kind == "Mesh" and (asset.textures or asset.metadata):
             item.setData(0, LAZY_ROLE, ("mesh", key, ""))
             item.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
@@ -158,7 +149,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             self.catalog = None
             self._tree_index = None
             self._directory_items.clear()
-            self._item_count = 0
             self.status_label.setText("Load an archive to browse character folders.")
             return
         self._scan_generation += 1
@@ -210,7 +200,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             return
         self.tree.clear()
         self._directory_items.clear()
-        self._item_count = 0
         self.catalog = catalog
         self._tree_index = CharacterTreeIndex(catalog, self.npk_file.entries)
         self._render_iterator = self._render_tree_steps()
@@ -228,7 +217,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             self.catalog = None
             self._tree_index = None
             self._directory_items.clear()
-            self._item_count = 0
         if self.scan_busy:
             if announce:
                 self.status_label.setText("Character scan cancelled. Use Tools → Scan character folders to retry.")
@@ -322,11 +310,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
 
     def _delete_child(self, parent, index):
         child = parent.takeChild(index)
-
-        def size(item):
-            return 1 + sum(size(item.child(i)) for i in range(item.childCount()))
-
-        self._item_count -= size(child)
         shiboken6.delete(child)
 
     def _release_node(self, item):
@@ -397,7 +380,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
                 item.setData(0, PAGE_ROLE, max(0, offset - PAGE_SIZE))
                 item.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
                 parent.addChild(item)
-                self._item_count += 1
             for key in keys[offset : offset + PAGE_SIZE]:
                 if spec[0] == "unmapped":
                     entry = self.npk_file.entries[key]
@@ -408,7 +390,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
                     item.setData(0, ENTRY_ROLE, key)
                     item.setData(0, KIND_ROLE, "Mesh" if entry.extension == "mesh" else "Texture")
                     parent.addChild(item)
-                    self._item_count += 1
                 else:
                     self._asset_item(parent, self.catalog.assets[key], key=key)
             following = offset + PAGE_SIZE
@@ -418,7 +399,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
                 item.setData(0, PAGE_ROLE, following)
                 item.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
                 parent.addChild(item)
-                self._item_count += 1
 
     def set_filters(self, text="", include_binary=True, include_text=True, include_slot=True):
         self.search_text = text.lower()
@@ -462,8 +442,7 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
         )
         if hasattr(self.npk_file, "archives"):
             self.status_label.setText(
-                self.status_label.text()
-                + f"\n{len(self.npk_file.primary_sources)} same-name packs · "
+                self.status_label.text() + f"\n{len(self.npk_file.primary_sources)} same-name packs · "
                 f"{len(self.npk_file.archives) - len(self.npk_file.primary_sources)} explicitly referenced packs"
             )
             self.status_label.setToolTip("\n".join(self.npk_file.warnings))
@@ -562,9 +541,6 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             self.open_entry_with.emit(index, entry, viewer, batch_index)
             batch_index += 1
 
-    def extract_selected(self):
-        self._extract(self.entry_items(self.tree.selectedItems()))
-
     def extract_visible(self):
         self._extract(self.entry_items(visible_only=True))
 
@@ -611,17 +587,3 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             "Character extraction",
             f"Saved {saved} files.\n" + ("\n".join(failures[:3]) if failures else str(root)),
         )
-
-    def export_report(self):
-        if self.catalog is None:
-            return
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Character asset report", "character-assets.json", "JSON (*.json)"
-        )
-        if path:
-            try:
-                Path(path).write_text(
-                    json.dumps(self.catalog.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
-                )
-            except OSError as exc:
-                QtWidgets.QMessageBox.critical(self, "Report failed", str(exc))

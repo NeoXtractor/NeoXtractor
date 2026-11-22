@@ -78,9 +78,6 @@ class InfoTable(QtWidgets.QWidget):
                 self.grid.addWidget(cell, row, column)
         self.setVisible(bool(rows))
 
-    def texts(self) -> list[str]:
-        return [self.grid.itemAt(i).widget().text() for i in range(self.grid.count())]
-
 
 class ViewOverlays(QtCore.QObject):
     """The info rows and the camera keys over `view`, kept in place as it resizes; `corner` goes top right."""

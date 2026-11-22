@@ -1,4 +1,4 @@
-"""Consistent theme colors for native file-list and character-tree viewports."""
+"""Consistent theme colors and icons for native file-list and folder-tree viewports."""
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -64,3 +64,12 @@ def apply_file_list_theme(view, theme):
     """)
     view.viewport().setStyleSheet(f"background-color: {background}; color: {text};")
     view.viewport().update()
+
+
+def tree_icons(widget) -> tuple[QtGui.QIcon, QtGui.QIcon]:
+    """The folder and file icons of the game-folder trees (Characters, Animations, Stages)."""
+    style = widget.style()
+    return (
+        style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirIcon),
+        style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileIcon),
+    )
