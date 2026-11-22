@@ -15,6 +15,7 @@ from core.npk.npk_file import NPKReadOptions
 from core.npk.stage_export import PackIndex, StageExporter, game_layers, game_root_for, read_options_for, resource_dirs
 from gui.utils import scan_memory
 from gui.utils.file_list_theme import tree_icons
+from gui.utils.page_filters import watch_page_filters
 
 STAGES_DATA = "stages"
 SETTING_GAME_FOLDER = "stage_export.game_folder"  # remembered for the other exports' fallback
@@ -469,3 +470,4 @@ def install(app) -> None:
             window.loading_complete_signal.connect(show_if_selected)
         if hasattr(window, "name_filter_input"):
             window.name_filter_input.textChanged.connect(page.apply_filter)
+        watch_page_filters(window)

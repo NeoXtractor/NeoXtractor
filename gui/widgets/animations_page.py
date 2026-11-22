@@ -12,6 +12,7 @@ import threading
 from PySide6 import QtCore, QtWidgets
 from core.logger import get_logger
 from gui.utils.file_list_theme import tree_icons
+from gui.utils.page_filters import watch_page_filters
 
 GROUP_ROLE = QtCore.Qt.ItemDataRole.UserRole + 51
 CLIP_ROLE = QtCore.Qt.ItemDataRole.UserRole + 52
@@ -36,10 +37,6 @@ class AnimationsPage(QtWidgets.QWidget):
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.search = QtWidgets.QLineEdit()
-        self.search.setPlaceholderText("Search animations or models (e.g. dance, run, hippogriff, idle)…")
-        self.search.setClearButtonEnabled(True)
-        layout.addWidget(self.search)
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setHeaderLabels(["Animation", "Clips"])
         self.tree.setColumnWidth(0, 300)
@@ -91,7 +88,10 @@ class AnimationsPage(QtWidgets.QWidget):
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(250)
         self._search_timer.timeout.connect(self._fill)
-        self.search.textChanged.connect(lambda _text: self._search_timer.start())
+        # The main window's search box searches this list while the page is shown (see install)
+        search = getattr(main_window, "name_filter_input", None)
+        if search is not None:
+            search.textChanged.connect(lambda _text: self.isVisible() and self._search_timer.start())
         self.tree.itemExpanded.connect(self._expand)
         self.tree.currentItemChanged.connect(self._selected)
         self.model.currentIndexChanged.connect(lambda _i: self._load_preview())
@@ -112,6 +112,8 @@ class AnimationsPage(QtWidgets.QWidget):
             self._status("Open any Harry Potter: Magic Awakened .npk first, so the game folder is known.")
             return
         if self.game is not None and str(game) == str(self.game):
+            if self.groups:
+                self._search_timer.start()  # the search may have changed on another page
             return  # this game is listed, or its scan is still running
         self.game = game
         self._status("Reading the game's file list…")
@@ -129,7 +131,8 @@ class AnimationsPage(QtWidgets.QWidget):
 
     def _fill(self):
         self.tree.clear()
-        words = self.search.text().lower().split()
+        search = getattr(self.main_window, "name_filter_input", None)
+        words = (search.text() if search is not None else "").lower().split()
         folders: dict[str, QtWidgets.QTreeWidgetItem] = {}  # lower-case game folder -> its row
         totals: dict[str, int] = {}  # clips under each folder
         shown = 0
@@ -435,6 +438,7 @@ def install(window) -> None:
             show_player(False)
 
     combo.currentIndexChanged.connect(changed)
+    watch_page_filters(window)
 
     # Right-click: the batch export of the character animations (moved here from the Tools menu)
     page.tree.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
