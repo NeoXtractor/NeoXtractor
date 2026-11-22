@@ -40,6 +40,7 @@ class Sockets:
         self.tables = tables
         self._rows = None
         self._sockets: dict[str, dict] = {}
+        self._triggers: dict[str, dict] = {}
         self._rest: dict[str, dict] = {}
         self._offsets: dict | None = None
         self._meshes: dict[str, str] = {}
@@ -65,6 +66,27 @@ class Sockets:
     def sockets(self, sex: str) -> dict:
         with _LOCK:
             return self._socket_table(sex)
+
+    def triggers(self, sex: str) -> dict[str, list[tuple[str, str]]]:
+        """
+        {clip (lower case): [(model, socket)]} of the models the rig's Triggers spawn as a clip plays: the props the
+        game's code brings (the sword of idle_shoucang_02 on shoucang_jian). Effects (.sfx) are left out.
+        """
+        with _LOCK:
+            if sex not in self._triggers:
+                result: dict[str, list[tuple[str, str]]] = {}
+                found = self.index.read(RIG_GIMS[sex])
+                triggers = ET.fromstring(found[0]).find("Triggers") if found is not None else None
+                for clip in triggers if triggers is not None else []:
+                    for trigger in clip.iter("trigger"):
+                        path = (trigger.get("ObjectFileName") or "").replace("/", "\\")
+                        pair = (path, trigger.get("SocketName") or "")
+                        if trigger.get("Type") == "4" and path.lower().endswith(".gim") and pair[1]:
+                            pairs = result.setdefault(clip.tag.lower(), [])
+                            if pair not in pairs:
+                                pairs.append(pair)
+                self._triggers[sex] = result
+            return self._triggers[sex]
 
     def _socket_table(self, sex: str) -> dict:
         if sex not in self._sockets:

@@ -211,7 +211,7 @@ def _load_pose_worker(library, key, signals, props=(), files=()):
     report: list[str] = []
     try:
         loaded, error = {"clip": load_pose_clip(library, *key), "props": []}, ""
-        loaded["props"] = load_pose_props(library, key[0], props, report, files, key[1])
+        loaded["props"] = load_pose_props(library, key[0], props, report, files)
         error = "; ".join(report)
     except Exception as exc:
         loaded, error = {"clip": None, "props": []}, str(exc)
@@ -346,10 +346,10 @@ def export_face(
             progress(f"Loading {ntpath.basename(path)}", len(mesh_paths), len(mesh_paths) + 2)
             output += dress_wardrobe_items(load_wardrobe_items(library, path, report, texture, sockets, sex), skin)
         if pose is not None:
-            clip, wand, props, files = pose
+            clip, wand, props, prop_files = pose
             output = pose_items(output, clip, wand)
             if not any(item.get("clips") for item in output):
-                output += load_pose_props(library, sex, props, report, files, clip)
+                output += load_pose_props(library, sex, props, report, prop_files)
         from gui.widgets.character_exports import with_body_size
         from core.npk.accessory_sockets import apply_bind_offsets
 
