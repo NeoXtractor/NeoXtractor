@@ -33,12 +33,22 @@ def install_speedups() -> None:
 def install(app: QtWidgets.QApplication) -> None:
     """The pages and menus, in the order they appear in the category list."""
     from core.npk import layered_archives, wwise_audio, wwise_names
-    from gui.widgets import characters_items, characters_page, characters_sort, scene_viewer, stages_page
+    from gui.widgets import (
+        animations_page,
+        characters_items,
+        characters_page,
+        characters_sort,
+        scene_viewer,
+        stages_page,
+    )
+
+    windows = [window for window in app.topLevelWidgets() if hasattr(window, "entry_category_filter_combobox")]
 
     for name, step in (
         ("the Characters category", lambda: characters_page.install(app)),
         ("the Stages category", lambda: stages_page.install(app)),
-        ("the Scene Viewer and Animations", lambda: scene_viewer.install(app)),
+        ("the Scene Viewer", lambda: scene_viewer.install(app)),
+        ("the Animations category", lambda: [animations_page.install(window) for window in windows]),
         ("the combined game installs", layered_archives.install),  # a pack joins its Documents patch copy
         ("sorting in the Characters tab", lambda: characters_sort.install(app)),
         ("item names in the Characters tab", lambda: characters_items.install(app)),

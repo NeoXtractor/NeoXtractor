@@ -567,8 +567,8 @@ def poses(library) -> dict[str, list[dict]]:
 
 def _pose_props(tables) -> dict[tuple[str, str], list[int]]:
     """
-    {(sex, clip): attachment ids} of the props a pose shows (the doll of idle_276_sylg): those the first outfit
-    with that idle hangs on its sockets for the clip. Its colour variants may swap a prop; the first has the base one.
+    {(sex, clip): attachment ids} of the props a pose shows, such as the doll of idle_276_sylg. They come from the
+    first outfit that has the pose as its idle; its colour variants may swap a prop, the first outfit has the base one.
     """
     try:
         attachments = tables.keyed_rows("attachments")
@@ -662,8 +662,8 @@ def load_pose_props(library, sex: str, ids, report, files=()) -> list[dict]:
 
 def prop_clip(library, gim: str, clip_name: str):
     """
-    A prop's own clip for a character clip (its .animconfig names one the same) on the prop's skeleton, or None:
-    the doll of idle_276_sylg moves with the hands that hold it.
+    A prop's own animation for a character clip: the clip of the same name in the prop's .animconfig, on the prop's
+    skeleton, or None if it has none. It is what makes the doll of idle_276_sylg move with the hands holding it.
     """
     import xml.etree.ElementTree as ET
     from core.npk import neox_anim

@@ -1007,13 +1007,6 @@ def install(app) -> None:
         add_action.triggered.connect(lambda _checked=False, w=window: add_selection_to_viewer(w))
         window.addAction(add_action)
 
-        try:
-            from gui.widgets import animations_page
-
-            animations_page.install(window)
-        except Exception as exc:
-            print(f"Animations tab not installed: {exc}")
-
         characters = getattr(window, "_character_folders_window", None)
         if characters is not None and hasattr(characters, "_create_context_menu"):
             original = characters._create_context_menu

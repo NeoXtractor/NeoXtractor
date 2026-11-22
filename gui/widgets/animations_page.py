@@ -309,13 +309,23 @@ def _scan(game, options, signals):
         pass
 
 
+def _reader(index):
+    """read(path) -> the file's bytes from the game index, or None."""
+
+    def read(path):
+        found = index.read(path)
+        return found[0] if found else None
+
+    return read
+
+
 def _preview_payload(index, group, clip_name, model_path):
     """((mesh, parts with QImages, clip, matched bones), error)."""
     from core.npk import anim_library
     from core.npk.stage_export import StageLoader
     from gui.widgets.scene_render import pil_to_qimage
 
-    read = lambda p: (index.read(p) or (None,))[0]  # noqa: E731
+    read = _reader(index)
     try:
         clip = anim_library.load_clip(read, group, clip_name)
     except ValueError as exc:
@@ -358,7 +368,7 @@ def export_animation(main_window, index, group, clip_name, model_path, kind):
         from core.npk import anim_library
         from core.npk.stage_export import StageLoader
 
-        read = lambda p: (index.read(p) or (None,))[0]  # noqa: E731
+        read = _reader(index)
         progress(f"Exporting {clip_name}…", 0, 1)
         clip = anim_library.load_clip(read, group, clip_name)
         safe = character_anim.safe_name(clip_name)

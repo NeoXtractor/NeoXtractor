@@ -211,8 +211,8 @@ def apply_shape(mesh, bones: dict[str, np.ndarray]):
         normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-9)
         shaped.normal = [tuple(n) for n in normals]
     shaped.bone_matrix = [m.astype(np.float32) for m in new_bind]
-    # The bind the pieces were modelled in: a pose skins against it, so each bone's shape change rides along as a
-    # local offset instead of being undone by the clip putting the bone back where the unshaped face has it
+    # Poses skin against the unshaped bind, so a bone's shape change moves with the bone as it animates; against the
+    # shaped bind, the clip would put every bone back where the base face has it and undo the shape
     shaped.skin_bind = skin_bind(mesh)
     return shaped
 
