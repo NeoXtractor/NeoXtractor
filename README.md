@@ -2,9 +2,11 @@
 
 This branch is the full source of the HPMA build of NeoXtractor: real file names for most of the game's packs, the
 Characters, Animations and Stages pages, the Scene Viewer, the Main Character Creator, MMD (PMX/VMD) export and the
-game's sound names. It is made for HPMA, but you can try it on other games built on the NeoX engine. It is based on NeoXtractor, adjusted with Harry Potter: Magic Awakened in mind.
+game's sound names. It is made for Harry Potter: Magic Awakened, but you can try it on other games built on the NeoX
+engine.
 
-The fork was made with AI assistance of Claude. The original creator of NeoXtractor has been told beforehand.
+This fork was made with the help of Claude, an AI assistant. NeoXtractor's original creator was told about it
+beforehand.
 
 Licensed under the GNU AGPL v3.0, like NeoXtractor: see [LICENSE](LICENSE). What was changed, and the third-party
 data used, is listed in [NOTICE.md](NOTICE.md). No game files are included.
@@ -33,16 +35,19 @@ under Tools.
    copies together (HPMA)** before opening.
 
 The category list under the search box picks what the left side shows: the usual file types, plus **Audio**,
-**Characters**, **Stages** and **Animations**.
+**Characters**, **Stages** and **Animations**. The search box at the top searches whichever of them is shown; the
+Binary / Text / Slot boxes only apply to the file list and Characters, so Stages and Animations hide them.
 
 ### Characters
 
 Choose **Characters** in the category list. The first scan of a pack takes a while (the progress bar has a
-Cancel button); later scans of the same files are quicker.
+Cancel button); later scans of the same files are quicker. **Tools → Scan character folders** scans the open pack
+again.
 
 - Folders follow the game's own layout. Each mesh lists the textures and materials it uses; double-click a mesh
   to open its textures. Items show their English name and icon, and the **Sort** box orders by name or size.
-- The search box and the Binary / Text / Slot boxes filter this tree too.
+- The search box and the Binary / Text / Slot boxes filter this tree too. **Save Visible…** under the tree saves
+  everything it shows, linked textures included.
 - Right-click a selection to:
   - **Save selected / folder (including linked textures)…**: the raw files;
   - **Export all as one GLB… / PMX…**: everything selected in one model;
@@ -70,8 +75,9 @@ game's wardrobe:
 - **Export ▼** saves the character as GLB, PMX or OBJ, without animation, with the props the pose shows
   (**PMX options** are in the same menu).
   **Pose as VMD… / GLB…** in the same menu save the pose that plays (the picked one, or the outfit's own idle) on
-  its own: a VMD for the exported PMX, or a GLB on the game's default character. **Save texture ▼** saves the baked face, eye, eyebrow and hair textures.
-  **Add to Scene Viewer** sends the character there.
+  its own: a VMD for the exported PMX, or a GLB on the game's default character.
+- **Save texture ▼** saves the baked face, eye, eyebrow and hair textures, and **Add to Scene Viewer** sends the
+  character there.
 
 ### Scene Viewer
 
@@ -95,10 +101,11 @@ with its textures already matched.
 
 ### Animations
 
-Choose **Animations** in the category list. Clips are grouped by skeleton; the selected clip plays on its model
-in the viewer area. Right-click a clip for **Export GLB…** (model with the clip), **Export VMD…** (a motion for
-the PMX models this app exports), or **Export character animations (VMD / GLB)…** to pick the male or female
-player character and export many clips at once, as VMD or GLB.
+Choose **Animations** in the category list. Clips are listed by the game folder they live in; the selected clip
+plays on its model in the viewer area, with its length, frames and bones shown over it (the box at the top right
+picks another model from the same folder). Right-click a clip for **Export GLB…** (model with the clip),
+**Export VMD…** (a motion for the PMX models this app exports), or **Export character animations (VMD / GLB)…** to
+pick the male or female player character and export many clips at once, as VMD or GLB.
 
 ### Audio
 
@@ -125,6 +132,8 @@ The app keeps a few caches next to itself (`scan_cache\`, `item_links_cache.json
 They are rebuilt when the game files change, and deleting them is safe.
 
 ---
+
+*The original NeoXtractor README follows.*
 
 # NeoXtractor
 
