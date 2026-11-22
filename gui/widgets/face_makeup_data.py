@@ -507,8 +507,8 @@ def _hold_wand(library, items, sex, report):
 
 def poses(library) -> dict[str, list[dict]]:
     """
-    The standing poses for each sex, from quick_action: name, clip, icon, rarity and whether everyone has it. A
-    pose is offered for a sex when its clip is in that sex's animation folder.
+    The released standing poses for each sex, from quick_action: name, clip, icon, rarity and whether everyone has
+    it. A pose is offered for a sex when its clip is in that sex's animation folder.
     """
     from core.mesh_converter import character_anim
     from core.npk import game_tables
@@ -534,11 +534,14 @@ def poses(library) -> dict[str, list[dict]]:
         number = name_key.rsplit("_", 1)[-1]
         item_id = int(number) if number.isdigit() else None
         item = items.get(item_id) or {}
+        if item and not item.get("launch"):
+            continue  # not released (st_mfsy has no name in any language)
         title = english.get(name_key, "").strip()
         if title.lower() in ("", "n/a", "null", "null!"):
             title = chinese.get(name_key, "") or row["skill_id"]
         clip = row["skill_id"]
-        for sex in DRESS_SEXES.get(item.get("sex")) or ("male", "female"):
+        # A pose's two rows share one item, whose sex says nothing about who may use it: the clip decides
+        for sex in ("male", "female"):
             if clip.lower() not in clips[sex] or (sex, clip.lower()) in seen:
                 continue
             seen.add((sex, clip.lower()))
