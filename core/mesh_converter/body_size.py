@@ -115,6 +115,10 @@ class BodyDeformer:
             stretch = np.diag(list(effective[name]) + [1.0])
             self.maps[name] = np.linalg.inv(binds[name]) @ stretch @ new_bind
 
+    def posed(self, clip) -> "AdultClip":
+        """The clip played in this body, on the original (size I) meshes, as the game deforms its skeleton."""
+        return AdultClip(clip, self)
+
     def bone_map(self, mesh, index: int, cache: dict) -> np.ndarray:
         """The map for one of a mesh's bones: its own, else its nearest deformed ancestor's."""
         if index in cache:
@@ -170,6 +174,65 @@ class BodyDeformer:
             shaped.normal = [tuple(n) for n in normals]
         shaped.bone_matrix = binds
         return shaped
+
+
+class AdultClip:
+    """
+    A neox_anim.Clip played in the adult body. Each bone gets its adult rest offset from its parent, and its world
+    matrix carries a shape matrix that moves its (size I) vertices into the adult body, as BodyDeformer.apply does
+    at rest. Same interface as the clip for the 3D view: bone_names, parents, duration and world_matrices().
+    """
+
+    def __init__(self, clip, deformer: BodyDeformer):
+        from core.mesh_converter.character_anim import rest_worlds
+
+        self.clip, self.name, self.loop, self.duration = clip, clip.name, clip.loop, clip.duration
+        self.bone_names, self.parents = clip.bone_names, clip.parents
+        rest = rest_worlds(clip.skeleton)  # column-vector
+        maps = self._maps(deformer, rest)
+        adult, shapes = [], []
+        for index, world in enumerate(rest):
+            mapping = maps[index].T
+            moved = world.copy()
+            moved[:, 3] = mapping @ world[:, 3]  # bones move; their axes stay
+            adult.append(moved)
+            shapes.append(np.linalg.inv(moved) @ mapping @ world)
+        self._shapes = np.array(shapes)
+        self._offsets = np.zeros((len(rest), 3))
+        for index, parent in enumerate(self.parents[: len(rest)]):
+            if parent >= 0:
+                before = (np.linalg.inv(rest[parent]) @ rest[index])[:3, 3]
+                after = (np.linalg.inv(adult[parent]) @ adult[index])[:3, 3]
+            else:
+                before, after = rest[index][:3, 3], adult[index][:3, 3]
+            self._offsets[index] = after - before
+
+    def _maps(self, deformer: BodyDeformer, rest) -> list[np.ndarray]:
+        """Each bone's adult map (row-vector): its own, else its nearest deformed ancestor's, else none."""
+        maps: list[np.ndarray] = []
+        for index in range(len(rest)):
+            mapping = deformer.maps.get(bone_key(self.bone_names[index]))
+            if mapping is None:
+                parent = self.parents[index] if index < len(self.parents) else -1
+                mapping = maps[parent] if 0 <= parent < index else np.eye(4)
+            maps.append(mapping)
+        return maps
+
+    def world_matrices(self, time: float, root=None) -> np.ndarray:
+        """As Clip.world_matrices (the last result is kept the same way); don't modify the returned array."""
+        last = getattr(self, "_last_world", None)
+        if root is None and last is not None and last[0] == time:
+            return last[1]
+        local = self.clip.local_matrices(time)
+        local[:, :3, 3] += self._offsets[: len(local)]
+        world = np.empty_like(local)
+        base = np.eye(4) if root is None else np.asarray(root, float)
+        for index, parent in enumerate(self.parents[: len(local)]):
+            world[index] = (world[parent] if parent >= 0 else base) @ local[index]
+        world = world @ self._shapes[: len(world)]
+        if root is None:
+            self._last_world = (time, world)
+        return world
 
 
 def deformer_for(read, mesh_paths, report: list):

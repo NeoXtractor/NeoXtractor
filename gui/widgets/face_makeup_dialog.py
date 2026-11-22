@@ -1166,12 +1166,12 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._update_size_buttons()
         self._update_3d()
 
-    def _sized_items(self, items):
-        """The 3D pieces in body size II when it is chosen (the export's own deform, cached per mesh)."""
+    def _size_deformer(self):
+        """The body size II deform of the worn character when size II is chosen, else None (cached per outfit)."""
         from gui.widgets.character_exports import body_size_adult
 
         if not body_size_adult() or self.library is None:
-            return items
+            return None
         from core.mesh_converter import body_size
 
         paths = tuple(self.wardrobe_paths()) + tuple(self.faces.get(self.face.currentData(), []))
@@ -1186,11 +1186,15 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                 deformer = None
                 notes.append(str(exc))
             cache.clear()
-            cache.update(paths=paths, deformer=deformer, meshes={})
-        deformer = cache["deformer"]
+            cache.update(paths=paths, deformer=deformer, meshes={}, clips={})
+        return cache["deformer"]
+
+    def _sized_items(self, items):
+        """The 3D pieces in body size II when it is chosen (the export's own deform, cached per mesh)."""
+        deformer = self._size_deformer()
         if deformer is None:
             return items
-        meshes = cache["meshes"]
+        meshes = self._size_cache["meshes"]
         sized = []
         for item in items:
             key = id(item["mesh"])
@@ -1794,13 +1798,21 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         items += wardrobe
         self._set_layers(items[:face_count], hair_list, wardrobe)
         items = apply_bind_offsets(self.library, items, self.worn_for_offsets())
-        items = self._sized_items(items)
+        clip = self._shown_pose()
+        deformer = self._size_deformer()
+        if clip is not None and deformer is not None:
+            # A pose in size II: the game deforms the skeleton as it plays, so the pieces stay in size I
+            clips = self._size_cache["clips"]
+            if id(clip) not in clips:
+                clips[id(clip)] = (clip, deformer.posed(clip))
+            clip = clips[id(clip)][1]
+        else:
+            items = self._sized_items(items)
         items = [item for item in items if item["name"] not in self.layers.hidden]
         # Keep the pieces that did not change (same mesh, same textures): only new ones are uploaded,
         # so the view never goes blank while one piece is swapped
         cache = self.__dict__.setdefault("_object_cache", {})
         textures = self.__dict__.setdefault("_texture_keys", {})
-        clip = self._shown_pose()
         objects, keep = [], set()
         for item in items:
             images = [part.get("image") for part in item["parts"]]

@@ -29,8 +29,8 @@ under Tools.
 1. In **Active Config**, pick **Harry Potter: Magic Awakened**.
 2. **File → Open File** and choose a `.npk` from the game's `res` folder (for example `res\model\character.npk`).
 3. The same pack in `res2`, `res3`, ... and the launcher's update folder (`Documents\res`) opens with it, and the
-   files show their real names. To open one pack on its own, untick **File → Include same-name res / resN copies
-   (HPMA)** before opening.
+   files show their real names. To open one pack on its own, untick **File → Load all same-name related
+   copies together (HPMA)** before opening.
 
 The category list under the search box picks what the left side shows: the usual file types, plus **Audio**,
 **Characters**, **Stages** and **Animations**.

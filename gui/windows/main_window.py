@@ -323,7 +323,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             open_file.triggered.connect(open_file_dialog)
             self.open_file_action = open_file
-            self.related_archives_action = menu.addAction("Include same-name res / resN copies (HPMA)")
+            self.related_archives_action = menu.addAction("Load all same-name related copies together (HPMA)")
             self.related_archives_action.setCheckable(True)
             self.related_archives_action.setChecked(self.settings_manager.get("hpma.related_archives", True))
             self.related_archives_action.setStatusTip(

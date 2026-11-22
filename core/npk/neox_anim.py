@@ -403,12 +403,20 @@ class Clip:
         return matrices
 
     def world_matrices(self, time: float, root=None) -> np.ndarray:
-        """Column-vector model-space matrices of every skeleton bone (optionally under a placement)."""
+        """
+        Column-vector model-space matrices of every skeleton bone (optionally under a placement). The last result
+        is kept: every piece of a character asks for the same time each frame. Don't modify the returned array.
+        """
+        last = getattr(self, "_last_world", None)
+        if root is None and last is not None and last[0] == time:
+            return last[1]
         local = self.local_matrices(time)
         world = np.empty_like(local)
         base = np.eye(4) if root is None else np.asarray(root, float)
         for index, parent in enumerate(self.parents[: len(local)]):
             world[index] = (world[parent] if parent >= 0 else base) @ local[index]
+        if root is None:
+            self._last_world = (time, world)
         return world
 
 
