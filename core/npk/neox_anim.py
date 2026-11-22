@@ -217,7 +217,7 @@ class Animation:
                     num_bits = BIT_RATE_BITS[formats[slot]]
                     segment_range = has_segment_ranges and reduced(seg_rr, i)
                     if num_bits == 0:  # constant within the segment: 3 x u16 in the range data
-                        raw = struct.unpack_from(">3H", data, range_pos) if segment_range else (0, 0, 0)
+                        raw = struct.unpack_from("<3H", data, range_pos) if segment_range else (0, 0, 0)
                         value = np.array(raw) / 65535.0
                     elif num_bits == 32:  # raw floats, no range reduction
                         value = np.array(
