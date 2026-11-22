@@ -1,7 +1,6 @@
 """
-The Characters category of the main window (the character-folder tree beside the file list), the "Scan character
-folders" tool, and the HPMA switch that opens a pack together with its same-name copies in res, res2, res3...
-Attached by gui.addons.
+The Characters category of the main window (the character-folder tree beside the file list), and the HPMA switch
+that opens a pack together with its same-name copies in res, res2, res3... Attached by gui.addons.
 """
 
 import os
@@ -17,7 +16,7 @@ RELATED_SETTING = "hpma.related_archives"
 
 
 def install(app) -> None:
-    """Add the Characters page and its tools to every main window (once each)."""
+    """Add the Characters page and the same-name packs switch to every main window (once each)."""
     for window in app.topLevelWidgets():
         if (
             hasattr(window, "entry_category_filter_combobox")
@@ -82,15 +81,6 @@ class _CharactersPage(QtCore.QObject):
 
     def _add_menu_actions(self):
         window = self.window
-        tools = addons.menu(window, "Tools")
-        window.character_folders_action = QtGui.QAction("Scan character folders", window)
-        window.character_folders_action.setStatusTip("Find character-family folders from decoded model metadata.")
-        window.character_folders_action.setEnabled(False)
-        window.character_folders_action.triggered.connect(self.scan)
-        if tools is not None:
-            first = tools.actions()[0] if tools.actions() else None
-            tools.insertAction(first, window.character_folders_action)
-            tools.insertSeparator(first)
         files = addons.menu(window, "File")
         related = window.related_archives_action = QtGui.QAction(
             "Load all same-name related copies together (HPMA)", window
@@ -124,14 +114,15 @@ class _CharactersPage(QtCore.QObject):
         )
         return archive
 
-    def show(self, refresh=False):
-        """Show the page with the loaded archive (scanned once per archive, or again when refresh is set)."""
+    def show(self):
+        """Show the page with the loaded archive: scanned once per archive, and again if that scan did not finish."""
         window, page = self.window, self.page
         window.filter.filter_type = None
         window.mesh_biped_head_filter_checkbox.setVisible(False)
         window.extract_button_widget.hide()  # it acts on the file list; the page has its own Save button
         archive = window.app.property("npk_file")
-        if refresh or page.npk_file is not archive:
+        unfinished = page.catalog is None and not page.scan_busy  # cancelled, or refused by the memory guard
+        if page.npk_file is not archive or (archive is not None and unfinished):
             page.set_archive(
                 archive,
                 getattr(window.config, "character_folder_roots", None),
@@ -139,16 +130,6 @@ class _CharactersPage(QtCore.QObject):
             )
         self.stack.setCurrentWidget(page)
         self._sync_filters()
-
-    def scan(self):
-        """Tools > Scan character folders: scan the loaded archive again and show the page."""
-        if self.window.app.property("npk_file") is None:
-            return
-        if self.combo.currentData() == CHARACTERS:
-            self.show(refresh=True)
-        else:
-            self.page.set_archive(None)  # so showing the page scans afresh
-            self.combo.setCurrentIndex(self.combo.findData(CHARACTERS))
 
     def _sync_filters(self, *_args):
         window = self.window
@@ -163,7 +144,6 @@ class _CharactersPage(QtCore.QObject):
         self.loading = False
         self.combo.setEnabled(True)
         loaded = self.window.app.property("npk_file") is not None
-        self.window.character_folders_action.setEnabled(loaded)
         if not loaded:
             self.page.set_archive(None)
         elif self.combo.currentData() == CHARACTERS:
@@ -172,7 +152,6 @@ class _CharactersPage(QtCore.QObject):
     def _unloaded(self):
         self.page.cancel_scan(announce=False)
         self.page.set_archive(None)
-        self.window.character_folders_action.setEnabled(False)
 
     def _scan_started(self):
         window = self.window
@@ -181,7 +160,7 @@ class _CharactersPage(QtCore.QObject):
         window.progress_bar.setValue(0)
         window.cancel_button.setVisible(True)
         window.cancel_button.setStatusTip("Cancel the character-folder scan; keep the archive loaded.")
-        for widget in (window.open_file_action, window.active_config, window.character_folders_action):
+        for widget in (window.open_file_action, window.active_config):
             widget.setEnabled(False)
 
     def _scan_finished(self, _outcome):
@@ -193,7 +172,6 @@ class _CharactersPage(QtCore.QObject):
         window.cancel_button.setStatusTip("Cancel loading the NPK file.")
         window.open_file_action.setEnabled(True)
         window.active_config.setEnabled(True)
-        window.character_folders_action.setEnabled(window.app.property("npk_file") is not None)
 
     def _preview(self, index):
         """Preview a picked asset with the viewer its real type asks for."""

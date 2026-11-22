@@ -219,7 +219,7 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             self._directory_items.clear()
         if self.scan_busy:
             if announce:
-                self.status_label.setText("Character scan cancelled. Use Tools → Scan character folders to retry.")
+                self.status_label.setText("Character scan cancelled. It starts again the next time you open Characters.")
             self._finish_scan("cancelled")
 
     def _finish_scan(self, outcome):

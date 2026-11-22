@@ -191,9 +191,13 @@ def _load(page) -> None:
             options = read_options_for(archive)
             index = PackIndex(game, options)
             links = game_tables.mesh_links(game, options, lambda p: (index.read(p) or (None,))[0])
-            _signals.loaded.emit(generation, links, index)
         except Exception:
             get_logger().exception("Could not load item names for the Characters tab")
+            return
+        try:
+            _signals.loaded.emit(generation, links, index)
+        except RuntimeError:
+            pass  # the app closed while the names loaded
 
     threading.Thread(target=work, daemon=True).start()
 

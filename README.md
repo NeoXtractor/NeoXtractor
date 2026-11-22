@@ -41,8 +41,8 @@ Binary / Text / Slot boxes only apply to the file list and Characters, so Stages
 ### Characters
 
 Choose **Characters** in the category list. The first scan of a pack takes a while (the progress bar has a
-Cancel button); later scans of the same files are quicker. **Tools → Scan character folders** scans the open pack
-again.
+Cancel button); later scans of the same files are quicker. A cancelled scan starts again the next time you open
+Characters.
 
 - Folders follow the game's own layout. Each mesh lists the textures and materials it uses; double-click a mesh
   to open its textures. Items show their English name and icon, and the **Sort** box orders by name or size.
