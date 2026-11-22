@@ -526,6 +526,12 @@ def poses(library) -> dict[str, list[dict]]:
     props = _pose_props(tables)
     paths = library.index.manifest()
     clips = {sex: {name.lower() for name in character_anim.animation_names(paths, sex)} for sex in ("female", "male")}
+    pose_clips = {
+        str(row.get("skill_id")).lower()
+        for row in tables.keyed_rows("quick_action").values()
+        if isinstance(row, dict) and row.get("action_type") == POSE_ACTION and row.get("skill_id")
+    }
+    coded = _coded_pose_props(library, pose_clips - {STANDARD_POSE})
     found: dict[str, list[dict]] = {"female": [], "male": []}
     seen = set()
     for _key, row in sorted(tables.keyed_rows("quick_action").items(), key=lambda kv: str(kv[0]).zfill(12)):
@@ -557,6 +563,7 @@ def poses(library) -> dict[str, list[dict]]:
                     "default": bool(row.get("is_default")),
                     "wand": bool(row.get("wand", 1)),
                     "props": props.get((sex, clip.lower()), []),
+                    "prop_files": [] if props.get((sex, clip.lower())) else coded.get((sex, clip.lower()), []),
                 }
             )
     return found
@@ -604,9 +611,112 @@ def pose_items(items, clip: str | None, wand: bool = True) -> list[dict]:
     ]
 
 
-def load_pose_props(library, sex: str, ids, report) -> list[dict]:
-    """A pose's own props (the ids poses() lists), hung on the wearer's sockets."""
-    return attachment_items(library, "", ids, report, sex)
+def load_pose_props(library, sex: str, ids, report, files=(), clip=None) -> list[dict]:
+    """
+    A pose's own props, hung on the wearer's sockets: ids in the attachments table, and files the game's code brings
+    (the sword of idle_shoucang_02), placed by their clip: moved about the whole body, or held in the hand.
+    """
+    from core.npk import accessory_sockets
+    from core.npk.stage_export import StageLoader
+
+    pieces = attachment_items(library, "", ids, report, sex)
+    if not files:
+        return pieces
+    sockets = accessory_sockets.for_library(library)
+    socket_table, rest = sockets.sockets(sex), sockets.rest(sex)
+    loader = StageLoader(library.index, max_texture_size=8192)
+    for gim in files:
+        own = prop_clip(library, gim, clip) if clip else None
+        model = loader.model(gim)
+        if model is None or own is None:
+            report.append(f"{ntpath.basename(gim)}: not readable")
+            continue
+        # A clip that moves the prop about the body (a phone, a butterfly) is in the character's space; one that
+        # stays near its origin is held: on the weapon socket, as a wand
+        in_hand = float(np.abs(own.world_matrices(0.0)[:, :3, 3]).max()) < 3.0
+        bone, offset = socket_table.get("weapon") if in_hand and "weapon" in socket_table else ("biped", np.eye(4))
+        if bone not in rest:
+            report.append(f"{ntpath.basename(gim)}: socket bone {bone} not found")
+            continue
+        name = ntpath.basename(gim).rsplit(".", 1)[0]
+        pieces.append(
+            {
+                "name": name,
+                "mesh": accessory_sockets._place(model[0], offset @ rest[bone], bone, rest[bone], name),
+                "parts": [dict(part) for part in model[1]],
+                "attach": {"gim": gim, "bone": bone, "offset": offset, "tag": name},
+            }
+        )
+    report.extend(line for line in loader.report if "material taken from" not in line)
+    return pieces
+
+
+def prop_clip(library, gim: str, clip_name: str):
+    """
+    A prop's own clip for a character clip (its .animconfig names one the same) on the prop's skeleton, or None:
+    the doll of idle_276_sylg moves with the hands that hold it.
+    """
+    import xml.etree.ElementTree as ET
+    from core.npk import neox_anim
+    from core.npk.anim_library import read_animation_data
+
+    stem = gim.rsplit(".", 1)[0]
+    config, skeleton = library.index.read(stem + ".animconfig"), library.index.read(stem + ".skeleton")
+    if config is None or skeleton is None or not clip_name:
+        return None
+    try:
+        animations = {
+            (node.get("Name") or "").lower(): node.get("FileName") or ""
+            for node in ET.fromstring(config[0]).iter("Animation")
+        }
+    except ET.ParseError:
+        get_logger().debug("Unreadable animconfig %s", stem, exc_info=True)
+        return None
+    file = animations.get(clip_name.lower())
+    if not file:
+        return None
+    file = file.replace("/", "\\")
+    folder = ntpath.join(ntpath.dirname(stem), ntpath.dirname(file))
+
+    def read(path):
+        found = library.index.read(path)
+        return found[0] if found else None
+
+    try:
+        _path, data = read_animation_data(read, folder, ntpath.basename(file).rsplit(".", 1)[0])
+        return neox_anim.Clip(clip_name, neox_anim.Animation(data), neox_anim.Skeleton(skeleton[0]))
+    except Exception:
+        get_logger().debug("Could not read the clip %s of %s", clip_name, stem, exc_info=True)
+        return None
+
+
+def _coded_pose_props(library, clips) -> dict[tuple[str, str], list[str]]:
+    """
+    {(sex, clip): prop files} for poses whose props the game's code brings rather than a table: models whose
+    .animconfig names the pose's clip (the sword of idle_shoucang_02). Of two with the same clips in one folder, the
+    one named after the pose is kept; a sex without its own takes the other's.
+    """
+    found: dict[tuple[str, str], dict[str, tuple[bytes, str]]] = {}
+    for path in library.index.manifest():
+        low = path.lower()
+        if not low.endswith(".animconfig") or "\\zhujuedaoju\\" not in low:
+            continue
+        data = (library.index.read(path) or (b"",))[0]
+        named = {name.decode("utf-8", "replace").lower() for name in re.findall(rb'Name="([^"]+)"', data)}
+        gim = path[: -len(".animconfig")] + ".gim"
+        sex = "female" if "\\girl\\" in low else "male"
+        for clip in named & clips:
+            group = found.setdefault((sex, clip), {})
+            key = ntpath.dirname(low) + "|" + data.decode("utf-8", "replace")
+            tokens = [t for t in clip.split("_") if len(t) > 2 and t != "idle"]
+            if key not in group or any(t in ntpath.basename(low) for t in tokens):
+                group[key] = (data, gim)
+    result = {key: sorted(gim for _data, gim in group.values()) for key, group in found.items()}
+    for sex, other in (("male", "female"), ("female", "male")):
+        for (owner, clip), files in list(result.items()):
+            if owner == other and (sex, clip) not in result:
+                result[(sex, clip)] = files
+    return result
 
 
 def load_pose_clip(library, sex: str, clip_name: str):
@@ -840,6 +950,7 @@ def attachment_items(library, path, sockets, report, sex=None):
             "name": name,
             "mesh": accessory_sockets._place(model[0], place, bone, rest[bone], name),
             "parts": [dict(part) for part in model[1]],
+            "attach": {"gim": gim, "bone": bone, "offset": offset, "tag": name},
         }
         if prop_clips(row):
             piece["clips"] = prop_clips(row)

@@ -64,9 +64,9 @@ game's wardrobe:
   the size as modelled and the grown-up size.
 - **Wand** holds one of the game's wand skins in the right hand. **Pose** plays a standing pose in the 3D view
   (the wand follows the hand). With no pose picked, an outfit that has its own idle plays it, and any other
-  plays the **Standard** pose, as in the game. A pose brings its props (the doll, the book, the fan), and props
-  that belong to other poses are put away. A few poses put the wand away too, as the game does. The particle
-  effects some poses have are not shown.
+  plays the **Standard** pose, as in the game. A pose brings its props (the doll, the book, the fan, the knight's
+  sword), each playing its own animation, and props that belong to other poses are put away. A few poses put the
+  wand away too, as the game does. The particle effects some poses have are not shown.
 - **Export ▼** saves the character as GLB, PMX or OBJ, without animation, with the props the pose shows
   (**PMX options** are in the same menu).
   **Pose as VMD… / GLB…** in the same menu save the pose that plays (the picked one, or the outfit's own idle) on

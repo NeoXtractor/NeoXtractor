@@ -26,6 +26,7 @@ from gui.widgets.face_makeup_data import (  # noqa: F401
     load_face_items,
     load_wardrobe_items,
     pose_items,
+    prop_clip,
     without_old_eye_faces,
 )
 from gui.widgets.face_makeup_widgets import (  # noqa: F401
@@ -1586,9 +1587,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         loading = self.__dict__.setdefault("_loading_poses", set())
         if key not in loading:
             loading.add(key)
-            props = (self._pose_entry(name) or {}).get("props", [])
+            entry = self._pose_entry(name) or {}
             threading.Thread(
-                target=_load_pose_worker, args=(self.library, key, self._signals, props), daemon=True
+                target=_load_pose_worker,
+                args=(self.library, key, self._signals, entry.get("props", []), entry.get("prop_files", [])),
+                daemon=True,
             ).start()
 
     def _pose_loaded(self, key, loaded, error):
@@ -1605,17 +1608,17 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         return next((entry for entry in entries if entry["clip"] == name), None) if name else None
 
     def _pose_settings(self):
-        """(clip, wand shown, prop ids) of the playing pose, as export_face takes them."""
+        """(clip, wand shown, prop ids, prop files) of the playing pose, as export_face takes them."""
         name = self.pose_clip_name()
         entry = self._pose_entry(name) or {}
-        return name, entry.get("wand", True), entry.get("props", [])
+        return name, entry.get("wand", True), entry.get("props", []), entry.get("prop_files", [])
 
     def _posed_wardrobe(self, wardrobe):
         """
         The worn pieces as the playing pose shows them: props of other clips and, for poses without a wand, the
         wand put away; the pose's own props come along unless the worn outfit brings them.
         """
-        name, wand, _props = self._pose_settings()
+        name, wand, _props, _files = self._pose_settings()
         shown = pose_items(wardrobe, name, wand)
         if name and not any(item.get("clips") for item in shown):
             shown += [dict(item, path=None) for item in getattr(self, "pose_props", {}).get((self._sex(), name), [])]
@@ -1625,6 +1628,30 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         """The loaded clip of the chosen pose, or None (no pose, or still loading)."""
         name = self.pose_clip_name()
         return getattr(self, "pose_clips", {}).get((self._sex(), name)) if name else None
+
+    def _item_clip(self, item, clip):
+        """
+        The clip a piece plays: a prop with its own clip for the pose (its .animconfig names it) plays that on its
+        socket, the rest the character's. Built once per piece and clip, so the view keeps its objects.
+        """
+        attach = item.get("attach")
+        if clip is None or not attach:
+            return clip
+        cache = self.__dict__.setdefault("_attached_clips", {})
+        key = (id(item["mesh"]), id(clip))
+        if key not in cache:
+            from core.npk.accessory_sockets import AttachedClip
+
+            own = self.__dict__.setdefault("_prop_clips", {})
+            name = self.pose_clip_name()
+            if (attach["gim"], name) not in own:
+                own[(attach["gim"], name)] = prop_clip(self.library, attach["gim"], name)
+            prop = own[(attach["gim"], name)]
+            playing = clip
+            if prop is not None and attach["bone"] in clip.bone_names:
+                playing = AttachedClip(clip, prop, attach["bone"], attach["offset"], attach["tag"])
+            cache[key] = (item["mesh"], clip, playing)  # held, so the ids stay unique
+        return cache[key][2]
 
     def _ensure_parts(self):
         cache = self.__dict__.setdefault("part_items", {})
@@ -1850,12 +1877,13 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         objects, keep = [], set()
         for item in items:
             images = [part.get("image") for part in item["parts"]]
-            key = (id(item["mesh"]), item["name"], tuple(id(i) if i is not None else 0 for i in images), id(clip))
+            playing = self._item_clip(item, clip)
+            key = (id(item["mesh"]), item["name"], tuple(id(i) if i is not None else 0 for i in images), id(playing))
             obj = cache.get(key)
             if obj is None:
                 obj = SceneObject(item["name"], item["mesh"])
-                if clip is not None:
-                    obj.set_animation(clip)
+                if playing is not None:
+                    obj.set_animation(playing)
                 for number, part in enumerate(obj.parts):
                     info = item["parts"][number] if number < len(item["parts"]) else None
                     image = info.get("image") if info else None

@@ -206,12 +206,12 @@ def _load_part_worker(library, path, texture, sockets, signals, sex=None, key=No
         pass
 
 
-def _load_pose_worker(library, key, signals, props=()):
-    """key: (sex, clip name) of a standing pose; props: the attachment ids of its own props."""
+def _load_pose_worker(library, key, signals, props=(), files=()):
+    """key: (sex, clip name) of a standing pose; props, files: its own props (attachment ids, model files)."""
     report: list[str] = []
     try:
         loaded, error = {"clip": load_pose_clip(library, *key), "props": []}, ""
-        loaded["props"] = load_pose_props(library, key[0], props, report)
+        loaded["props"] = load_pose_props(library, key[0], props, report, files, key[1])
         error = "; ".join(report)
     except Exception as exc:
         loaded, error = {"clip": None, "props": []}, str(exc)
@@ -294,7 +294,7 @@ def export_face(
 ):
     """
     Write <output>/<face>_makeup/model.<fmt>: face (+ eyes, lashes, eyebrows) with the makeup baked in.
-    pose: (clip, wand shown, prop ids) of the playing pose, whose props come along as they are shown.
+    pose: (clip, wand shown, prop ids, prop files) of the playing pose, whose props come along as they are shown.
     """
     from gui.widgets.character_exports import start_export
 
@@ -346,10 +346,10 @@ def export_face(
             progress(f"Loading {ntpath.basename(path)}", len(mesh_paths), len(mesh_paths) + 2)
             output += dress_wardrobe_items(load_wardrobe_items(library, path, report, texture, sockets, sex), skin)
         if pose is not None:
-            clip, wand, props = pose
+            clip, wand, props, files = pose
             output = pose_items(output, clip, wand)
             if not any(item.get("clips") for item in output):
-                output += load_pose_props(library, sex, props, report)
+                output += load_pose_props(library, sex, props, report, files, clip)
         from gui.widgets.character_exports import with_body_size
         from core.npk.accessory_sockets import apply_bind_offsets
 

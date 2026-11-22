@@ -281,3 +281,29 @@ def _place(mesh, place: np.ndarray, bone: str, bone_rest: np.ndarray, tag: str):
     except AttributeError:
         pass
     return shaped
+
+
+class AttachedClip:
+    """
+    A prop's own clip (the doll of idle_276_sylg, the rose sword of idle_298_fnlg) played on its socket: its bones,
+    named as _place names them, move by the prop's clip under the character clip's socket bone.
+    """
+
+    def __init__(self, character, prop, bone: str, offset: np.ndarray, tag: str):
+        self.character, self.prop = character, prop
+        self.name = getattr(character, "name", "")
+        self.socket = list(character.bone_names).index(bone)
+        self.offset = np.asarray(offset, float).T  # row-vector -> column-vector
+        own = len(prop.bone_names)
+        self.bone_names = [f"{tag}_{bone_key(n)}" for n in prop.bone_names] + [bone]
+        self.parents = [(p if 0 <= p < own else own) for p in prop.parents] + [-1]
+        self.duration = character.duration
+        self._last = None
+
+    def world_matrices(self, time: float) -> np.ndarray:
+        if self._last is not None and self._last[0] == time:
+            return self._last[1]
+        socket = self.character.world_matrices(time)[self.socket]
+        world = np.concatenate([socket @ self.offset @ self.prop.world_matrices(time), socket[None]])
+        self._last = (time, world)
+        return world
