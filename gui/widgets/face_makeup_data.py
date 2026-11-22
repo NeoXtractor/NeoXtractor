@@ -428,7 +428,7 @@ def _read_texture(library, texture):
         try:
             return Image.open(io.BytesIO(found[0])).convert("RGBA")
         except Exception:
-            get_logger().debug("Could not decode the texture %s", path, exc_info=True)
+            get_logger().debug("Could not decode the texture %s", candidate, exc_info=True)
             continue
     return None
 
