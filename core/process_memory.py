@@ -9,13 +9,23 @@ def private_memory_bytes():
     if sys.platform != "win32":
         return None
     from ctypes import wintypes
+
     class Counters(ctypes.Structure):
         _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
-            (name, ctypes.c_size_t) for name in (
-                "PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage",
-                "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage",
-                "PrivateUsage")
+            (name, ctypes.c_size_t)
+            for name in (
+                "PeakWorkingSetSize",
+                "WorkingSetSize",
+                "QuotaPeakPagedPoolUsage",
+                "QuotaPagedPoolUsage",
+                "QuotaPeakNonPagedPoolUsage",
+                "QuotaNonPagedPoolUsage",
+                "PagefileUsage",
+                "PeakPagefileUsage",
+                "PrivateUsage",
+            )
         ]
+
     counters = Counters()
     counters.cb = ctypes.sizeof(counters)
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -46,4 +56,5 @@ def check_scan_memory(force=False):
     if usage is not None and usage > SCAN_MEMORY_LIMIT:
         raise ScanMemoryLimitExceeded(
             "Scan stopped at the 768 MiB process-memory safety threshold. Close extra viewer windows, "
-            "unload the archive, or open a single copy. No game files were changed.")
+            "unload the archive, or open a single copy. No game files were changed."
+        )

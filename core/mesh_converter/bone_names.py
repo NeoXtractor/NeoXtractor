@@ -16,28 +16,61 @@ LABEL = "Translate bones to MMD names on PMX export"
 FILE_STEM = "pmx_bone_names"
 
 DEFAULT_TABLE = {
-    "e_lbone_000": "左目", "e_rbone_000": "右目",
-    "bip001_head": "頭", "bip001_neck": "首",
-    "bip001_spine1": "上半身2", "bip001_spine": "上半身", "waist": "下半身", "lower": "下半身",
-    "bip001_pelvis": "下半身",            # NPCs with a full biped (bip001 → pelvis → thighs / spine)
-    "bip001_l_thigh": "左足D", "bip001_l_calf": "左ひざD", "bip001_l_foot": "左足首D", "bip001_l_toe0": "左足先EX",
-    "bip001_r_thigh": "右足D", "bip001_r_calf": "右ひざD", "bip001_r_foot": "右足首D", "bip001_r_toe0": "右足先EX",
-    "bip001_l_clavicle": "左肩", "bip001_l_upperarm": "左腕", "bip001_l_forearm": "左ひじ", "bip001_l_hand": "左手首",
-    "bip001_r_clavicle": "右肩", "bip001_r_upperarm": "右腕", "bip001_r_forearm": "右ひじ", "bip001_r_hand": "右手首",
-    "bip001_l_finger0": "左親指０", "bip001_l_finger01": "左親指１",
-    "bip001_l_finger1": "左人指１", "bip001_l_finger11": "左人指２",
-    "bip001_l_finger2": "左中指１", "bip001_l_finger21": "左中指２",
-    "bip001_l_finger3": "左薬指１", "bip001_l_finger31": "左薬指２",
-    "bip001_l_finger4": "左小指１", "bip001_l_finger41": "左小指２",
-    "bip001_l_finger02": "左親指２", "bip001_l_finger12": "左人指３", "bip001_l_finger22": "左中指３",
-    "bip001_l_finger32": "左薬指３", "bip001_l_finger42": "左小指３",
-    "bip001_r_finger0": "右親指０", "bip001_r_finger01": "右親指１",
-    "bip001_r_finger1": "右人指１", "bip001_r_finger11": "右人指２",
-    "bip001_r_finger2": "右中指１", "bip001_r_finger21": "右中指２",
-    "bip001_r_finger3": "右薬指１", "bip001_r_finger31": "右薬指２",
-    "bip001_r_finger4": "右小指１", "bip001_r_finger41": "右小指２",
-    "bip001_r_finger02": "右親指２", "bip001_r_finger12": "右人指３", "bip001_r_finger22": "右中指３",
-    "bip001_r_finger32": "右薬指３", "bip001_r_finger42": "右小指３",
+    "e_lbone_000": "左目",
+    "e_rbone_000": "右目",
+    "bip001_head": "頭",
+    "bip001_neck": "首",
+    "bip001_spine1": "上半身2",
+    "bip001_spine": "上半身",
+    "waist": "下半身",
+    "lower": "下半身",
+    "bip001_pelvis": "下半身",  # NPCs with a full biped (bip001 → pelvis → thighs / spine)
+    "bip001_l_thigh": "左足D",
+    "bip001_l_calf": "左ひざD",
+    "bip001_l_foot": "左足首D",
+    "bip001_l_toe0": "左足先EX",
+    "bip001_r_thigh": "右足D",
+    "bip001_r_calf": "右ひざD",
+    "bip001_r_foot": "右足首D",
+    "bip001_r_toe0": "右足先EX",
+    "bip001_l_clavicle": "左肩",
+    "bip001_l_upperarm": "左腕",
+    "bip001_l_forearm": "左ひじ",
+    "bip001_l_hand": "左手首",
+    "bip001_r_clavicle": "右肩",
+    "bip001_r_upperarm": "右腕",
+    "bip001_r_forearm": "右ひじ",
+    "bip001_r_hand": "右手首",
+    "bip001_l_finger0": "左親指０",
+    "bip001_l_finger01": "左親指１",
+    "bip001_l_finger1": "左人指１",
+    "bip001_l_finger11": "左人指２",
+    "bip001_l_finger2": "左中指１",
+    "bip001_l_finger21": "左中指２",
+    "bip001_l_finger3": "左薬指１",
+    "bip001_l_finger31": "左薬指２",
+    "bip001_l_finger4": "左小指１",
+    "bip001_l_finger41": "左小指２",
+    "bip001_l_finger02": "左親指２",
+    "bip001_l_finger12": "左人指３",
+    "bip001_l_finger22": "左中指３",
+    "bip001_l_finger32": "左薬指３",
+    "bip001_l_finger42": "左小指３",
+    "bip001_r_finger0": "右親指０",
+    "bip001_r_finger01": "右親指１",
+    "bip001_r_finger1": "右人指１",
+    "bip001_r_finger11": "右人指２",
+    "bip001_r_finger2": "右中指１",
+    "bip001_r_finger21": "右中指２",
+    "bip001_r_finger3": "右薬指１",
+    "bip001_r_finger31": "右薬指２",
+    "bip001_r_finger4": "右小指１",
+    "bip001_r_finger41": "右小指２",
+    "bip001_r_finger02": "右親指２",
+    "bip001_r_finger12": "右人指３",
+    "bip001_r_finger22": "右中指３",
+    "bip001_r_finger32": "右薬指３",
+    "bip001_r_finger42": "右小指３",
 }
 
 _cache: dict = {"key": None, "table": None}
@@ -46,6 +79,7 @@ _cache: dict = {"key": None, "table": None}
 def _app_folder() -> str:
     try:
         from core.utils import get_application_path
+
         return str(get_application_path())
     except Exception:
         return os.getcwd()
@@ -111,6 +145,7 @@ def table() -> dict[str, str]:
                         result[source.lower()] = target
             except Exception:
                 from core.logger import get_logger
+
                 get_logger().exception("Could not read %s; using the built-in bone names", path)
         _cache["key"], _cache["table"] = key, result
     return _cache["table"]
@@ -138,6 +173,7 @@ def enabled(settings=None) -> bool:
     if settings is None:
         try:
             from PySide6 import QtWidgets
+
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
         except Exception:

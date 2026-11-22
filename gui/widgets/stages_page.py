@@ -16,7 +16,7 @@ from core.npk.stage_export import PackIndex, StageExporter, game_layers, game_ro
 from gui.utils import scan_memory
 
 STAGES_DATA = "stages"
-SETTING_GAME_FOLDER = "stage_export.game_folder"      # remembered for the other exports' fallback
+SETTING_GAME_FOLDER = "stage_export.game_folder"  # remembered for the other exports' fallback
 NO_STAGES_HINT = "Open scene.npk, or a DLC scene pack (res_dlc_…), to see its stages."
 SETTING_OUTPUT_FOLDER = "stage_export.output_folder"
 SETTING_FORMAT = "stage_export.format"
@@ -26,16 +26,26 @@ def export_stage_file(index, scene, output, kind, include_hidden, progress, canc
     """Write a stage as one <output>/<stage>/<stage>.glb or .pmx, with a short report beside it."""
     from core.mesh_converter import model_export
     from core.npk.stage_export import StageLoader
-    loader = StageLoader(index, progress=progress, cancelled=cancelled, include_hidden=include_hidden,
-                         max_texture_size=8192)
+
+    loader = StageLoader(
+        index, progress=progress, cancelled=cancelled, include_hidden=include_hidden, max_texture_size=8192
+    )
     objects = loader.load(scene)
     if not objects:
         raise ValueError("the scene has no visible models")
     stage = Path(scene.replace("\\", "/")).stem
     folder = Path(output) / stage
     progress(f"Writing {stage}.{kind}…", len(objects), len(objects))
-    items = [{"name": obj["name"], "mesh": obj["mesh"], "matrix": obj["matrix"], "parts": obj["parts"],
-              "animation": obj.get("animation")} for obj in objects]
+    items = [
+        {
+            "name": obj["name"],
+            "mesh": obj["mesh"],
+            "matrix": obj["matrix"],
+            "parts": obj["parts"],
+            "animation": obj.get("animation"),
+        }
+        for obj in objects
+    ]
     target = folder / f"{stage}.{kind}"
     if kind == "glb":
         model_export.write_glb(items, target)
@@ -66,9 +76,9 @@ class _SortableItem(QtWidgets.QTreeWidgetItem):
 
 
 class _Signals(QtCore.QObject):
-    scenes_ready = QtCore.Signal(int, object, str)       # generation, scenes, error
+    scenes_ready = QtCore.Signal(int, object, str)  # generation, scenes, error
     progress = QtCore.Signal(str, int, int)
-    finished = QtCore.Signal(object, str)                # written files, error
+    finished = QtCore.Signal(object, str)  # written files, error
 
 
 class StagesPage(QtWidgets.QWidget):
@@ -79,14 +89,14 @@ class StagesPage(QtWidgets.QWidget):
         self.setObjectName("stagesPage")
         self.window_ = window
         self.game: Path | None = None
-        self.pack: str | None = None           # stem of the opened pack: "scene", "res_dlc1_hogsmeade", ...
+        self.pack: str | None = None  # stem of the opened pack: "scene", "res_dlc1_hogsmeade", ...
         self.index: PackIndex | None = None
         self._all_scenes: list[str] = []
         self._sizes: dict[str, int] = {}
         self._generation = 0
         self._cancel = threading.Event()
         self._busy = False
-        self._scanning = False                 # the stage list of self.game is being read
+        self._scanning = False  # the stage list of self.game is being read
         self._last_output: Path | None = None
 
         self.signals = _Signals()
@@ -107,7 +117,9 @@ class StagesPage(QtWidgets.QWidget):
         self.tree.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         self.tree.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.tree.itemSelectionChanged.connect(self._update_buttons)
-        self.tree.itemDoubleClicked.connect(lambda item, _column: self.export_selected() if item.childCount() == 0 else None)
+        self.tree.itemDoubleClicked.connect(
+            lambda item, _column: self.export_selected() if item.childCount() == 0 else None
+        )
         self.tree.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._stage_menu)
         layout.addWidget(self.tree, 1)
@@ -123,7 +135,9 @@ class StagesPage(QtWidgets.QWidget):
         self.format_combo.setToolTip("GLB packs the whole stage and its textures into one file.")
         saved = self._setting(SETTING_FORMAT, "glb")
         self.format_combo.setCurrentIndex(max(0, self.format_combo.findData(saved)))
-        self.format_combo.currentIndexChanged.connect(lambda _i: self._store(SETTING_FORMAT, self.format_combo.currentData()))
+        self.format_combo.currentIndexChanged.connect(
+            lambda _i: self._store(SETTING_FORMAT, self.format_combo.currentData())
+        )
         options_row.addWidget(self.format_combo)
         layout.addLayout(options_row)
 
@@ -154,7 +168,6 @@ class StagesPage(QtWidgets.QWidget):
         layout.addLayout(buttons)
         self._update_buttons()
 
-    # -- settings ------------------------------------------------------------
     def _settings(self):
         app = QtWidgets.QApplication.instance()
         return app.property("settings_manager") if app is not None else None
@@ -179,7 +192,6 @@ class StagesPage(QtWidgets.QWidget):
         app = QtWidgets.QApplication.instance()
         return read_options_for(app.property("npk_file") if app is not None else None)
 
-    # -- opened pack ---------------------------------------------------------
     def activate(self):
         """Called whenever the Stages category is selected or an archive finishes loading."""
         game = pack = None
@@ -227,7 +239,7 @@ class StagesPage(QtWidgets.QWidget):
             except Exception as exc:
                 self.signals.scenes_ready.emit(generation, None, str(exc))
 
-        scan_memory.begin()         # the pack index this builds stays in memory
+        scan_memory.begin()  # the pack index this builds stays in memory
         threading.Thread(target=scan, daemon=True).start()
         self._update_buttons()
 
@@ -260,7 +272,7 @@ class StagesPage(QtWidgets.QWidget):
             if "scene" in parts[:-1]:
                 at = parts.index("scene")
                 stage = parts[at + 1] if len(parts) > at + 2 else Path(scene.replace("\\", "/")).stem
-                pack = parts[0] if at > 0 else ""      # DLC packs keep their own scene folder
+                pack = parts[0] if at > 0 else ""  # DLC packs keep their own scene folder
             else:
                 # e.g. res_dlc_x\levelsets\<stage>\<stage>.scn: file it under the same stage
                 stage = parts[-2] if len(parts) > 1 else Path(scene.replace("\\", "/")).stem
@@ -277,7 +289,7 @@ class StagesPage(QtWidgets.QWidget):
             for scene in members:
                 parts = scene.split("\\")
                 at = len(parts) - 1 - parts[::-1].index(stage) if stage in parts[:-1] else len(parts) - 2
-                label = "\\".join(parts[at + 1:])
+                label = "\\".join(parts[at + 1 :])
                 if "scene" not in parts[:-1]:
                     label += f"   (from {parts[1] if len(parts) > 2 else parts[0]})"
                 child = _SortableItem([label, "", _size_text(sizes.get(scene, 0))])
@@ -288,10 +300,15 @@ class StagesPage(QtWidgets.QWidget):
             self.tree.addTopLevelItem(parent)
         self.tree.setUpdatesEnabled(True)
         self.tree.setSortingEnabled(True)
-        self.status.setText(f"{len(groups)} stages, {len(scenes)} scenes. "
-                            "Click a column header to sort; select scenes (or a stage) and export.")
-        self.apply_filter(getattr(self.window_, "name_filter_input", None).text()
-                          if hasattr(self.window_, "name_filter_input") else "")
+        self.status.setText(
+            f"{len(groups)} stages, {len(scenes)} scenes. "
+            "Click a column header to sort; select scenes (or a stage) and export."
+        )
+        self.apply_filter(
+            getattr(self.window_, "name_filter_input", None).text()
+            if hasattr(self.window_, "name_filter_input")
+            else ""
+        )
         self._update_buttons()
 
     def apply_filter(self, text: str):
@@ -307,7 +324,6 @@ class StagesPage(QtWidgets.QWidget):
                 visible += show
             parent.setHidden(visible == 0)
 
-    # -- export --------------------------------------------------------------
     def _selected_scenes(self) -> list[str]:
         scenes = []
         for item in self.tree.selectedItems():
@@ -354,12 +370,14 @@ class StagesPage(QtWidgets.QWidget):
 
                 try:
                     if kind == "gltf":
-                        exporter = StageExporter(index, include_hidden=include_hidden, cancelled=self._cancel.is_set,
-                                                 progress=progress)
+                        exporter = StageExporter(
+                            index, include_hidden=include_hidden, cancelled=self._cancel.is_set, progress=progress
+                        )
                         written.append(exporter.export(scene, output))
                     else:
-                        written.append(export_stage_file(index, scene, output, kind, include_hidden,
-                                                         progress, self._cancel.is_set))
+                        written.append(
+                            export_stage_file(index, scene, output, kind, include_hidden, progress, self._cancel.is_set)
+                        )
                 except InterruptedError:
                     break
                 except Exception as exc:
@@ -374,6 +392,7 @@ class StagesPage(QtWidgets.QWidget):
         if self.index is None or len(scenes) != 1:
             return
         from gui.widgets import scene_viewer
+
         scene_viewer.viewer_for(self.window_).open_stage(self.game, scenes[0], self._read_options())
 
     def _stage_menu(self, position):

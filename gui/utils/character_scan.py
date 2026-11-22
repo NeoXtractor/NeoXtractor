@@ -27,8 +27,9 @@ class CharacterScanWorker(QtCore.QRunnable):
 
     def run(self):
         try:
-            catalog = build_character_catalog(self.archive, self.roots, self.names,
-                                              progress=self._progress, cancelled=self.cancel_event.is_set)
+            catalog = build_character_catalog(
+                self.archive, self.roots, self.names, progress=self._progress, cancelled=self.cancel_event.is_set
+            )
             self.signals.finished.emit(self.generation, catalog, "")
         except CharacterScanCancelled:
             self.signals.finished.emit(self.generation, None, "cancelled")

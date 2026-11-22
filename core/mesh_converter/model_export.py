@@ -16,7 +16,7 @@ import numpy as np
 
 from core.mesh_loader.types import MeshData
 
-MIRROR = np.diag([-1.0, 1.0, 1.0])          # NeoX (left-handed) -> glTF (right-handed)
+MIRROR = np.diag([-1.0, 1.0, 1.0])  # NeoX (left-handed) -> glTF (right-handed)
 ROOT_NAME = "root"
 
 
@@ -50,9 +50,9 @@ def merge(items: list[dict], separate_skeletons: bool = False):
     kept per item with separate_skeletons (placed objects that animate on their own).
     Several roots get a shared "root" bone. merged.joint_keys holds (item index or None, bone name).
     """
-    bones: dict[tuple, list] = {}             # (group, name) -> [row-vector world matrix, parent key]
+    bones: dict[tuple, list] = {}  # (group, name) -> [row-vector world matrix, parent key]
     order: list[tuple] = []
-    usage: dict[tuple, float] = {}            # how much skin weight the chosen bind carries
+    usage: dict[tuple, float] = {}  # how much skin weight the chosen bind carries
     for number, item in enumerate(items):
         mesh = item["mesh"]
         if not mesh.has_bones:
@@ -135,15 +135,17 @@ def merge(items: list[dict], separate_skeletons: bool = False):
             info = item_parts[number] if number < len(item_parts) else {}
             parts.append((count if number == 0 else 0, face_count, 0, 0))
             object_name = re.sub(r"\.(mesh|gim)$", "", item["name"], flags=re.I)
-            materials.append({
-                "name": info.get("material") or f"{item['name']}_{number}",
-                "object": item["name"],
-                "part_name": object_name if len(ranges) == 1 else f"{object_name}_{number}",
-                "texture": info.get("texture"),
-                "image": info.get("image"),
-                "alpha": info.get("alpha", "OPAQUE"),
-                "cutoff": info.get("cutoff", 0.5),
-            })
+            materials.append(
+                {
+                    "name": info.get("material") or f"{item['name']}_{number}",
+                    "object": item["name"],
+                    "part_name": object_name if len(ranges) == 1 else f"{object_name}_{number}",
+                    "texture": info.get("texture"),
+                    "image": info.get("image"),
+                    "alpha": info.get("alpha", "OPAQUE"),
+                    "cutoff": info.get("cutoff", 0.5),
+                }
+            )
         offset += count
 
     if not positions:
@@ -202,6 +204,7 @@ def _texture_names(materials) -> dict[int, str]:
 def _trs(matrix):
     """Column-vector 4x4 -> glTF translation, rotation (xyzw) and scale lists."""
     from core.npk.neox_anim import matrix_quaternion
+
     scale = np.linalg.norm(matrix[:3, :3], axis=0)
     rotation = matrix_quaternion(matrix[:3, :3] / np.maximum(scale, 1e-12))
     return matrix[:3, 3].tolist(), rotation.tolist(), scale.tolist()
@@ -242,20 +245,24 @@ def _add_animations(gltf, items, mesh, bind_worlds, first_joint, accessor):
             parent = mesh.bone_parent[joint]
             if parent in animated_worlds:
                 parents = animated_worlds[parent]
-            else:                                    # parent is not animated by this clip: its bind pose
+            else:  # parent is not animated by this clip: its bind pose
                 static = bind_worlds[parent] if parent >= 0 else np.eye(4)
                 parents = np.repeat(static[None], frames, 0)
             locals_ = np.linalg.inv(parents) @ animated_worlds[joint]
             trs = [_trs(m) for m in locals_]
             rotations = np.array([r for _t, r, _s in trs], np.float32)
-            for k in range(1, len(rotations)):           # keep quaternions on one hemisphere for smooth blending
+            for k in range(1, len(rotations)):  # keep quaternions on one hemisphere for smooth blending
                 if np.dot(rotations[k], rotations[k - 1]) < 0:
                     rotations[k] = -rotations[k]
             node = first_joint + joint
-            for path, values, kind in (("translation", np.array([t for t, _r, _s in trs], np.float32), "VEC3"),
-                                       ("rotation", rotations, "VEC4"),
-                                       ("scale", np.array([s for _t, _r, s in trs], np.float32), "VEC3")):
-                samplers.append({"input": input_accessor, "output": accessor(values, 5126, kind), "interpolation": "LINEAR"})
+            for path, values, kind in (
+                ("translation", np.array([t for t, _r, _s in trs], np.float32), "VEC3"),
+                ("rotation", rotations, "VEC4"),
+                ("scale", np.array([s for _t, _r, s in trs], np.float32), "VEC3"),
+            ):
+                samplers.append(
+                    {"input": input_accessor, "output": accessor(values, 5126, kind), "interpolation": "LINEAR"}
+                )
                 channels.append({"sampler": len(samplers) - 1, "target": {"node": node, "path": path}})
     if channels:
         gltf["animations"] = [{"name": "default loops", "channels": channels, "samplers": samplers}]
@@ -271,10 +278,20 @@ def write_glb(items: list[dict], target, animations: bool = True) -> Path:
     # model keeps plain bone names, so its animation retargets by name in Blender and similar tools
     mesh, materials = merge(items, separate_skeletons=animated and len(items) > 1)
     target = Path(target)
-    gltf = {"asset": {"version": "2.0", "generator": "NeoXtractor HPMA model export"},
-            "scene": 0, "scenes": [{"name": target.stem, "nodes": []}], "nodes": [], "meshes": [],
-            "materials": [], "textures": [], "images": [], "samplers": [{"wrapS": 10497, "wrapT": 10497}],
-            "accessors": [], "bufferViews": [], "skins": []}
+    gltf = {
+        "asset": {"version": "2.0", "generator": "NeoXtractor HPMA model export"},
+        "scene": 0,
+        "scenes": [{"name": target.stem, "nodes": []}],
+        "nodes": [],
+        "meshes": [],
+        "materials": [],
+        "textures": [],
+        "images": [],
+        "samplers": [{"wrapS": 10497, "wrapT": 10497}],
+        "accessors": [],
+        "bufferViews": [],
+        "skins": [],
+    }
     binary = bytearray()
 
     def view(data: bytes, target_kind=None):
@@ -289,8 +306,12 @@ def write_glb(items: list[dict], target, animations: bool = True) -> Path:
 
     def accessor(array, component, kind, target_kind=None, minmax=False):
         array = np.ascontiguousarray(array)
-        result = {"bufferView": view(array.tobytes(), target_kind), "componentType": component,
-                  "count": int(array.shape[0]), "type": kind}
+        result = {
+            "bufferView": view(array.tobytes(), target_kind),
+            "componentType": component,
+            "count": int(array.shape[0]),
+            "type": kind,
+        }
         if minmax:
             result["min"] = array.min(axis=0).astype(float).tolist()
             result["max"] = array.max(axis=0).astype(float).tolist()
@@ -313,12 +334,16 @@ def write_glb(items: list[dict], target, animations: bool = True) -> Path:
     image_index = {}
     for material in materials:
         image = material.get("image")
-        gl_material = {"name": material["name"], "doubleSided": True,
-                       "pbrMetallicRoughness": {"metallicFactor": 0.0, "roughnessFactor": 1.0}}
+        gl_material = {
+            "name": material["name"],
+            "doubleSided": True,
+            "pbrMetallicRoughness": {"metallicFactor": 0.0, "roughnessFactor": 1.0},
+        }
         if image is not None:
             if id(image) not in image_index:
-                gltf["images"].append({"name": names[id(image)], "mimeType": "image/png",
-                                       "bufferView": view(_png(image))})
+                gltf["images"].append(
+                    {"name": names[id(image)], "mimeType": "image/png", "bufferView": view(_png(image))}
+                )
                 gltf["textures"].append({"source": len(gltf["images"]) - 1, "sampler": 0})
                 image_index[id(image)] = len(gltf["textures"]) - 1
             gl_material["pbrMetallicRoughness"]["baseColorTexture"] = {"index": image_index[id(image)]}
@@ -330,11 +355,16 @@ def write_glb(items: list[dict], target, animations: bool = True) -> Path:
 
     primitives, start = [], 0
     for number, part in enumerate(mesh.mesh):
-        chunk = faces[start:start + part[1]]
+        chunk = faces[start : start + part[1]]
         start += part[1]
         if len(chunk):
-            primitives.append({"attributes": attributes, "material": number,
-                               "indices": accessor(chunk.reshape(-1), 5125, "SCALAR", 34963)})
+            primitives.append(
+                {
+                    "attributes": attributes,
+                    "material": number,
+                    "indices": accessor(chunk.reshape(-1), 5125, "SCALAR", 34963),
+                }
+            )
     gltf["meshes"].append({"name": target.stem, "primitives": primitives})
 
     # Skeleton: NeoX bind matrices are row-vector model-space transforms
@@ -350,16 +380,20 @@ def write_glb(items: list[dict], target, animations: bool = True) -> Path:
     for index, name in enumerate(mesh.bone_name):
         parent = mesh.bone_parent[index]
         local = np.linalg.inv(worlds[parent]) @ worlds[index] if parent >= 0 else worlds[index]
-        translation, rotation, scale = _trs(local)       # TRS, since animated nodes may not use "matrix"
+        translation, rotation, scale = _trs(local)  # TRS, since animated nodes may not use "matrix"
         gltf["nodes"].append({"name": name, "translation": translation, "rotation": rotation, "scale": scale})
     for index, parent in enumerate(mesh.bone_parent):
         if parent >= 0:
             gltf["nodes"][first_joint + parent].setdefault("children", []).append(first_joint + index)
     inverse_binds = np.array([np.linalg.inv(world).T.reshape(-1) for world in worlds], np.float32)
     roots = [first_joint + i for i, parent in enumerate(mesh.bone_parent) if parent < 0]
-    gltf["skins"].append({"joints": list(range(first_joint, first_joint + len(worlds))),
-                          "inverseBindMatrices": accessor(inverse_binds, 5126, "MAT4"),
-                          "skeleton": roots[0]})
+    gltf["skins"].append(
+        {
+            "joints": list(range(first_joint, first_joint + len(worlds))),
+            "inverseBindMatrices": accessor(inverse_binds, 5126, "MAT4"),
+            "skeleton": roots[0],
+        }
+    )
     gltf["scenes"][0]["nodes"] = [0] + roots
 
     if animated:
@@ -390,9 +424,10 @@ def write_pmx(items: list[dict], target, bone_names: list[str] | None = None) ->
     bone_names optionally renames the merged bones (e.g. to fit a VMD's 15-byte names).
     """
     from core.mesh_converter.formats import pmx as pmx_format
+
     mesh, materials = merge(items)
     if bone_names is not None:
-        mesh.bone_source_names = list(mesh.bone_name)      # the HPMA names stay as English names
+        mesh.bone_source_names = list(mesh.bone_name)  # the HPMA names stay as English names
         mesh.bone_name = list(bone_names)
     target = Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -428,10 +463,10 @@ def write_obj(items: list[dict], target) -> Path:
     positions = np.asarray(mesh.position, float) @ MIRROR.T
     normals = np.asarray(mesh.normal, float) @ MIRROR.T
     uvs = np.asarray(mesh.uv, float)
-    faces = np.asarray(mesh.face, np.int64)[:, [0, 2, 1]] + 1          # mirrored, so flip the winding
+    faces = np.asarray(mesh.face, np.int64)[:, [0, 2, 1]] + 1  # mirrored, so flip the winding
     lines = [f"# NeoXtractor HPMA model export", f"mtllib {target.stem}.mtl"]
     lines += [f"v {x:.6f} {y:.6f} {z:.6f}" for x, y, z in positions]
-    lines += [f"vt {u:.6f} {1.0 - v:.6f}" for u, v in uvs]              # OBJ's V runs bottom-up
+    lines += [f"vt {u:.6f} {1.0 - v:.6f}" for u, v in uvs]  # OBJ's V runs bottom-up
     lines += [f"vn {x:.6f} {y:.6f} {z:.6f}" for x, y, z in normals]
     mtl, written, used = [f"# {target.stem}"], {}, set()
     start = 0
@@ -441,7 +476,7 @@ def write_obj(items: list[dict], target) -> Path:
             name += "_"
         used.add(name)
         lines += [f"g {name}", f"usemtl {name}"]
-        lines += [f"f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}" for a, b, c in faces[start:start + count]]
+        lines += [f"f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}" for a, b, c in faces[start : start + count]]
         start += count
         mtl += [f"newmtl {name}", "Ka 1 1 1", "Kd 1 1 1", "Ks 0 0 0", "Ns 50", "illum 1"]
         image = material.get("image")

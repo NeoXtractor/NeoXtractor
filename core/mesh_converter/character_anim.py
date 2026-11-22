@@ -19,14 +19,18 @@ from core.mesh_converter import bone_names, model_export, vmd_export
 from core.npk import neox_anim
 
 RIGS = {
-    "male": {"skeleton": "model\\character\\male\\male_fenli_b72732.skeleton",
-             "folder": "model\\character\\male\\animations_male_fenli_b72732",
-             "armature": "model\\character\\male\\male_fenli.mesh",              # 4-vertex mesh carrying every bone
-             "character": "model\\character\\male\\nanzhu001\\nanzhu001_fenli.mesh"},
-    "female": {"skeleton": "model\\character\\female\\female_fenli_5653f7.skeleton",
-               "folder": "model\\character\\female\\animations_female_fenli_5653f7",
-               "armature": "model\\character\\female\\female_fenli.mesh",
-               "character": "model\\character\\female\\nvzhu004\\nvzhu004_fenli.mesh"},
+    "male": {
+        "skeleton": "model\\character\\male\\male_fenli_b72732.skeleton",
+        "folder": "model\\character\\male\\animations_male_fenli_b72732",
+        "armature": "model\\character\\male\\male_fenli.mesh",  # 4-vertex mesh carrying every bone
+        "character": "model\\character\\male\\nanzhu001\\nanzhu001_fenli.mesh",
+    },
+    "female": {
+        "skeleton": "model\\character\\female\\female_fenli_5653f7.skeleton",
+        "folder": "model\\character\\female\\animations_female_fenli_5653f7",
+        "armature": "model\\character\\female\\female_fenli.mesh",
+        "character": "model\\character\\female\\nvzhu004\\nvzhu004_fenli.mesh",
+    },
 }
 
 
@@ -37,8 +41,13 @@ def mesh_bone_name(name: str) -> str:
 def animation_names(paths, sex: str) -> list[str]:
     """Clip names (file stems) of a gender's animations, from a list of game paths."""
     folder = RIGS[sex]["folder"].lower() + "\\"
-    return sorted({p.rsplit("\\", 1)[-1][:-len(".rawanimation")] for p in paths
-                   if p.lower().startswith(folder) and p.lower().endswith(".rawanimation")})
+    return sorted(
+        {
+            p.rsplit("\\", 1)[-1][: -len(".rawanimation")]
+            for p in paths
+            if p.lower().startswith(folder) and p.lower().endswith(".rawanimation")
+        }
+    )
 
 
 def load_skeleton(read, sex: str) -> neox_anim.Skeleton:
@@ -78,18 +87,22 @@ def vmd_bone_names(clip) -> list[str]:
 
 def write_vmd(clip, skeleton, target) -> tuple[Path, bool]:
     """<target>.vmd for a clip; returns (path, whether the clip also scales bones, which VMD cannot hold)."""
-    rig = SimpleNamespace(bone_name=list(clip.bone_names), bone_parent=list(skeleton.parents),
-                          bone_matrix=[world.T for world in rest_worlds(skeleton)])   # row-vector, like meshes
+    rig = SimpleNamespace(
+        bone_name=list(clip.bone_names),
+        bone_parent=list(skeleton.parents),
+        bone_matrix=[world.T for world in rest_worlds(skeleton)],
+    )  # row-vector, like meshes
     from core.mesh_converter import mmd_rig
+
     names = vmd_bone_names(clip)
     rigged = bone_names.enabled() and mmd_rig.enabled()
-    if rigged:                                       # bake against the rigged PMX's chains
+    if rigged:  # bake against the rigged PMX's chains
         rig.bone_parent = mmd_rig.vmd_parents(names, list(rig.bone_parent))
     keys, _frames = vmd_export.vmd_keyframes(rig, clip)
-    if rigged:                                       # the PMX's IK legs: key the FK leg bones, IK off
+    if rigged:  # the PMX's IK legs: key the FK leg bones, IK off
         names = [mmd_rig.vmd_name(n) for n in names]
     path = vmd_export.write_vmd(target, Path(target).stem[:20], names, keys, ik_off=mmd_rig.IK_BONES if rigged else ())
-    scaled = bool(np.abs(clip.scales - skeleton.scales[None, :len(clip.bone_names)]).max() > 1e-3)
+    scaled = bool(np.abs(clip.scales - skeleton.scales[None, : len(clip.bone_names)]).max() > 1e-3)
     return path, scaled
 
 

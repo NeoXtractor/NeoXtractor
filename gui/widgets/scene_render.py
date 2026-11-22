@@ -18,7 +18,6 @@ from core.utils import get_application_path
 from gui.utils.rendering import grid
 from gui.widgets.viewers.mesh_viewer.camera_controller import CameraController
 
-
 # NeoX is left-handed; the viewer is right-handed. Mirroring X matches the Mesh Viewer.
 MIRROR = np.diag([-1.0, 1.0, 1.0, 1.0])
 
@@ -83,8 +82,10 @@ def _blob(array) -> ctypes.Array:
 def _hlsl_shader(stage, source: str) -> QtGui.QShader:
     shader = QtGui.QShader()
     shader.setStage(stage)
-    shader.setShader(QtGui.QShaderKey(QtGui.QShader.Source.HlslShader, QtGui.QShaderVersion(50)),
-                     QtGui.QShaderCode(QtCore.QByteArray(source.encode()), QtCore.QByteArray(b"main")))
+    shader.setShader(
+        QtGui.QShaderKey(QtGui.QShader.Source.HlslShader, QtGui.QShaderVersion(50)),
+        QtGui.QShaderCode(QtCore.QByteArray(source.encode()), QtCore.QByteArray(b"main")),
+    )
     return shader
 
 
@@ -116,6 +117,7 @@ def pil_to_qimage(image) -> QtGui.QImage:
 
 def decode_image_bytes(data: bytes):
     from core.npk.stage_export import decode_texture
+
     return decode_texture(data)
 
 
@@ -133,7 +135,7 @@ class ScenePart:
         self.count = count
         self.material = material
         self.texture_key: str | None = None
-        self.alpha = "OPAQUE"           # OPAQUE, MASK or BLEND
+        self.alpha = "OPAQUE"  # OPAQUE, MASK or BLEND
         self.cutoff = 0.5
         self.highlight = False
         self.ubuf = None
@@ -160,7 +162,7 @@ class SceneObject:
         self.visible = True
         self.group: str | None = None
         world = np.eye(4) if matrix is None else np.asarray(matrix, float)
-        self.mesh = mesh                  # kept for exporting
+        self.mesh = mesh  # kept for exporting
         self.neox_matrix = world
         self.matrix = MIRROR @ world @ MIRROR
 
@@ -173,7 +175,7 @@ class SceneObject:
         if mesh.uv and len(mesh.uv) == count:
             uvs = np.asarray(mesh.uv, np.float32).reshape(-1, 2)
         self.vertices = np.hstack([positions, normals, uvs]).astype(np.float32)
-        faces = np.asarray(mesh.face, np.uint32).reshape(-1, 3)[:, [0, 2, 1]]   # mirrored: reverse winding
+        faces = np.asarray(mesh.face, np.uint32).reshape(-1, 3)[:, [0, 2, 1]]  # mirrored: reverse winding
         self.indices = faces.reshape(-1)
         self.vertex_count = count
         self.triangle_count = len(faces)
@@ -189,7 +191,9 @@ class SceneObject:
             start += face_count
 
         low, high = (positions.min(0), positions.max(0)) if count else (np.zeros(3), np.zeros(3))
-        corners = np.array([[x, y, z, 1.0] for x in (low[0], high[0]) for y in (low[1], high[1]) for z in (low[2], high[2])])
+        corners = np.array(
+            [[x, y, z, 1.0] for x in (low[0], high[0]) for y in (low[1], high[1]) for z in (low[2], high[2])]
+        )
         world_corners = corners @ self.matrix.T
         self.bounds = (world_corners[:, :3].min(0), world_corners[:, :3].max(0))
 
@@ -210,7 +214,6 @@ class SceneObject:
         self.vbuf = None
         self.ibuf = None
 
-    # -- animation -----------------------------------------------------------
     def set_animation(self, clip) -> bool:
         """Bind a neox_anim.Clip; skinning is measured against this mesh's own bind pose."""
         mesh = self.mesh
@@ -219,7 +222,7 @@ class SceneObject:
         skeleton_index = {name: i for i, name in enumerate(clip.bone_names)}
         self.clip = clip
         self._skeleton_of_bone = np.array([skeleton_index.get(name, -1) for name in mesh.bone_name])
-        binds = np.array([np.asarray(m, float).T for m in mesh.bone_matrix])     # row-vector -> column-vector
+        binds = np.array([np.asarray(m, float).T for m in mesh.bone_matrix])  # row-vector -> column-vector
         self._inverse_binds = np.linalg.inv(binds)
         bones = len(mesh.bone_name)
         joints = np.array([list(b)[:4] + [bones] * (4 - len(b)) for b in mesh.vertex_bone], np.int64)
@@ -227,7 +230,9 @@ class SceneObject:
         invalid = (joints < 0) | (joints >= bones)
         self._joints = np.where(invalid, 0, joints)
         self._weights = np.where(invalid, 0.0, weights)
-        self._rest_positions = np.hstack([np.asarray(mesh.position, float).reshape(-1, 3), np.ones((self.vertex_count, 1))])
+        self._rest_positions = np.hstack(
+            [np.asarray(mesh.position, float).reshape(-1, 3), np.ones((self.vertex_count, 1))]
+        )
         self._rest_normals = self.vertices[:, 3:6].astype(float) * np.array([-1.0, 1.0, 1.0])
         return True
 
@@ -237,7 +242,7 @@ class SceneObject:
         skin = np.tile(np.eye(4), (len(self._inverse_binds), 1, 1))
         mapped = self._skeleton_of_bone >= 0
         skin[mapped] = world[self._skeleton_of_bone[mapped]] @ self._inverse_binds[mapped]
-        matrices = skin[self._joints]                                            # (n, 4, 4, 4)
+        matrices = skin[self._joints]  # (n, 4, 4, 4)
         positions = np.einsum("nk,nkij,nj->ni", self._weights, matrices, self._rest_positions)[:, :3]
         normals = np.einsum("nk,nkij,nj->ni", self._weights, matrices[:, :, :3, :3], self._rest_normals)
         normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-9)
@@ -249,7 +254,7 @@ class SceneObject:
             joints = world[:, :3, 3] * mirror
             joints = np.hstack([joints, np.ones((len(joints), 1))]) @ self.matrix.T
             lines = []
-            for bone, parent in enumerate(self.clip.parents[:len(joints)]):
+            for bone, parent in enumerate(self.clip.parents[: len(joints)]):
                 if parent >= 0:
                     lines.append((*joints[parent, :3], *BONE_COLOR))
                     lines.append((*joints[bone, :3], *BONE_COLOR))
@@ -297,7 +302,6 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         self._bone_vbuf = None
         self._bone_vertices = 0
 
-    # -- scene editing -------------------------------------------------------
     def add_object(self, obj: SceneObject):
         self.objects.append(obj)
         self._bones_dirty = True
@@ -316,7 +320,12 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
     def set_texture(self, key: str, qimage: QtGui.QImage | None, label: str):
         entry = self.textures.get(key)
         if entry is None or (qimage is not None and entry.get("tex") is None and entry.get("image") is None):
-            self.textures[key] = {"image": qimage, "tex": None, "label": label, "size": qimage.size() if qimage else None}
+            self.textures[key] = {
+                "image": qimage,
+                "tex": None,
+                "label": label,
+                "size": qimage.size() if qimage else None,
+            }
         return key
 
     def _collect_textures(self):
@@ -355,12 +364,12 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
             center = (low + high) / 2
             radius = max(float(np.linalg.norm(high - low)) / 2, 1.0)
             self.camera.focus(center.tolist())
-            self.camera.dist = max(self.camera.min_dist, min(radius / math.sin(math.radians(self.camera.fov_y) / 2),
-                                                             self.camera.max_dist))
+            self.camera.dist = max(
+                self.camera.min_dist, min(radius / math.sin(math.radians(self.camera.fov_y) / 2), self.camera.max_dist)
+            )
             self.movement_factor = radius * 0.1
         self.update()
 
-    # -- RHI -----------------------------------------------------------------
     def _release_gpu(self):
         for obj in self.objects:
             obj.release()
@@ -378,7 +387,9 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
             self._release_gpu()
             self._rhi = rhi
         if self._ready:
-            self.camera.set_aspect_ratio(self.renderTarget().pixelSize().width(), self.renderTarget().pixelSize().height())
+            self.camera.set_aspect_ratio(
+                self.renderTarget().pixelSize().width(), self.renderTarget().pixelSize().height()
+            )
             return
         if rhi.backend() not in (QtGui.QRhi.Implementation.D3D11, QtGui.QRhi.Implementation.D3D12):
             self.error = f"The Scene Viewer needs Direct3D (current backend: {rhi.backendName()})."
@@ -390,9 +401,13 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         self._camera_ubuf.create()
         self._template_ubuf = rhi.newBuffer(QtGui.QRhiBuffer.Type.Dynamic, Usage.UniformBuffer, 96)
         self._template_ubuf.create()
-        self._sampler = rhi.newSampler(QtGui.QRhiSampler.Filter.Linear, QtGui.QRhiSampler.Filter.Linear,
-                                       QtGui.QRhiSampler.Filter.Linear, QtGui.QRhiSampler.AddressMode.Repeat,
-                                       QtGui.QRhiSampler.AddressMode.Repeat)
+        self._sampler = rhi.newSampler(
+            QtGui.QRhiSampler.Filter.Linear,
+            QtGui.QRhiSampler.Filter.Linear,
+            QtGui.QRhiSampler.Filter.Linear,
+            QtGui.QRhiSampler.AddressMode.Repeat,
+            QtGui.QRhiSampler.AddressMode.Repeat,
+        )
         self._sampler.create()
         self._white = rhi.newTexture(QtGui.QRhiTexture.Format.RGBA8, QtCore.QSize(1, 1))
         self._white.create()
@@ -401,7 +416,9 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
 
         self._template_srb = self._mesh_srb(self._template_ubuf, self._white)
         self._lines_srb = rhi.newShaderResourceBindings()
-        self._lines_srb.setBindings([QtGui.QRhiShaderResourceBinding.uniformBuffer(0, Stage.VertexStage, self._camera_ubuf)])
+        self._lines_srb.setBindings(
+            [QtGui.QRhiShaderResourceBinding.uniformBuffer(0, Stage.VertexStage, self._camera_ubuf)]
+        )
         self._lines_srb.create()
 
         samples = self.renderTarget().sampleCount()
@@ -409,13 +426,21 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         Fmt = QtGui.QRhiVertexInputAttribute.Format
         mesh_layout = QtGui.QRhiVertexInputLayout()
         mesh_layout.setBindings([QtGui.QRhiVertexInputBinding(32)])
-        mesh_layout.setAttributes([QtGui.QRhiVertexInputAttribute(0, 0, Fmt.Float3, 0),
-                                   QtGui.QRhiVertexInputAttribute(0, 1, Fmt.Float3, 12),
-                                   QtGui.QRhiVertexInputAttribute(0, 2, Fmt.Float2, 24)])
-        mesh_stages = [QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Vertex,
-                                             _hlsl_shader(QtGui.QShader.Stage.VertexStage, VERTEX_SHADER)),
-                       QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Fragment,
-                                             _hlsl_shader(QtGui.QShader.Stage.FragmentStage, PIXEL_SHADER))]
+        mesh_layout.setAttributes(
+            [
+                QtGui.QRhiVertexInputAttribute(0, 0, Fmt.Float3, 0),
+                QtGui.QRhiVertexInputAttribute(0, 1, Fmt.Float3, 12),
+                QtGui.QRhiVertexInputAttribute(0, 2, Fmt.Float2, 24),
+            ]
+        )
+        mesh_stages = [
+            QtGui.QRhiShaderStage(
+                QtGui.QRhiShaderStage.Type.Vertex, _hlsl_shader(QtGui.QShader.Stage.VertexStage, VERTEX_SHADER)
+            ),
+            QtGui.QRhiShaderStage(
+                QtGui.QRhiShaderStage.Type.Fragment, _hlsl_shader(QtGui.QShader.Stage.FragmentStage, PIXEL_SHADER)
+            ),
+        ]
 
         def mesh_pipeline(blend: bool):
             pipeline = rhi.newGraphicsPipeline()
@@ -442,13 +467,18 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         colored = (_qsb_shader("colored_vertices.vert.qsb"), _qsb_shader("colored_vertices.frag.qsb"))
         line_layout = QtGui.QRhiVertexInputLayout()
         line_layout.setBindings([QtGui.QRhiVertexInputBinding(24)])
-        line_layout.setAttributes([QtGui.QRhiVertexInputAttribute(0, 0, Fmt.Float3, 0),
-                                   QtGui.QRhiVertexInputAttribute(0, 1, Fmt.Float3, 12)])
+        line_layout.setAttributes(
+            [QtGui.QRhiVertexInputAttribute(0, 0, Fmt.Float3, 0), QtGui.QRhiVertexInputAttribute(0, 1, Fmt.Float3, 12)]
+        )
 
         def line_pipeline(depth: bool):
             pipeline = rhi.newGraphicsPipeline()
-            pipeline.setShaderStages([QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Vertex, colored[0]),
-                                      QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Fragment, colored[1])])
+            pipeline.setShaderStages(
+                [
+                    QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Vertex, colored[0]),
+                    QtGui.QRhiShaderStage(QtGui.QRhiShaderStage.Type.Fragment, colored[1]),
+                ]
+            )
             pipeline.setVertexInputLayout(line_layout)
             pipeline.setShaderResourceBindings(self._lines_srb)
             pipeline.setRenderPassDescriptor(rpd)
@@ -485,11 +515,15 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
     def _mesh_srb(self, ubuf, texture):
         Stage = QtGui.QRhiShaderResourceBinding.StageFlag
         srb = self._rhi.newShaderResourceBindings()
-        srb.setBindings([
-            QtGui.QRhiShaderResourceBinding.uniformBuffer(0, Stage.VertexStage | Stage.FragmentStage, self._camera_ubuf),
-            QtGui.QRhiShaderResourceBinding.sampledTexture(1, Stage.FragmentStage, texture, self._sampler),
-            QtGui.QRhiShaderResourceBinding.uniformBuffer(2, Stage.VertexStage | Stage.FragmentStage, ubuf),
-        ])
+        srb.setBindings(
+            [
+                QtGui.QRhiShaderResourceBinding.uniformBuffer(
+                    0, Stage.VertexStage | Stage.FragmentStage, self._camera_ubuf
+                ),
+                QtGui.QRhiShaderResourceBinding.sampledTexture(1, Stage.FragmentStage, texture, self._sampler),
+                QtGui.QRhiShaderResourceBinding.uniformBuffer(2, Stage.VertexStage | Stage.FragmentStage, ubuf),
+            ]
+        )
         srb.create()
         return srb
 
@@ -500,13 +534,14 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         if entry["tex"] is None and entry["image"] is not None:
             image = entry["image"]
             Flag = QtGui.QRhiTexture.Flag
-            texture = self._rhi.newTexture(QtGui.QRhiTexture.Format.RGBA8, image.size(), 1,
-                                           Flag.MipMapped | Flag.UsedWithGenerateMips)
+            texture = self._rhi.newTexture(
+                QtGui.QRhiTexture.Format.RGBA8, image.size(), 1, Flag.MipMapped | Flag.UsedWithGenerateMips
+            )
             texture.create()
             updates.uploadTexture(texture, image)
             updates.generateMips(texture)
             entry["tex"] = texture
-            entry["image"] = None          # the GPU copy is all the viewer needs now
+            entry["image"] = None  # the GPU copy is all the viewer needs now
         return entry["tex"]
 
     def _upload(self, updates) -> int:
@@ -522,7 +557,9 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
                 kind = QtGui.QRhiBuffer.Type.Dynamic if obj.clip is not None else QtGui.QRhiBuffer.Type.Immutable
                 obj.vbuf = self._rhi.newBuffer(kind, Usage.VertexBuffer, max(obj.vertices.nbytes, 32))
                 obj.vbuf.create()
-                obj.ibuf = self._rhi.newBuffer(QtGui.QRhiBuffer.Type.Immutable, Usage.IndexBuffer, max(obj.indices.nbytes, 4))
+                obj.ibuf = self._rhi.newBuffer(
+                    QtGui.QRhiBuffer.Type.Immutable, Usage.IndexBuffer, max(obj.indices.nbytes, 4)
+                )
                 obj.ibuf.create()
                 if obj.vertices.nbytes and obj.clip is not None:
                     updates.updateDynamicBuffer(obj.vbuf, 0, obj.vertices.nbytes, _blob(obj.vertices))
@@ -564,7 +601,9 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
             return
         data = np.concatenate(lines).astype(np.float32)
         self._bone_vertices = len(data)
-        self._bone_vbuf = self._rhi.newBuffer(QtGui.QRhiBuffer.Type.Immutable, QtGui.QRhiBuffer.UsageFlag.VertexBuffer, data.nbytes)
+        self._bone_vbuf = self._rhi.newBuffer(
+            QtGui.QRhiBuffer.Type.Immutable, QtGui.QRhiBuffer.UsageFlag.VertexBuffer, data.nbytes
+        )
         self._bone_vbuf.create()
         updates.uploadStaticBuffer(self._bone_vbuf, _blob(data))
 
@@ -616,7 +655,9 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         if blended:
             eye_pos = self.camera.pos().toVector3D()
             eye_point = np.array([eye_pos.x(), eye_pos.y(), eye_pos.z()])
-            blended.sort(key=lambda item: -float(np.linalg.norm((item[0].bounds[0] + item[0].bounds[1]) / 2 - eye_point)))
+            blended.sort(
+                key=lambda item: -float(np.linalg.norm((item[0].bounds[0] + item[0].bounds[1]) / 2 - eye_point))
+            )
             cb.setGraphicsPipeline(self._blended)
             cb.setViewport(viewport)
             for obj, part in blended:
@@ -635,7 +676,6 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
         if pending or animating or self._keyboard_pressed_keys:
             self.update()
 
-    # -- animation -----------------------------------------------------------
     def animation_time(self) -> float:
         if self.playing:
             return self._time_offset + self._clock.elapsed() / 1000.0
@@ -665,7 +705,6 @@ class SceneRenderWidget(QtWidgets.QRhiWidget, CameraController):
             self._bones_dirty = True
         return self.playing
 
-    # -- input ---------------------------------------------------------------
     def mousePressEvent(self, event):
         self._camera_mouse_pressed_event(event)
         self.update()

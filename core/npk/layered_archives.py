@@ -21,6 +21,7 @@ def _layers(game: Path) -> list[Path]:
 
 def install() -> None:
     from core.npk import related_archives as ra
+
     if getattr(ra, "_layered", False):
         return
     original_roots = ra.resource_roots
@@ -37,7 +38,7 @@ def install() -> None:
         location = ra.resource_location(path)
         if not location:
             return [path]
-        root, relative = location[0], location[2]          # (game, its res folder, path inside it)
+        root, relative = location[0], location[2]  # (game, its res folder, path inside it)
         result = []
         for res in resource_roots(root):
             candidate = (Path(res) / relative).resolve()
@@ -62,9 +63,10 @@ SCAN_LIMIT = 1536 * 1024 * 1024
 def _raise_scan_limit() -> None:
     import sys
     from core import process_memory
+
     if process_memory.SCAN_MEMORY_LIMIT < SCAN_LIMIT:
         process_memory.SCAN_MEMORY_LIMIT = SCAN_LIMIT
-    tracker = sys.modules.get("gui.utils.scan_memory")      # the Scene Viewer's allowance builds on top of it
+    tracker = sys.modules.get("gui.utils.scan_memory")  # the Scene Viewer's allowance builds on top of it
     if tracker is not None and tracker.BASE_LIMIT < SCAN_LIMIT:
         tracker.BASE_LIMIT = SCAN_LIMIT
         process_memory.SCAN_MEMORY_LIMIT = SCAN_LIMIT + tracker.allowance()

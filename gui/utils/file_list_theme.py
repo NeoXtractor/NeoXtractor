@@ -7,9 +7,14 @@ def apply_file_list_theme(view, theme):
     app = QtWidgets.QApplication.instance()
     system_theme = theme is None or theme.get_current_theme() in (None, "system")
     # Follow the OS palette when the app uses the system theme.
-    system_dark = system_theme and app is not None and (
-        app.palette().color(QtGui.QPalette.ColorRole.Window).lightness() < 128
-        or app.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Dark)
+    system_dark = (
+        system_theme
+        and app is not None
+        and (
+            app.palette().color(QtGui.QPalette.ColorRole.Window).lightness() < 128
+            or app.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Dark
+        )
+    )
     system_dark_colors = {
         "palette.surface": "#2d2d2d",
         "palette.text": "#ffffff",
@@ -29,13 +34,15 @@ def apply_file_list_theme(view, theme):
     selected = color("palette.selected", "#e3f2fd")
     hover = color("palette.hover", "#f5f5f5")
     palette = view.palette()
-    for role, value in ((QtGui.QPalette.ColorRole.Base, background),
-                        (QtGui.QPalette.ColorRole.AlternateBase, background),
-                        (QtGui.QPalette.ColorRole.Window, background),
-                        (QtGui.QPalette.ColorRole.Text, text),
-                        (QtGui.QPalette.ColorRole.WindowText, text),
-                        (QtGui.QPalette.ColorRole.Highlight, selected),
-                        (QtGui.QPalette.ColorRole.HighlightedText, text)):
+    for role, value in (
+        (QtGui.QPalette.ColorRole.Base, background),
+        (QtGui.QPalette.ColorRole.AlternateBase, background),
+        (QtGui.QPalette.ColorRole.Window, background),
+        (QtGui.QPalette.ColorRole.Text, text),
+        (QtGui.QPalette.ColorRole.WindowText, text),
+        (QtGui.QPalette.ColorRole.Highlight, selected),
+        (QtGui.QPalette.ColorRole.HighlightedText, text),
+    ):
         palette.setColor(role, QtGui.QColor(value))
     view.setAlternatingRowColors(False)
     view.setPalette(palette)

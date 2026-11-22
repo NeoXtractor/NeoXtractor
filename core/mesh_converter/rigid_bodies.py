@@ -12,18 +12,19 @@ import numpy as np
 
 SETTING = "pmx_export.rigid_bodies"
 LABEL = "Body rigid bodies (collision for hair and cloth physics)"
-GROUP = 0                                    # PMX group index 0 = "1" in PMX Editor
-_MASK_BITS = 0xFFFF & ~(1 << GROUP)          # collides with everything except its own group
-MASK = _MASK_BITS - 0x10000 if _MASK_BITS > 0x7FFF else _MASK_BITS     # the writer stores it as a signed short
+GROUP = 0  # PMX group index 0 = "1" in PMX Editor
+_MASK_BITS = 0xFFFF & ~(1 << GROUP)  # collides with everything except its own group
+MASK = _MASK_BITS - 0x10000 if _MASK_BITS > 0x7FFF else _MASK_BITS  # the writer stores it as a signed short
 
 
-STANDARD_HEIGHT = 17.4                       # a male character, head to toe, in PMX units
+STANDARD_HEIGHT = 17.4  # a male character, head to toe, in PMX units
 
 
 def enabled(settings=None) -> bool:
     if settings is None:
         try:
             from PySide6 import QtWidgets
+
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
         except Exception:
@@ -39,7 +40,7 @@ def _rotation_to(direction) -> tuple[float, float, float]:
     d = np.asarray(direction, float)
     d = d / max(np.linalg.norm(d), 1e-9)
     if d[1] < 0:
-        d = -d                                   # a capsule is symmetric: keep the angles small
+        d = -d  # a capsule is symmetric: keep the angles small
     rz = math.asin(max(-1.0, min(1.0, -d[0])))
     rx = math.atan2(d[2], d[1])
     return rx, 0.0, rz
@@ -76,8 +77,13 @@ def _mirror_pairs(bodies, common, middle=0.0) -> None:
         right = by_name.get("右" + name[1:])
         if right is None:
             continue
-        size = [(a + b) / 2 for a, b in zip((left.shape_size.x, left.shape_size.y, left.shape_size.z),
-                                             (right.shape_size.x, right.shape_size.y, right.shape_size.z))]
+        size = [
+            (a + b) / 2
+            for a, b in zip(
+                (left.shape_size.x, left.shape_size.y, left.shape_size.z),
+                (right.shape_size.x, right.shape_size.y, right.shape_size.z),
+            )
+        ]
         lp, rp = left.shape_position, right.shape_position
         x = (abs(lp.x - middle) + abs(rp.x - middle)) / 2
         y, z = (lp.y + rp.y) / 2, (lp.z + rp.z) / 2
@@ -98,6 +104,7 @@ def _mirror_pairs(bodies, common, middle=0.0) -> None:
 def add_body_rigid_bodies(model, report=None) -> int:
     """Append bone-following body shapes to model.rigidbodies; returns how many were added."""
     from pymeshio import common, pmx
+
     report = report if report is not None else []
     bones = model.bones
     index = {bone.name: i for i, bone in enumerate(bones)}
@@ -147,9 +154,25 @@ def add_body_rigid_bodies(model, report=None) -> int:
         cylinder = max(0.0, length - radius)
         rotation = _rotation_to(end - start)
         centre = (start + end) / 2
-        added.append(pmx.RigidBody(name, name, index[bone_name], GROUP, MASK, pmx.SHAPE_CAPSULE,
-                                   common.Vector3(radius, cylinder, 0.0), common.Vector3(*centre),
-                                   common.Vector3(*rotation), 1.0, 0.5, 0.5, 0.0, 0.5, 0))
+        added.append(
+            pmx.RigidBody(
+                name,
+                name,
+                index[bone_name],
+                GROUP,
+                MASK,
+                pmx.SHAPE_CAPSULE,
+                common.Vector3(radius, cylinder, 0.0),
+                common.Vector3(*centre),
+                common.Vector3(*rotation),
+                1.0,
+                0.5,
+                0.5,
+                0.0,
+                0.5,
+                0,
+            )
+        )
 
     def sideways(name, bone_name, top, bottom, group, fixed=None):
         """A torso piece: a capsule across the body (along X) as wide as the vertices between top and bottom."""
@@ -173,12 +196,28 @@ def add_body_rigid_bodies(model, report=None) -> int:
         x = np.array([mid - half, mid + half])
         width = 2 * half
         cylinder = max(0.0, width - 2 * radius)
-        if fixed is not None:                            # a set size (radius, height), scaled to the model
+        if fixed is not None:  # a set size (radius, height), scaled to the model
             radius, cylinder = fixed
         centre = np.array([(x[0] + x[1]) / 2, (lo + hi) / 2, (z[0] + z[1]) / 2])
-        added.append(pmx.RigidBody(name, name, index[bone_name], GROUP, MASK, pmx.SHAPE_CAPSULE,
-                                   common.Vector3(radius, cylinder, 0.0), common.Vector3(*centre),
-                                   common.Vector3(0.0, 0.0, math.pi / 2), 1.0, 0.5, 0.5, 0.0, 0.5, 0))
+        added.append(
+            pmx.RigidBody(
+                name,
+                name,
+                index[bone_name],
+                GROUP,
+                MASK,
+                pmx.SHAPE_CAPSULE,
+                common.Vector3(radius, cylinder, 0.0),
+                common.Vector3(*centre),
+                common.Vector3(0.0, 0.0, math.pi / 2),
+                1.0,
+                0.5,
+                0.5,
+                0.0,
+                0.5,
+                0,
+            )
+        )
 
     # torso: 下半身 from the hips' top to the legs, 上半身 up to 上半身2, 上半身2 up to the neck
     upper, upper2, lower = pos["上半身"], pos.get("上半身2"), pos.get("下半身", pos["上半身"])
@@ -192,14 +231,24 @@ def add_body_rigid_bodies(model, report=None) -> int:
         if neck is not None:
             # the chest: radius 1, height 1 at the game's standard height (about 17.4 units), as tuned in PMX Editor
             chest = height / STANDARD_HEIGHT
-            sideways("上半身2", "上半身2", (0, upper2[1], 0), (0, neck[1], 0), members("上半身2", "上半身3"),
-                     fixed=(1.0 * chest, 1.0 * chest))
+            sideways(
+                "上半身2",
+                "上半身2",
+                (0, upper2[1], 0),
+                (0, neck[1], 0),
+                members("上半身2", "上半身3"),
+                fixed=(1.0 * chest, 1.0 * chest),
+            )
     # neck and head
     if neck is not None and "頭" in pos:
         capsule("首", "首", neck, pos["頭"], members("首"), height * 0.025)
-        head_group = members("頭") | {i for i, bone in enumerate(bones) if 0 <= bone.parent_index < len(bones)
-                                     and bones[bone.parent_index].name == "頭" and not any(
-                                         k in bone.name.lower() for k in ("hair", "hat", "mao", "fa_", "toufa"))}
+        head_group = members("頭") | {
+            i
+            for i, bone in enumerate(bones)
+            if 0 <= bone.parent_index < len(bones)
+            and bones[bone.parent_index].name == "頭"
+            and not any(k in bone.name.lower() for k in ("hair", "hat", "mao", "fa_", "toufa"))
+        }
         head_points = positions[np.isin(main, list(head_group))] if head_group else np.zeros((0, 3))
         head_points = head_points[head_points[:, 1] > pos["頭"][1] - height * 0.02] if len(head_points) else head_points
         if len(head_points) > 20:
@@ -211,13 +260,31 @@ def add_body_rigid_bodies(model, report=None) -> int:
             end = np.array([centre_xz[0], max(top - radius, bottom + radius), centre_xz[1]])
             cylinder = max(0.0, float(end[1] - start[1]))
             centre = (start + end) / 2
-            added.append(pmx.RigidBody("頭", "head", index["頭"], GROUP, MASK, pmx.SHAPE_CAPSULE,
-                                       common.Vector3(radius, cylinder, 0.0), common.Vector3(*centre),
-                                       common.Vector3(0.0, 0.0, 0.0), 1.0, 0.5, 0.5, 0.0, 0.5, 0))
+            added.append(
+                pmx.RigidBody(
+                    "頭",
+                    "head",
+                    index["頭"],
+                    GROUP,
+                    MASK,
+                    pmx.SHAPE_CAPSULE,
+                    common.Vector3(radius, cylinder, 0.0),
+                    common.Vector3(*centre),
+                    common.Vector3(0.0, 0.0, 0.0),
+                    1.0,
+                    0.5,
+                    0.5,
+                    0.0,
+                    0.5,
+                    0,
+                )
+            )
     # arms, hands, legs, feet
     for s in ("左", "右"):
+
         def p(name):
             return pos.get(s + name)
+
         if p("肩") is not None and p("腕") is not None:
             capsule(s + "肩", s + "肩", p("肩"), p("腕"), members(s + "肩"), height * 0.03, shrink=0.8)
         if p("腕") is not None and p("ひじ") is not None:
@@ -226,8 +293,15 @@ def add_body_rigid_bodies(model, report=None) -> int:
             capsule(s + "ひじ", s + "ひじ", p("ひじ"), p("手首"), members(s + "ひじ", s + "手捩"), height * 0.022)
         if p("手首") is not None and p("中指１") is not None:
             wrist, knuckle = p("手首"), p("中指１")
-            capsule(s + "手首", s + "手首", wrist, wrist + (knuckle - wrist) * 1.6, members(s + "手首"),
-                    height * 0.02, shrink=0.8)
+            capsule(
+                s + "手首",
+                s + "手首",
+                wrist,
+                wrist + (knuckle - wrist) * 1.6,
+                members(s + "手首"),
+                height * 0.02,
+                shrink=0.8,
+            )
         leg = s + "足D" if s + "足D" in index else s + "足"
         knee = s + "ひざD" if s + "ひざD" in index else s + "ひざ"
         ankle = s + "足首D" if s + "足首D" in index else s + "足首"
@@ -237,8 +311,15 @@ def add_body_rigid_bodies(model, report=None) -> int:
             capsule(s + "ひざ", knee, p("ひざ"), p("足首"), members(s + "ひざ", s + "ひざD"), height * 0.03)
         toe = p("つま先") if p("つま先") is not None else p("足先EX")
         if p("足首") is not None and toe is not None:
-            capsule(s + "足首", ankle, p("足首"), toe, members(s + "足首", s + "足首D", s + "足先EX"),
-                    height * 0.02, shrink=0.8)
+            capsule(
+                s + "足首",
+                ankle,
+                p("足首"),
+                toe,
+                members(s + "足首", s + "足首D", s + "足先EX"),
+                height * 0.02,
+                shrink=0.8,
+            )
     _mirror_pairs(added, common, middle)
     model.rigidbodies.extend(added)
     if added:

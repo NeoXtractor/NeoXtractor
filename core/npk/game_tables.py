@@ -17,7 +17,7 @@ import zlib
 from pathlib import Path
 from core.logger import get_logger
 
-CACHE_VERSION = 4                     # 4: text tables of the Chinese release (item_text_en)
+CACHE_VERSION = 4  # 4: text tables of the Chinese release (item_text_en)
 ROOT_PACK = "res.npk"
 PATCH_FOLDER = "Documents"
 # Generic placeholders some faces get: not a real item, so not worth naming or copying
@@ -26,8 +26,17 @@ GENERIC_ICONS = {"image/clothes/pic_maozi_001.png"}
 GENERIC_ICON_PARTS = ("pic_maozi_001", "icon_weixianshidaoju", "pic_item_face")
 # Item sub_type of each wardrobe kind (measured on the dress rows' items): a dress row's id is shared by items of
 # other kinds (an eye colour, a face part), so only items of the row's own kind count
-KIND_SUBTYPES = {"hair": {1}, "body": {2}, "clothes": {3}, "scarf": {4}, "hat": {11}, "glasses": {16},
-                 "earring": {23}, "brooch": {24}, "bag": {27}}
+KIND_SUBTYPES = {
+    "hair": {1},
+    "body": {2},
+    "clothes": {3},
+    "scarf": {4},
+    "hat": {11},
+    "glasses": {16},
+    "earring": {23},
+    "brooch": {24},
+    "bag": {27},
+}
 
 
 def is_generic_icon(icon) -> bool:
@@ -56,11 +65,11 @@ def best_item(candidates, kind: str, english: dict):
             best, best_score = row, score
     return best
 
+
 _lock = threading.Lock()
 _memory: dict = {}
 
 
-# -- decoding ------------------------------------------------------------------------------------
 def lz4_block(src: bytes, size: int) -> bytes:
     out = bytearray()
     i, n = 0, len(src)
@@ -75,7 +84,7 @@ def lz4_block(src: bytes, size: int) -> bytes:
                 literal += extra
                 if extra != 255:
                     break
-        out += src[i:i + literal]
+        out += src[i : i + literal]
         i += literal
         if i >= n or len(out) >= size:
             break
@@ -92,9 +101,9 @@ def lz4_block(src: bytes, size: int) -> bytes:
         match += 4
         start = len(out) - offset
         if offset >= match:
-            out += out[start:start + match]
+            out += out[start : start + match]
         else:
-            for k in range(match):                      # overlapping copy
+            for k in range(match):  # overlapping copy
                 out.append(out[start + k])
     return bytes(out)
 
@@ -104,47 +113,57 @@ class _MsgPack:
         self.d, self.p = data, 0
 
     def _take(self, n):
-        value = self.d[self.p:self.p + n]
+        value = self.d[self.p : self.p + n]
         self.p += n
         return value
 
     def read(self):
         b = self.d[self.p]
         self.p += 1
-        if b <= 0x7f:
+        if b <= 0x7F:
             return b
-        if b >= 0xe0:
+        if b >= 0xE0:
             return b - 256
-        if b <= 0x8f:
+        if b <= 0x8F:
             return self._map(b & 15)
-        if b <= 0x9f:
+        if b <= 0x9F:
             return [self.read() for _ in range(b & 15)]
-        if b <= 0xbf:
+        if b <= 0xBF:
             return self._take(b & 31).decode("utf-8", "replace")
-        if b == 0xc0:
+        if b == 0xC0:
             return None
-        if b in (0xc2, 0xc3):
-            return b == 0xc3
-        fixed = {0xcc: "B", 0xcd: ">H", 0xce: ">I", 0xcf: ">Q", 0xd0: "b", 0xd1: ">h", 0xd2: ">i", 0xd3: ">q",
-                 0xca: ">f", 0xcb: ">d"}
+        if b in (0xC2, 0xC3):
+            return b == 0xC3
+        fixed = {
+            0xCC: "B",
+            0xCD: ">H",
+            0xCE: ">I",
+            0xCF: ">Q",
+            0xD0: "b",
+            0xD1: ">h",
+            0xD2: ">i",
+            0xD3: ">q",
+            0xCA: ">f",
+            0xCB: ">d",
+        }
         if b in fixed:
             return struct.unpack(fixed[b], self._take(struct.calcsize(fixed[b])))[0]
-        if b in (0xd9, 0xda, 0xdb):
-            n = int.from_bytes(self._take({0xd9: 1, 0xda: 2, 0xdb: 4}[b]), "big")
+        if b in (0xD9, 0xDA, 0xDB):
+            n = int.from_bytes(self._take({0xD9: 1, 0xDA: 2, 0xDB: 4}[b]), "big")
             return self._take(n).decode("utf-8", "replace")
-        if b in (0xc4, 0xc5, 0xc6):
-            n = int.from_bytes(self._take({0xc4: 1, 0xc5: 2, 0xc6: 4}[b]), "big")
+        if b in (0xC4, 0xC5, 0xC6):
+            n = int.from_bytes(self._take({0xC4: 1, 0xC5: 2, 0xC6: 4}[b]), "big")
             return self._take(n)
-        if b in (0xdc, 0xdd):
-            n = int.from_bytes(self._take(2 if b == 0xdc else 4), "big")
+        if b in (0xDC, 0xDD):
+            n = int.from_bytes(self._take(2 if b == 0xDC else 4), "big")
             return [self.read() for _ in range(n)]
-        if b in (0xde, 0xdf):
-            return self._map(int.from_bytes(self._take(2 if b == 0xde else 4), "big"))
-        if 0xd4 <= b <= 0xd8:
+        if b in (0xDE, 0xDF):
+            return self._map(int.from_bytes(self._take(2 if b == 0xDE else 4), "big"))
+        if 0xD4 <= b <= 0xD8:
             self._take(1)
-            return self._take({0xd4: 1, 0xd5: 2, 0xd6: 4, 0xd7: 8, 0xd8: 16}[b])
-        if b in (0xc7, 0xc8, 0xc9):
-            n = int.from_bytes(self._take({0xc7: 1, 0xc8: 2, 0xc9: 4}[b]), "big")
+            return self._take({0xD4: 1, 0xD5: 2, 0xD6: 4, 0xD7: 8, 0xD8: 16}[b])
+        if b in (0xC7, 0xC8, 0xC9):
+            n = int.from_bytes(self._take({0xC7: 1, 0xC8: 2, 0xC9: 4}[b]), "big")
             self._take(1)
             return self._take(n)
         raise ValueError(f"unexpected MessagePack byte 0x{b:02x}")
@@ -163,9 +182,10 @@ class RootTables:
     def __init__(self, game: Path, options):
         from core.npk.npk_file import NPKFile
         from core.npk.stage_export import murmur3_32
+
         self._hash = murmur3_32
         self.packs = []
-        self._rows: dict[str, dict] = {}                # decoded tables, shared by every caller (read-only)
+        self._rows: dict[str, dict] = {}  # decoded tables, shared by every caller (read-only)
         for pack in (Path(game) / PATCH_FOLDER / ROOT_PACK, Path(game) / ROOT_PACK):
             if pack.is_file():
                 npk = NPKFile(str(pack), options)
@@ -213,17 +233,20 @@ class RootTables:
             offset, length = entry[0], entry[1]
             size = struct.unpack_from("<I", raw, offset)[0]
             try:
-                out[key] = _MsgPack(lz4_block(raw[offset + 4:offset + 4 + length], size)).read()
+                out[key] = _MsgPack(lz4_block(raw[offset + 4 : offset + 4 + length], size)).read()
             except Exception:
+                get_logger().debug("Skipping an unreadable row in a game table", exc_info=True)
                 continue
         return out
 
 
-# -- links ---------------------------------------------------------------------------------------
 def build_links(tables: RootTables, read_game_file) -> dict[str, dict]:
     """{mesh path (lower case): {'icon', 'name', 'item'}} for character meshes that are wardrobe items."""
-    english = {key: row.get("text_en", "") for key, row in tables.keyed_rows("item_text_os_en").items()
-               if isinstance(row, dict)}
+    english = {
+        key: row.get("text_en", "")
+        for key, row in tables.keyed_rows("item_text_os_en").items()
+        if isinstance(row, dict)
+    }
     items = tables.keyed_rows("item")
     dresses = tables.keyed_rows("role_dress")
     by_dress = items_by_dress(tables)
@@ -258,7 +281,7 @@ def build_links(tables: RootTables, read_game_file) -> dict[str, dict]:
         mesh = mesh_for(dress["model"].replace("/", "\\"))
         link = {"icon": item["icon_path"], "name": name, "item": item.get("_id")}
         if mesh not in links or (name and not links[mesh]["name"]):
-            links[mesh] = link                         # a named link beats an unnamed one for the same mesh
+            links[mesh] = link  # a named link beats an unnamed one for the same mesh
 
     # Basic hairstyles: color_hair maps each named style item (Spring Curls...) to its colour items, whose dress
     # rows hold the real model (female_hair_08). The style item's own dress row points at a placeholder
@@ -272,8 +295,11 @@ def build_links(tables: RootTables, read_game_file) -> dict[str, dict]:
         if not isinstance(style, dict) or not isinstance(item, dict) or is_generic_icon(item.get("icon_path")):
             continue
         name = english.get(item.get("name", ""), "")
-        link = {"icon": item["icon_path"], "name": "" if name.strip().lower() in ("null!", "null") else name,
-                "item": style_id}
+        link = {
+            "icon": item["icon_path"],
+            "name": "" if name.strip().lower() in ("null!", "null") else name,
+            "item": style_id,
+        }
         for colour_id in style.get("color_hair_items") or ():
             colour = items.get(colour_id)
             dress = dresses.get(colour.get("mini_type")) if isinstance(colour, dict) else None
@@ -285,6 +311,7 @@ def build_links(tables: RootTables, read_game_file) -> dict[str, dict]:
 def _cache_path() -> Path:
     try:
         from core.utils import get_application_path
+
         return Path(get_application_path()) / "item_links_cache.json"
     except Exception:
         return Path(os.getcwd()) / "item_links_cache.json"
@@ -310,8 +337,10 @@ def mesh_links(game, options, read_game_file) -> dict[str, dict]:
             get_logger().warning("Ignoring an unreadable item link cache %s", cache, exc_info=True)
         links = build_links(tables, read_game_file) if tables.packs else {}
         try:
-            cache.write_text(json.dumps({"version": CACHE_VERSION, "stamp": stamp, "links": links}, ensure_ascii=False),
-                             encoding="utf-8")
+            cache.write_text(
+                json.dumps({"version": CACHE_VERSION, "stamp": stamp, "links": links}, ensure_ascii=False),
+                encoding="utf-8",
+            )
         except OSError:
             get_logger().warning("Could not save the item link cache %s", cache, exc_info=True)
         _memory[str(game)] = links
@@ -323,14 +352,28 @@ RARITY_NAMES = {1: "Basic", 2: "Rare", 3: "Epic", 4: "Legendary", 5: "Mythic"}
 
 
 # The traits the game's Filter offers, in its order, with their English names.
-TRAITS = (("yifu_qd", "Ceremony"), ("yifu_zc", "Premium"), ("yifu_jx", "Classic"), ("jiaju_dunhuang", "Dunhuang Museum"),
-          ("yifu_ccgb", "Unrivalled"), ("yifu_syzp", "Prestige"))
+TRAITS = (
+    ("yifu_qd", "Ceremony"),
+    ("yifu_zc", "Premium"),
+    ("yifu_jx", "Classic"),
+    ("jiaju_dunhuang", "Dunhuang Museum"),
+    ("yifu_ccgb", "Unrivalled"),
+    ("yifu_syzp", "Prestige"),
+)
 _TRAIT_KEYS = tuple(key for key, _name in TRAITS)
 
 
 # Text tables that hold the tag names (such as yifu_faxing being the "Hairstyle"), searched in this order.
-TAG_TEXT_TABLES = ("item_text_os_en", "language_text_os_en", "language_text_old_os_en", "old_language_text_os_en",
-                   "ui_text_old_os_en", "old_ui_text_os_en", "system_text_os_en", "ui_text_os_en")
+TAG_TEXT_TABLES = (
+    "item_text_os_en",
+    "language_text_os_en",
+    "language_text_old_os_en",
+    "old_language_text_os_en",
+    "ui_text_old_os_en",
+    "old_ui_text_os_en",
+    "system_text_os_en",
+    "ui_text_os_en",
+)
 _TAG_NAMES: dict = {}
 
 
@@ -355,12 +398,13 @@ def tag_names(tables) -> dict:
                 if isinstance(row, dict):
                     wanted.update(str(t) for t in (row.get("item_tags") or ()))
         except Exception:
-            pass
+            get_logger().debug("Could not read the item tags", exc_info=True)
         names = {}
         for table in TAG_TEXT_TABLES:
             try:
                 rows = tables.keyed_rows(table)
             except Exception:
+                get_logger().debug("Could not read the tag table %s", table, exc_info=True)
                 continue
             for tag in wanted - set(names):
                 row = rows.get(tag)
@@ -391,6 +435,7 @@ def item_rarity(tables, item_id) -> int | None:
     try:
         row = tables.keyed_rows("item").get(item_id)
     except Exception:
+        get_logger().debug("Could not read the rarity of item %s", item_id, exc_info=True)
         return None
     rarity = row.get("rarity") if isinstance(row, dict) else None
     return rarity if rarity in RARITY_NAMES else None

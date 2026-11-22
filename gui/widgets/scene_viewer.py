@@ -13,22 +13,41 @@ from core.mesh_loader.loader import MeshLoader
 from core.logger import get_logger
 from gui.utils import scan_memory
 from gui.widgets.character_exports import (  # noqa: F401
-    BODY_SIZE_SETTING, EACH_FORMATS, ITEM_INFO_LABEL, ITEM_INFO_SETTING, _EXPORT_JOBS, _selected_face_folder,
-    body_size_adult, export_character_meshes_each, export_character_selection, export_item_icons,
-    export_selected_item_icons, include_item_info, is_character_path, outfit_body_items,
-    read_entry_data, selected_mesh_specs, start_export, textured_model, with_body_size,
+    BODY_SIZE_SETTING,
+    EACH_FORMATS,
+    ITEM_INFO_LABEL,
+    ITEM_INFO_SETTING,
+    _EXPORT_JOBS,
+    _selected_face_folder,
+    body_size_adult,
+    export_character_meshes_each,
+    export_character_selection,
+    export_item_icons,
+    export_selected_item_icons,
+    include_item_info,
+    is_character_path,
+    outfit_body_items,
+    read_entry_data,
+    selected_mesh_specs,
+    start_export,
+    textured_model,
+    with_body_size,
 )
 from gui.widgets.scene_render import (  # noqa: F401
-    MEMORY_TEXTURES, SceneObject, SceneRenderWidget, decode_image_bytes, pil_to_qimage, remember_texture,
+    MEMORY_TEXTURES,
+    SceneObject,
+    SceneRenderWidget,
+    decode_image_bytes,
+    pil_to_qimage,
+    remember_texture,
 )
-
 
 TEXTURE_EXTENSIONS = {"dds", "tga", "png", "jpg", "jpeg", "ktx", "pvr", "astc", "bmp"}
 
 
 class _Signals(QtCore.QObject):
-    loaded = QtCore.Signal(object, str)            # (group, [object specs]) , error
-    textures = QtCore.Signal(object, str)          # [(object id, part index, key, qimage, label)], error
+    loaded = QtCore.Signal(object, str)  # (group, [object specs]) , error
+    textures = QtCore.Signal(object, str)  # [(object id, part index, key, qimage, label)], error
     progress = QtCore.Signal(str, int, int)
 
 
@@ -94,7 +113,11 @@ class TexturePicker(QtWidgets.QDialog):
             name = getattr(entry, "filename", "") or ""
             if extension not in TEXTURE_EXTENSIONS:
                 continue
-            label = name if name and not name.startswith("0x") else f"{hex(getattr(entry, 'file_signature', 0))}.{extension}"
+            label = (
+                name
+                if name and not name.startswith("0x")
+                else f"{hex(getattr(entry, 'file_signature', 0))}.{extension}"
+            )
             if hasattr(archive, "source_label"):
                 try:
                     label += f"   ·  {archive.source_label(index)}"
@@ -121,11 +144,14 @@ class TexturePicker(QtWidgets.QDialog):
         item = self.list.currentItem()
         if item is None or item.data(QtCore.Qt.ItemDataRole.UserRole) is None:
             return
-        self.viewer.assign_archive_texture(int(item.data(QtCore.Qt.ItemDataRole.UserRole)), item.text().split("   ·")[0])
+        self.viewer.assign_archive_texture(
+            int(item.data(QtCore.Qt.ItemDataRole.UserRole)), item.text().split("   ·")[0]
+        )
 
     def from_file(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Texture file", "",
-                                                        "Images (*.png *.jpg *.jpeg *.tga *.dds *.bmp *.ktx *.pvr);;All files (*)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Texture file", "", "Images (*.png *.jpg *.jpeg *.tga *.dds *.bmp *.ktx *.pvr);;All files (*)"
+        )
         if path:
             self.viewer.assign_file_texture(path)
 
@@ -172,7 +198,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         # Adding is "Add to Scene Viewer" in the main window's right-click menus; textures and removing are in the
         # scene list's right-click menu (Delete removes, Ctrl+A selects everything). Exporting is one menu, as in the
         # Main Character Creator, with the PMX switches in their own submenu.
-        export = QtWidgets.QPushButton("Export")             # a button with a menu draws its own arrow
+        export = QtWidgets.QPushButton("Export")  # a button with a menu draws its own arrow
         export.setToolTip("Save the selection (or everything visible) as one file with its rigs and textures.")
         export_menu = QtWidgets.QMenu(export)
         export_menu.setToolTipsVisible(True)
@@ -184,6 +210,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
             vmd.triggered.connect(lambda _checked=False: self.export_scene("vmd"))
         try:
             from core.mesh_converter.formats.pmx import pmx_option_actions
+
             export_menu.addSeparator()
             pmx_menu = export_menu.addMenu("PMX options")
             self.pmx_actions = pmx_option_actions(pmx_menu)
@@ -206,7 +233,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         toggles.addWidget(self.play_checkbox)
         toggles.addStretch(1)
         layout.addLayout(toggles)
-        self.status = QtWidgets.QLabel()             # progress and short messages; empty otherwise
+        self.status = QtWidgets.QLabel()  # progress and short messages; empty otherwise
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.progress = QtWidgets.QProgressBar()
@@ -220,6 +247,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         self.view.upload_progress.connect(self._upload_progress)
         # As in NeoXtractor's mesh viewer: the scene's numbers top left, the camera keys bottom left
         from gui.widgets.viewer_overlay import ViewOverlays
+
         self.overlays = ViewOverlays(self.view)
         splitter.addWidget(panel)
         splitter.addWidget(self.view)
@@ -240,10 +268,14 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         menu = QtWidgets.QMenu(self.tree)
         menu.setToolTipsVisible(True)
         for label, tip, handler in (
-                ("Assign Texture…", "Pick a texture for the selected parts or objects.", self.open_texture_picker),
-                ("Auto-match Textures", "Find each selected model's own materials and textures in the game.",
-                 self.auto_match),
-                ("Clear Texture", "Remove assigned textures from the selection.", self.clear_textures)):
+            ("Assign Texture…", "Pick a texture for the selected parts or objects.", self.open_texture_picker),
+            (
+                "Auto-match Textures",
+                "Find each selected model's own materials and textures in the game.",
+                self.auto_match,
+            ),
+            ("Clear Texture", "Remove assigned textures from the selection.", self.clear_textures),
+        ):
             action = menu.addAction(label)
             action.setToolTip(tip)
             action.triggered.connect(lambda _checked=False, handler=handler: handler())
@@ -253,7 +285,6 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         remove.triggered.connect(lambda _checked=False: self.remove_selected())
         menu.exec(self.tree.viewport().mapToGlobal(position))
 
-    # -- helpers -------------------------------------------------------------
     def archive(self):
         app = QtWidgets.QApplication.instance()
         return app.property("npk_file") if app is not None else None
@@ -261,6 +292,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
     def _game_index(self):
         """PackIndex for the open archive's game folder (cached), or None."""
         from core.npk.stage_export import PackIndex, game_root_for, read_options_for
+
         archive = self.archive()
         game = game_root_for(archive.file_path) if archive is not None and getattr(archive, "file_path", None) else None
         if game is None:
@@ -272,7 +304,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
 
     def _run(self, label, work):
         self._jobs += 1
-        scan_memory.begin()         # what the job loads must not count against the character-scan limit
+        scan_memory.begin()  # what the job loads must not count against the character-scan limit
         self._cancel.clear()
         self.progress.setRange(0, 0)
         self.progress.show()
@@ -304,17 +336,19 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         """The scene's numbers in the view's corner (the mesh viewer's rows, for every object together)."""
         objects = list(self._objects.values())
         parts = sum(len(o.parts) for o in objects)
-        rows = [("Objects", len(objects)), ("Bones", sum(o.bone_count for o in objects)),
-                ("Vertices", f"{sum(o.vertex_count for o in objects):,}"),
-                ("Triangles", f"{sum(o.triangle_count for o in objects):,}"),
-                ("Textured", f"{sum(1 for o in objects for p in o.parts if p.texture_key)} of {parts} parts")]
+        rows = [
+            ("Objects", len(objects)),
+            ("Bones", sum(o.bone_count for o in objects)),
+            ("Vertices", f"{sum(o.vertex_count for o in objects):,}"),
+            ("Triangles", f"{sum(o.triangle_count for o in objects):,}"),
+            ("Textured", f"{sum(1 for o in objects for p in o.parts if p.texture_key)} of {parts} parts"),
+        ]
         animated = sum(1 for o in objects if o.clip is not None)
         if animated:
             rows.append(("Animated", animated))
         self.overlays.set_info(rows if objects else [])
         self.status.clear()
 
-    # -- adding --------------------------------------------------------------
     def add_mesh_data(self, name, mesh, path=None, source="", matrix=None, group=None, parts=None, animation=None):
         """Add a mesh; parts may carry pre-matched textures and animation a default loop from StageLoader."""
         obj = SceneObject(name, mesh, matrix, path, source)
@@ -326,8 +360,11 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                 continue
             part.material = info.get("material") or part.material
             if info.get("qimage") is not None:
-                part.texture_key = self.view.set_texture("game:" + (info.get("texture") or f"{id(info)}"),
-                                                         info["qimage"], (info.get("texture") or "").rsplit("\\", 1)[-1])
+                part.texture_key = self.view.set_texture(
+                    "game:" + (info.get("texture") or f"{id(info)}"),
+                    info["qimage"],
+                    (info.get("texture") or "").rsplit("\\", 1)[-1],
+                )
                 part.alpha = info.get("alpha", "OPAQUE")
                 part.cutoff = info.get("cutoff", 0.5)
         self._objects[obj.id] = obj
@@ -417,8 +454,14 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
             item.child(number).setText(1, label or "—")
             labels.append(label)
         named = [label for label in labels if label]
-        item.setText(1, named[0] if len(set(named)) == 1 and len(named) == len(labels) else
-                     (f"{len(named)}/{len(labels)} parts" if named else "—"))
+        item.setText(
+            1,
+            (
+                named[0]
+                if len(set(named)) == 1 and len(named) == len(labels)
+                else (f"{len(named)}/{len(labels)} parts" if named else "—")
+            ),
+        )
 
     def add_entries(self, specs):
         """specs: [(name, entry index, game path or None)] from the open archive; loaded in the background."""
@@ -431,6 +474,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
 
         def work():
             from core.npk.stage_export import StageLoader
+
             loader, results, errors, added_bodies = MeshLoader(), [], [], set()
             for number, (name, index, path) in enumerate(specs):
                 if self._cancel.is_set():
@@ -450,15 +494,22 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                 try:
                     stage_loader = StageLoader(game_index)
                     for body in outfit_body_items(stage_loader, path, selected_paths):
-                        if body["name"] in added_bodies:            # hands / neck shared by several outfits
+                        if body["name"] in added_bodies:  # hands / neck shared by several outfits
                             continue
                         added_bodies.add(body["name"])
-                        for part in body["parts"]:                  # textures go to the GUI thread as QImages
+                        for part in body["parts"]:  # textures go to the GUI thread as QImages
                             if part.get("image") is not None:
                                 part["qimage"] = pil_to_qimage(part["image"])
                             part["image"] = None
-                        results.append({"name": f"{body['name']}.mesh", "mesh": body["mesh"], "parts": body["parts"],
-                                        "path": None, "source": f"body piece of {name}"})
+                        results.append(
+                            {
+                                "name": f"{body['name']}.mesh",
+                                "mesh": body["mesh"],
+                                "parts": body["parts"],
+                                "path": None,
+                                "source": f"body piece of {name}",
+                            }
+                        )
                     errors.extend(f"{name}: {line}" for line in stage_loader.report)
                 except Exception as exc:
                     errors.append(f"{name}: body piece not loaded ({exc})")
@@ -476,6 +527,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
     def open_stage(self, game, scene_path, options=None):
         """Load a stage with StageLoader (textures matched) into a new group."""
         from core.npk.stage_export import PackIndex, StageLoader, read_options_for
+
         group = scene_path.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
         options = options or read_options_for(self.archive())
 
@@ -483,8 +535,11 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
 
         def work():
             index = PackIndex(game, options)
-            loader = StageLoader(index, cancelled=self._cancel.is_set,
-                                 progress=lambda text, value, total: self.signals.progress.emit(text, value, total))
+            loader = StageLoader(
+                index,
+                cancelled=self._cancel.is_set,
+                progress=lambda text, value, total: self.signals.progress.emit(text, value, total),
+            )
             try:
                 objects = loader.load(scene_path)
                 qimages = {}
@@ -511,8 +566,18 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         first = not self._objects
         added = []
         for spec in objects:
-            added.append(self.add_mesh_data(spec["name"], spec["mesh"], spec.get("path"), spec.get("source", ""),
-                                            spec.get("matrix"), group, spec.get("parts"), spec.get("animation")))
+            added.append(
+                self.add_mesh_data(
+                    spec["name"],
+                    spec["mesh"],
+                    spec.get("path"),
+                    spec.get("source", ""),
+                    spec.get("matrix"),
+                    group,
+                    spec.get("parts"),
+                    spec.get("animation"),
+                )
+            )
         self._job_done()
         if group:
             item = self._group_item(group) if added else None
@@ -537,7 +602,6 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
             return
         self.add_entries(specs)
 
-    # -- selection -----------------------------------------------------------
     def _selected_targets(self):
         """[(SceneObject, [part indices])] for the tree selection; groups expand to their objects."""
         chosen: dict[int, set] = {}
@@ -602,8 +666,12 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         self.tree.setUpdatesEnabled(False)
         shown = 0
         for item in self._object_items():
-            match = not text or text in item.text(0).lower() or text in item.text(1).lower() or any(
-                text in item.child(k).text(1).lower() for k in range(item.childCount()))
+            match = (
+                not text
+                or text in item.text(0).lower()
+                or text in item.text(1).lower()
+                or any(text in item.child(k).text(1).lower() for k in range(item.childCount()))
+            )
             item.setHidden(not match)
             shown += match
         for i in range(self.tree.topLevelItemCount()):
@@ -622,7 +690,6 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         self.view.show_bones = checked
         self.view.update()
 
-    # -- textures ------------------------------------------------------------
     def _apply_texture(self, key, targets):
         for obj, parts in targets:
             for number in parts:
@@ -675,9 +742,12 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                 except Exception:
                     from PIL import Image
                     import io
+
                     image = Image.open(io.BytesIO(data))
                     image.load()
-                self.signals.textures.emit([(targets, f"file:{path}", pil_to_qimage(image), os.path.basename(path))], "")
+                self.signals.textures.emit(
+                    [(targets, f"file:{path}", pil_to_qimage(image), os.path.basename(path))], ""
+                )
             except Exception as exc:
                 self.signals.textures.emit([], f"{os.path.basename(path)}: {exc}")
 
@@ -750,7 +820,6 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         self.view.update()
         self._summary()
 
-    # -- exporting -----------------------------------------------------------
     def export_scene(self, kind: str):
         # Unchecked objects are never exported; a selection narrows it further
         selected = self.selected_objects()
@@ -758,27 +827,49 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
         if kind == "vmd":
             objects = [obj for obj in objects if obj.clip is not None]
             if not objects:
-                self.status.setText("No animated objects to export: open a stage with animated models "
-                                    "(the status line shows how many), or select some.")
+                self.status.setText(
+                    "No animated objects to export: open a stage with animated models "
+                    "(the status line shows how many), or select some."
+                )
                 return
         if not objects:
-            self.status.setText("Nothing to export: every selected object is unchecked." if selected
-                                else "Nothing to export: add meshes or a stage first, or check some objects.")
+            self.status.setText(
+                "Nothing to export: every selected object is unchecked."
+                if selected
+                else "Nothing to export: add meshes or a stage first, or check some objects."
+            )
             return
         groups = {obj.group for obj in objects if obj.group}
-        default = groups.pop() if len(groups) == 1 else (objects[0].name.rsplit(".", 1)[0] if len(objects) == 1 else "scene")
+        default = (
+            groups.pop() if len(groups) == 1 else (objects[0].name.rsplit(".", 1)[0] if len(objects) == 1 else "scene")
+        )
         archive = self.archive()
         stage_game = getattr(self, "_stage_game", None)
         textures = {key: entry.get("label", "") for key, entry in self.view.textures.items()}
-        snapshot = [(obj.name, obj.mesh, obj.neox_matrix,
-                     [(part.material, part.texture_key, part.alpha, part.cutoff) for part in obj.parts], obj.clip)
-                    for obj in objects]
+        snapshot = [
+            (
+                obj.name,
+                obj.mesh,
+                obj.neox_matrix,
+                [(part.material, part.texture_key, part.alpha, part.cutoff) for part in obj.parts],
+                obj.clip,
+            )
+            for obj in objects
+        ]
 
         def build(progress, cancelled, report):
             from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for
+
             loader = None
-            game = stage_game[0] if stage_game else (game_root_for(archive.file_path) if archive is not None
-                                                      and getattr(archive, "file_path", None) else None)
+            game = (
+                stage_game[0]
+                if stage_game
+                else (
+                    game_root_for(archive.file_path)
+                    if archive is not None and getattr(archive, "file_path", None)
+                    else None
+                )
+            )
             if game is not None:
                 options = (stage_game[1] if stage_game else None) or read_options_for(archive)
                 loader = StageLoader(PackIndex(game, options), max_texture_size=8192)
@@ -801,6 +892,7 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                         except Exception:
                             from PIL import Image
                             import io
+
                             image = Image.open(io.BytesIO(data))
                             image.load()
                     elif key.startswith("entry:") and archive is not None:
@@ -814,17 +906,30 @@ class SceneViewerWindow(QtWidgets.QMainWindow):
                 if cancelled():
                     raise InterruptedError
                 progress(f"Collecting {name}…", number, len(snapshot))
-                items.append({"name": name, "mesh": mesh, "matrix": matrix, "animation": clip, "parts": [
-                    {"material": material, "texture": textures.get(key) or None,
-                     "image": image_for(key) if key else None, "alpha": alpha, "cutoff": cutoff}
-                    for material, key, alpha, cutoff in parts]})
+                items.append(
+                    {
+                        "name": name,
+                        "mesh": mesh,
+                        "matrix": matrix,
+                        "animation": clip,
+                        "parts": [
+                            {
+                                "material": material,
+                                "texture": textures.get(key) or None,
+                                "image": image_for(key) if key else None,
+                                "alpha": alpha,
+                                "cutoff": cutoff,
+                            }
+                            for material, key, alpha, cutoff in parts
+                        ],
+                    }
+                )
             if loader is not None:
                 report.extend(loader.report)
             return items
 
         start_export(self, kind, default, build)
 
-    # -- removing ------------------------------------------------------------
     def remove_selected(self):
         objects = self.selected_objects()
         if not objects:
@@ -884,11 +989,14 @@ def install(app) -> None:
             open_action.triggered.connect(lambda _checked=False, w=window: show_viewer(w))
             tools.addAction(open_action)
             makeup_action = QtGui.QAction("Main Character Creator", tools)
-            makeup_action.setToolTip("Dress a face like the game's face editor (skin tone, makeup, face shape, hair, "
-                                     "outfit, body size I / II) and export it with the makeup baked in.")
+            makeup_action.setToolTip(
+                "Dress a face like the game's face editor (skin tone, makeup, face shape, hair, "
+                "outfit, body size I / II) and export it with the makeup baked in."
+            )
 
             def open_makeup(_checked=False, w=window):
                 from gui.widgets import face_makeup_dialog
+
                 face_makeup_dialog.open_dialog(w)
 
             makeup_action.triggered.connect(open_makeup)
@@ -901,6 +1009,7 @@ def install(app) -> None:
 
         try:
             from gui.widgets import animations_page
+
             animations_page.install(window)
         except Exception as exc:
             print(f"Animations tab not installed: {exc}")
@@ -915,9 +1024,12 @@ def install(app) -> None:
                 menu.addAction("Add to Scene Viewer", lambda: add_selection_to_viewer(w))
                 face_folder = _selected_face_folder(w)
                 if face_folder:
+
                     def open_face_makeup(w=w, folder=face_folder):
                         from gui.widgets import face_makeup_dialog
+
                         face_makeup_dialog.open_dialog(w, folder)
+
                     menu.addAction(f"Main Character Creator ({ntpath.basename(face_folder)})…", open_face_makeup)
                 menu.addAction("Export all as one GLB…", lambda: export_character_selection(w, "glb"))
                 menu.addAction("Export all as one PMX…", lambda: export_character_selection(w, "pmx"))
@@ -925,60 +1037,86 @@ def install(app) -> None:
                 # collected by PySide as soon as this function returns
                 each = QtWidgets.QMenu("Export each mesh separately", menu)
                 for label, fmt in EACH_FORMATS:
-                    each.addAction(f"{label} (one folder per mesh)…", lambda fmt=fmt: export_character_meshes_each(w, fmt))
+                    each.addAction(
+                        f"{label} (one folder per mesh)…", lambda fmt=fmt: export_character_meshes_each(w, fmt)
+                    )
                 menu.addMenu(each)
                 per_folder = QtWidgets.QMenu("Export each folder as one file", menu)
                 per_folder.setToolTipsVisible(True)
                 for label, fmt in EACH_FORMATS:
-                    action = per_folder.addAction(f"{label} (one file per folder)…",
-                                                  lambda fmt=fmt: export_character_meshes_each(w, fmt, per_folder=True))
-                    action.setToolTip("Every folder that holds meshes becomes one model, each mesh with its own "
-                                      "materials (e.g. a face folder: face, eyes, eyebrows, lashes).")
+                    action = per_folder.addAction(
+                        f"{label} (one file per folder)…",
+                        lambda fmt=fmt: export_character_meshes_each(w, fmt, per_folder=True),
+                    )
+                    action.setToolTip(
+                        "Every folder that holds meshes becomes one model, each mesh with its own "
+                        "materials (e.g. a face folder: face, eyes, eyebrows, lashes)."
+                    )
                 menu.addMenu(per_folder)
                 faces = QtWidgets.QMenu("Export faces (face + eyes + eyebrows)", menu)
                 faces.setToolTipsVisible(True)
                 for label, fmt in EACH_FORMATS:
-                    action = faces.addAction(f"{label} (one file per face)…",
-                                             lambda fmt=fmt: export_character_meshes_each(w, fmt, faces_only=True))
-                    action.setToolTip("Each face folder in the selection (e.g. body\\male_body_03) becomes one model: "
-                                      "face, eyeballs, lashes and eyebrows, each as its own material with its texture. "
-                                      "Other folders in the selection are skipped.")
+                    action = faces.addAction(
+                        f"{label} (one file per face)…",
+                        lambda fmt=fmt: export_character_meshes_each(w, fmt, faces_only=True),
+                    )
+                    action.setToolTip(
+                        "Each face folder in the selection (e.g. body\\male_body_03) becomes one model: "
+                        "face, eyeballs, lashes and eyebrows, each as its own material with its texture. "
+                        "Other folders in the selection are skipped."
+                    )
                 faces.addSeparator()
                 for label, fmt in EACH_FORMATS:
-                    action = faces.addAction(f"{label} with face shape variants…",
-                                             lambda fmt=fmt: export_character_meshes_each(w, fmt, face_shapes=True))
-                    action.setToolTip("Like above, plus one more model per face shape the game builds from that face "
-                                      "(its .mb files: nose, jaw, eyes, mouth moved), saved as <face>_shape_NN.")
+                    action = faces.addAction(
+                        f"{label} with face shape variants…",
+                        lambda fmt=fmt: export_character_meshes_each(w, fmt, face_shapes=True),
+                    )
+                    action.setToolTip(
+                        "Like above, plus one more model per face shape the game builds from that face "
+                        "(its .mb files: nose, jaw, eyes, mouth moved), saved as <face>_shape_NN."
+                    )
                 menu.addMenu(faces)
                 hats = QtWidgets.QMenu("Export hats only (no hair masks)", menu)
                 hats.setToolTipsVisible(True)
                 for label, fmt in EACH_FORMATS:
-                    action = hats.addAction(f"{label} (one folder per hat)…",
-                                            lambda fmt=fmt: export_character_meshes_each(w, fmt, hats_only=True))
-                    action.setToolTip("Each hat in the selection gets its own folder with its textures. The mask "
-                                      "folders (hairstyles trimmed to fit under each hat) are skipped.")
+                    action = hats.addAction(
+                        f"{label} (one folder per hat)…",
+                        lambda fmt=fmt: export_character_meshes_each(w, fmt, hats_only=True),
+                    )
+                    action.setToolTip(
+                        "Each hat in the selection gets its own folder with its textures. The mask "
+                        "folders (hairstyles trimmed to fit under each hat) are skipped."
+                    )
                 menu.addMenu(hats)
                 icons = QtWidgets.QMenu("Export item icons (PNG)", menu)
                 icons.setToolTipsVisible(True)
                 action = icons.addAction("Icons of the selected items…", lambda: export_selected_item_icons(w))
-                action.setToolTip("Each selected outfit, hat, hair, accessory or face: its in-game icon, saved as "
-                                  "<item name>.png.")
+                action.setToolTip(
+                    "Each selected outfit, hat, hair, accessory or face: its in-game icon, saved as " "<item name>.png."
+                )
                 action = icons.addAction("Every character item icon…", lambda: export_item_icons(w))
-                action.setToolTip("All of the game's icons for outfits, hats, hair, faces, eyes, earrings, glasses… "
-                                  "as PNG files with their game names.")
+                action.setToolTip(
+                    "All of the game's icons for outfits, hats, hair, faces, eyes, earrings, glasses… "
+                    "as PNG files with their game names."
+                )
                 menu.addMenu(icons)
                 options = QtWidgets.QMenu("Export options", menu)
                 options.setToolTipsVisible(True)
                 item_info = options.addAction(ITEM_INFO_LABEL)
                 item_info.setCheckable(True)
                 item_info.setChecked(include_item_info())
-                item_info.setToolTip("Per-mesh / per-folder / face / hat exports: name each model's folder after its "
-                                     "in-game item in English and save the item's icon next to it (<name>_icon.png).")
+                item_info.setToolTip(
+                    "Per-mesh / per-folder / face / hat exports: name each model's folder after its "
+                    "in-game item in English and save the item's icon next to it (<name>_icon.png)."
+                )
                 settings = QtWidgets.QApplication.instance().property("settings_manager")
                 if settings is not None:
-                    item_info.toggled.connect(lambda checked, st=settings: st.set(ITEM_INFO_SETTING, bool(checked), True))
+                    item_info.toggled.connect(
+                        lambda checked, st=settings: st.set(ITEM_INFO_SETTING, bool(checked), True)
+                    )
                 try:
                     from core.mesh_converter.formats.pmx import pmx_option_actions
+
                     options.addSection("PMX")
                     for action in pmx_option_actions(options):
                         options.addAction(action)
@@ -1009,7 +1147,11 @@ def _wrap_file_list_menu(file_list, window):
         def add_item():
             # Runs inside the menu's own event loop, while it is the active popup
             menu = QtWidgets.QApplication.activePopupWidget()
-            if isinstance(menu, QtWidgets.QMenu) and not menu.property("scene_viewer_item") and selected_mesh_specs(window):
+            if (
+                isinstance(menu, QtWidgets.QMenu)
+                and not menu.property("scene_viewer_item")
+                and selected_mesh_specs(window)
+            ):
                 menu.setProperty("scene_viewer_item", True)
                 menu.addSeparator()
                 menu.addAction("Add to Scene Viewer", lambda: add_selection_to_viewer(window))

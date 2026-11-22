@@ -7,7 +7,6 @@ import zlib
 from core.npk.npkhash_v1 import mesh_hash
 from core.npk.scan_control import checkpoint, report_progress
 
-
 RESOURCE_FOLDER = re.compile(r"res(?:[0-9]+)?", re.IGNORECASE)
 MANIFEST_LIMIT = 64 * 1024 * 1024
 MANIFEST_CHUNK = 64 * 1024
@@ -60,9 +59,10 @@ def murmur3_32(text: str, seed: int = 0x9747B28C) -> int:
         k = (k * 0xCC9E2D51) & mask
         k = ((k << 15) | (k >> 17)) & mask
         return (k * 0x1B873593) & mask
+
     end = len(data) & -4
     for offset in range(0, end, 4):
-        h ^= mix(int.from_bytes(data[offset:offset + 4], "little"))
+        h ^= mix(int.from_bytes(data[offset : offset + 4], "little"))
         h = ((h << 13) | (h >> 19)) & mask
         h = (h * 5 + 0xE6546B64) & mask
     if end < len(data):
@@ -84,7 +84,7 @@ def archive_root(npk_file) -> str:
     parts = list(path.with_suffix("").parts)
     for i in range(len(parts) - 1, -1, -1):
         if RESOURCE_FOLDER.fullmatch(parts[i]):
-            return normalize_path("\\".join(parts[i + 1:]))
+            return normalize_path("\\".join(parts[i + 1 :]))
     return ""
 
 
@@ -92,7 +92,8 @@ def compatible_extension(path: str, extension: str) -> bool:
     expected = path.rsplit(".", 1)[-1]
     extension = str(extension).lower().lstrip(".")
     return extension in {
-        "tga": {"tga", "dds"}, "mtg": {"mtg", "mtl"},
+        "tga": {"tga", "dds"},
+        "mtg": {"mtg", "mtl"},
         "mtl": {"mtl", "mtg"},
     }.get(expected, {expected})
 
@@ -118,8 +119,7 @@ class AssetPathIndex:
             if current % 128 == 0 or current == len(self.entries):
                 report_progress(progress, "Indexing archive paths", current, len(self.entries))
             self.by_signature.setdefault(entry.file_signature, []).append(index)
-            names = [getattr(entry, "filename", ""),
-                     (signature_name_map or {}).get(hex(entry.file_signature), "")]
+            names = [getattr(entry, "filename", ""), (signature_name_map or {}).get(hex(entry.file_signature), "")]
             if index < len(indices):
                 names.append(getattr(indices[index], "filename", ""))
             for name in names:
@@ -145,7 +145,7 @@ class AssetPathIndex:
         for actual in actual_paths:
             relative = None
             if self.mount and actual.startswith(self.mount + "\\"):
-                relative = actual[len(self.mount) + 1:]
+                relative = actual[len(self.mount) + 1 :]
             elif not self.mount and actual.startswith("model\\"):
                 relative = actual.split("\\", 2)[-1]
             if relative is not None:

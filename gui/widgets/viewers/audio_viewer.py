@@ -15,6 +15,7 @@ from PySide6 import QtCore, QtMultimedia, QtWidgets
 from core.file import IFile
 from core.wem import convert, probe
 from gui.widgets.viewer import Viewer
+from core.logger import get_logger
 
 EXPORT_TARGETS = {
     "vorbis": [("Ogg Vorbis (*.ogg)", "ogg")],
@@ -29,6 +30,7 @@ def _sound_label(name: str) -> str | None:
         from core.npk import wwise_names
         return wwise_names.label_for(name)
     except Exception:
+        get_logger().debug("Could not look up the sound name for %s", name, exc_info=True)
         return None
 
 

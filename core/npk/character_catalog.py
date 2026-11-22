@@ -39,8 +39,10 @@ class CharacterCatalog:
 
     def to_dict(self):
         return {
-            "schema_version": 3, "scanned_entries": self.scanned_entries,
-            "manifest_used": self.manifest_used, "folders": self.folders,
+            "schema_version": 3,
+            "scanned_entries": self.scanned_entries,
+            "manifest_used": self.manifest_used,
+            "folders": self.folders,
             "unmapped_entries": self.unmapped,
             "assets": [{**asdict(a), "sources": sorted(a.sources)} for a in self.assets.values()],
         }
@@ -72,7 +74,17 @@ def build_character_catalog(npk_file, roots=None, signature_name_map=None, *, pr
     def add(path, source=None, require_match=False):
         checkpoint(cancelled)
         path = normalize_path(path)
-        if not allowed(path) or path.rsplit(".", 1)[-1] not in {"png", "jpeg", "tga", "mtl", "gim", "mtg", "dds", "mesh", "jpg"}:
+        if not allowed(path) or path.rsplit(".", 1)[-1] not in {
+            "png",
+            "jpeg",
+            "tga",
+            "mtl",
+            "gim",
+            "mtg",
+            "dds",
+            "mesh",
+            "jpg",
+        }:
             return None
         resolved = index.resolve(path)
         if require_match and resolved is None:
@@ -83,9 +95,15 @@ def build_character_catalog(npk_file, roots=None, signature_name_map=None, *, pr
             group = index.resolve(path[:-4] + ".mtg")
             if group and group[0] == resolved[0]:
                 path = path[:-4] + ".mtg"
-        asset = assets.setdefault(path, CharacterAsset(
-            path, asset_kind(path), resolved[0] if resolved else None,
-            resolved[1] if resolved else "Referenced; not in this archive"))
+        asset = assets.setdefault(
+            path,
+            CharacterAsset(
+                path,
+                asset_kind(path),
+                resolved[0] if resolved else None,
+                resolved[1] if resolved else "Referenced; not in this archive",
+            ),
+        )
         if source is not None:
             asset.sources.add(source)
         return asset
@@ -128,8 +146,7 @@ def build_character_catalog(npk_file, roots=None, signature_name_map=None, *, pr
             meta = add(stem + ".gim", require_match=True)
             if meta:
                 asset.metadata.append(meta.path)
-            material_paths.update(p for p in entry_paths(descriptor[0])
-                                  if p.endswith((".mtg", ".mtl")))
+            material_paths.update(p for p in entry_paths(descriptor[0]) if p.endswith((".mtg", ".mtl")))
         for material_path in sorted(material_paths):
             material = add(material_path, require_match=True)
             if material is None:
@@ -153,7 +170,6 @@ def build_character_catalog(npk_file, roots=None, signature_name_map=None, *, pr
 
             folders.setdefault(path.rsplit("\\", 1)[0], []).append(path)
     mapped = {a.entry_index for a in assets.values() if a.entry_index is not None}
-    unmapped = [i for i, e in index.entries.items()
-                if e.extension in {"dds", "mesh", "tga"} and i not in mapped]
+    unmapped = [i for i, e in index.entries.items() if e.extension in {"dds", "mesh", "tga"} and i not in mapped]
     checkpoint(cancelled)
     return CharacterCatalog(assets, folders, unmapped, len(index.entries), bool(manifest_paths))

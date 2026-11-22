@@ -16,8 +16,12 @@ from gui.utils.character_tree_index import CharacterTreeIndex
 from gui.windows import character_folders_window as cfw
 
 SETTING_SORT = "characters.sort"
-MODES = [("Name (A → Z)", "name"), ("Name (Z → A)", "name_desc"),
-         ("Size (largest first)", "size_desc"), ("Size (smallest first)", "size")]
+MODES = [
+    ("Name (A → Z)", "name"),
+    ("Name (Z → A)", "name_desc"),
+    ("Size (largest first)", "size_desc"),
+    ("Size (smallest first)", "size"),
+]
 SIZE_COLUMN = 2
 SIZE_ROLE = QtCore.Qt.ItemDataRole.UserRole + 40
 
@@ -25,7 +29,7 @@ _state = {"mode": "name", "page": None, "sizes": {}, "archive": None}
 
 
 def size_text(size: int) -> str:
-    if size >= 1024 ** 3:
+    if size >= 1024**3:
         return f"{size / 1024 ** 3:.2f} GB"
     if size >= 1024 * 1024:
         return f"{size / (1024 * 1024):.1f} MB"
@@ -66,6 +70,7 @@ def _asset_key(page, mode):
     def size(key):
         asset = assets.get(key)
         return entry_size(archive, getattr(asset, "entry_index", None))
+
     return name if mode.startswith("name") else (lambda key: (size(key), name(key)))
 
 
@@ -122,12 +127,16 @@ def apply_sort(page) -> None:
     parents = [tree.invisibleRootItem()] + list(page._directory_items.values())
     tree.setUpdatesEnabled(False)
     try:
-        with QtCore.QSignalBlocker(tree):               # no folder fill / release while items move
+        with QtCore.QSignalBlocker(tree):  # no folder fill / release while items move
             # Moving an item makes the view forget what was open below it, so note all of it first:
             # the open folders, and the open file groups (Mesh / Textures / Metadata) inside them
             expanded = [item for item in page._directory_items.values() if item.isExpanded()]
-            open_groups = [parent.child(i) for parent in parents for i in range(parent.childCount())
-                           if not parent.child(i).data(0, cfw.FOLDER_PATH_ROLE) and parent.child(i).isExpanded()]
+            open_groups = [
+                parent.child(i)
+                for parent in parents
+                for i in range(parent.childCount())
+                if not parent.child(i).data(0, cfw.FOLDER_PATH_ROLE) and parent.child(i).isExpanded()
+            ]
             for parent in parents:
                 children = [parent.child(i) for i in range(parent.childCount())]
                 folders = [c for c in children if c.data(0, cfw.FOLDER_PATH_ROLE)]
@@ -169,8 +178,10 @@ def _drop_row_filters(page, row) -> None:
     is listed, and references the archive doesn't have never are. (The tab's own filter reads both widgets, so they
     stay as hidden, fixed settings rather than being deleted.)
     """
-    for name, settle in (("asset_filter", lambda w: w.setCurrentIndex(0)),
-                         ("show_missing", lambda w: w.setChecked(False))):
+    for name, settle in (
+        ("asset_filter", lambda w: w.setCurrentIndex(0)),
+        ("show_missing", lambda w: w.setChecked(False)),
+    ):
         widget = getattr(page, name, None)
         if widget is None:
             continue

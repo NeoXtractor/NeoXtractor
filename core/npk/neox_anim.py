@@ -20,7 +20,7 @@ def _chunks(data: bytes, start: int) -> dict[bytes, tuple[int, int]]:
     """Map of chunk tag -> (payload offset, payload size)."""
     found, pos = {}, start
     while pos + 8 <= len(data):
-        tag, size = data[pos:pos + 4], struct.unpack_from("<I", data, pos + 4)[0]
+        tag, size = data[pos : pos + 4], struct.unpack_from("<I", data, pos + 4)[0]
         if not tag.isalpha():
             break
         found[tag] = (pos + 8, size)
@@ -33,7 +33,7 @@ def _names(data: bytes, offset: int) -> list[str]:
     names, pos = [], offset + 4
     for _ in range(count):
         length = struct.unpack_from("<I", data, pos)[0]
-        names.append(data[pos + 4:pos + 4 + length].decode("utf-8", "replace"))
+        names.append(data[pos + 4 : pos + 4 + length].decode("utf-8", "replace"))
         pos += 4 + length
     return names
 
@@ -50,10 +50,12 @@ class Skeleton:
         names = _names(data, chunks[b"NAME"][0])
         self.name, self.bone_names = names[0], names[1:]
         count = len(self.bone_names)
+
         # DATA holds bone ids (u32), parents (i16) and bind transforms (10 floats each),
         # every array starting 16-byte aligned from the start of the chunk
         def align(value):
             return (value + 15) & ~15
+
         parents_at = body + align(4 * count)
         transforms_at = body + align(align(4 * count) + 2 * count)
         if transforms_at + 40 * count > body + size:
@@ -76,7 +78,7 @@ class _Bits:
     def read(self, bit_offset: int, bits: int) -> int:
         byte, shift = self.start + bit_offset // 8, bit_offset % 8
         span = (shift + bits + 7) // 8
-        value = int.from_bytes(self.data[byte:byte + span], "big")
+        value = int.from_bytes(self.data[byte : byte + span], "big")
         return (value >> (span * 8 - shift - bits)) & ((1 << bits) - 1)
 
 
@@ -88,7 +90,7 @@ class Animation:
             raise ValueError("Not a NeoX animation")
         header = struct.unpack_from("<I", data, 20)[0]
         path_length = struct.unpack_from("<I", data, 40)[0]
-        self.skeleton_path = data[44:44 + path_length].decode("utf-8", "replace")
+        self.skeleton_path = data[44 : 44 + path_length].decode("utf-8", "replace")
         chunks = _chunks(data, header)
         self.track_names = _names(data, chunks[b"NAME"][0]) if b"NAME" in chunks else []
         acl = chunks[b"DATA"][0]
@@ -122,11 +124,12 @@ class Animation:
         self.rotations = np.full((frames, tracks, 4), np.nan)
         self.scales = np.full((frames, tracks, 3), np.nan)
         for track in range(tracks):
-            group = arrays[1 + 6 * track:7 + 6 * track]
+            group = arrays[1 + 6 * track : 7 + 6 * track]
             if tuple(size for size, _count, _at in group) != (4, 12, 4, 16, 4, 12):
                 raise ValueError("Unsupported animation layout")
-            for (_t, count, key_at), (width, _c, value_at), target in zip(group[0::2], group[1::2],
-                                                                          (self.positions, self.rotations, self.scales)):
+            for (_t, count, key_at), (width, _c, value_at), target in zip(
+                group[0::2], group[1::2], (self.positions, self.rotations, self.scales)
+            ):
                 if not count:
                     continue
                 keys = np.frombuffer(data, "<f4", count, key_at).astype(np.float64)
@@ -141,10 +144,26 @@ class Animation:
         _size, _hash, tag = struct.unpack_from("<III", data, acl)
         if tag != ACL_TAG:
             raise ValueError("Unsupported animation compression")
-        base = acl + 16                                # ACL clip header
-        (bones, segments, rot_fmt, trans_fmt, scale_fmt, clip_rr, seg_rr, has_scale, default_scale, _pad,
-         samples, rate, seg_off, default_off, constant_off, constant_data_off, clip_range_off) = \
-            struct.unpack_from("<HHBBBBBBBBIfHHHHH", data, base)
+        base = acl + 16  # ACL clip header
+        (
+            bones,
+            segments,
+            rot_fmt,
+            trans_fmt,
+            scale_fmt,
+            clip_rr,
+            seg_rr,
+            has_scale,
+            default_scale,
+            _pad,
+            samples,
+            rate,
+            seg_off,
+            default_off,
+            constant_off,
+            constant_data_off,
+            clip_range_off,
+        ) = struct.unpack_from("<HHBBBBBBBBIfHHHHH", data, base)
         if rot_fmt != 4 or trans_fmt != 3 or (has_scale and scale_fmt != 3):
             raise ValueError(f"Unsupported ACL formats {rot_fmt}/{trans_fmt}/{scale_fmt}")
         self.bone_count, self.frame_count, self.frame_rate = bones, samples, rate
@@ -184,8 +203,10 @@ class Animation:
 
         sample = 0
         for segment in range(segments):
-            count, pose_bits, formats_off, range_off, track_off = struct.unpack_from("<5I", data, base + seg_off + 20 * segment)
-            formats = data[base + formats_off:base + formats_off + len(animated)]
+            count, pose_bits, formats_off, range_off, track_off = struct.unpack_from(
+                "<5I", data, base + seg_off + 20 * segment
+            )
+            formats = data[base + formats_off : base + formats_off + len(animated)]
             stream = _Bits(data, base + track_off)
             has_segment_ranges = range_off != 0xFFFFFFFF
             ranges = base + range_off if has_segment_ranges else 0
@@ -195,12 +216,16 @@ class Animation:
                 for slot, i in enumerate(animated):
                     num_bits = BIT_RATE_BITS[formats[slot]]
                     segment_range = has_segment_ranges and reduced(seg_rr, i)
-                    if num_bits == 0:                  # constant within the segment: 3 x u16 in the range data
+                    if num_bits == 0:  # constant within the segment: 3 x u16 in the range data
                         raw = struct.unpack_from(">3H", data, range_pos) if segment_range else (0, 0, 0)
                         value = np.array(raw) / 65535.0
-                    elif num_bits == 32:               # raw floats, no range reduction
-                        value = np.array([struct.unpack(">f", stream.read(bit_pos + 32 * c, 32).to_bytes(4, "big"))[0]
-                                          for c in range(3)])
+                    elif num_bits == 32:  # raw floats, no range reduction
+                        value = np.array(
+                            [
+                                struct.unpack(">f", stream.read(bit_pos + 32 * c, 32).to_bytes(4, "big"))[0]
+                                for c in range(3)
+                            ]
+                        )
                         bit_pos += 96
                     else:
                         scale = (1 << num_bits) - 1
@@ -219,9 +244,9 @@ class Animation:
 
         self.positions = values[:, 1::channels, :]
         rotations_xyz = values[:, 0::channels, :]
-        w = np.sqrt(np.clip(1.0 - (rotations_xyz ** 2).sum(-1, keepdims=True), 0.0, 1.0))
+        w = np.sqrt(np.clip(1.0 - (rotations_xyz**2).sum(-1, keepdims=True), 0.0, 1.0))
         self.rotations = np.concatenate([rotations_xyz, w], -1)
-        for i in range(bones):                         # default rotation tracks are identity
+        for i in range(bones):  # default rotation tracks are identity
             if default[i * channels]:
                 self.rotations[:, i] = (0.0, 0.0, 0.0, 1.0)
         self.scales = values[:, 2::channels, :] if has_scale else np.ones((samples, bones, 3))
@@ -236,7 +261,7 @@ def _read_string(data: bytes, pos: int) -> tuple[str, int]:
     length = struct.unpack_from("<I", data, pos)[0]
     if length > 256:
         raise ValueError(f"bad name length {length} at {pos}")
-    return data[pos + 4:pos + 4 + length].decode("ascii"), pos + 4 + length
+    return data[pos + 4 : pos + 4 + length].decode("ascii"), pos + 4 + length
 
 
 def _read_node(data: bytes, pos: int):
@@ -251,7 +276,7 @@ def _read_node(data: bytes, pos: int):
             child, pos = _read_node(data, pos)
             children.append(child)
         return (kind, name, children), pos
-    if kind == "LNode":                                # element size in bytes, element count
+    if kind == "LNode":  # element size in bytes, element count
         return (kind,) + struct.unpack_from("<II", data, pos), pos + 8
     if kind == "Empty":
         return (kind,), pos
@@ -288,11 +313,14 @@ def quaternion_matrices(quaternions) -> np.ndarray:
     q = np.asarray(quaternions, float)
     q = q / np.maximum(np.linalg.norm(q, axis=-1, keepdims=True), 1e-12)
     x, y, z, w = q[..., 0], q[..., 1], q[..., 2], q[..., 3]
-    return np.stack([
-        np.stack([1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)], -1),
-        np.stack([2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)], -1),
-        np.stack([2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)], -1),
-    ], -2)
+    return np.stack(
+        [
+            np.stack([1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)], -1),
+            np.stack([2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)], -1),
+            np.stack([2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)], -1),
+        ],
+        -2,
+    )
 
 
 def matrix_quaternion(matrix) -> np.ndarray:
@@ -330,20 +358,23 @@ class Clip:
         self.rotations = np.repeat(skeleton.rotations[None, :bones], frames, 0).astype(np.float64)
         self.scales = np.repeat(skeleton.scales[None, :bones], frames, 0).astype(np.float64)
         names = list(animation.track_names)
-        if len(names) == animation.bone_count + 1:      # the list may start with the clip / skeleton name
+        if len(names) == animation.bone_count + 1:  # the list may start with the clip / skeleton name
             names = names[1:]
         index = {name: i for i, name in enumerate(skeleton.bone_names)}
         if len(names) == animation.bone_count and any(name in index for name in names):
             targets = [(track, index[name]) for track, name in enumerate(names) if name in index]
-        else:                                           # no usable names: tracks are the skeleton's bones in order
+        else:  # no usable names: tracks are the skeleton's bones in order
             targets = [(track, track) for track in range(min(animation.bone_count, bones))]
         for track, bone in targets:
-            for own, theirs in ((self.positions, animation.positions), (self.rotations, animation.rotations),
-                                (self.scales, animation.scales)):
+            for own, theirs in (
+                (self.positions, animation.positions),
+                (self.rotations, animation.rotations),
+                (self.scales, animation.scales),
+            ):
                 values = theirs[:, track]
                 if not np.isnan(values).any():
                     own[:, bone] = values
-                elif not np.isnan(values).all():           # partly keyed: rest pose where it has none
+                elif not np.isnan(values).all():  # partly keyed: rest pose where it has none
                     own[:, bone] = np.where(np.isnan(values), own[:, bone], values)
         self.mapped_tracks = len(targets)
         self.frame_count, self.frame_rate = frames, animation.frame_rate or 30.0
@@ -357,7 +388,7 @@ class Clip:
         first = min(first, self.frame_count - 1)
         blend = frame - first
         q0, q1 = self.rotations[first], self.rotations[second]
-        q1 = np.where(((q0 * q1).sum(-1) < 0)[:, None], -q1, q1)        # shortest path
+        q1 = np.where(((q0 * q1).sum(-1) < 0)[:, None], -q1, q1)  # shortest path
         rotation = q0 * (1 - blend) + q1 * blend
         rotation /= np.maximum(np.linalg.norm(rotation, axis=-1, keepdims=True), 1e-12)
         position = self.positions[first] * (1 - blend) + self.positions[second] * blend
@@ -376,7 +407,7 @@ class Clip:
         local = self.local_matrices(time)
         world = np.empty_like(local)
         base = np.eye(4) if root is None else np.asarray(root, float)
-        for index, parent in enumerate(self.parents[:len(local)]):
+        for index, parent in enumerate(self.parents[: len(local)]):
             world[index] = (world[parent] if parent >= 0 else base) @ local[index]
         return world
 
@@ -398,6 +429,7 @@ def load_default_clip(read, model_path: str, report=None):
     read(path) -> (bytes, actual path) | None, e.g. PackIndex.read.
     """
     import xml.etree.ElementTree as ET
+
     stem = model_path.rsplit(".", 1)[0]
     found = read(stem + ".animconfig")
     if found is None:
@@ -428,8 +460,11 @@ def load_default_clip(read, model_path: str, report=None):
         if raw is None:
             raise FileNotFoundError(raw_path)
         animation = Animation(raw[0])
-        skeleton_path = _join(raw_path.rsplit("\\", 1)[0], animation.skeleton_path) if animation.skeleton_path \
+        skeleton_path = (
+            _join(raw_path.rsplit("\\", 1)[0], animation.skeleton_path)
+            if animation.skeleton_path
             else stem + ".skeleton"
+        )
         skeleton_data = read(skeleton_path) or read(stem + ".skeleton")
         if skeleton_data is None:
             raise FileNotFoundError(skeleton_path)

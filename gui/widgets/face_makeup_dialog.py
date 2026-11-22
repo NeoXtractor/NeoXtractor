@@ -12,22 +12,73 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from core.logger import get_logger
 from core.npk.accessory_sockets import apply_bind_offsets
 from gui.widgets.face_makeup_data import (  # noqa: F401
-    KINDS, WARDROBE, _hair_data, _library, _wardrobe, choice_key, dress_face_items, dress_hair_items,
-    dress_wardrobe_items, face_folder_of, load_face_items, load_wardrobe_items, without_old_eye_faces,
+    KINDS,
+    WARDROBE,
+    _hair_data,
+    _library,
+    _wardrobe,
+    choice_key,
+    dress_face_items,
+    dress_hair_items,
+    dress_wardrobe_items,
+    face_folder_of,
+    load_face_items,
+    load_wardrobe_items,
+    without_old_eye_faces,
 )
 from gui.widgets.face_makeup_widgets import (  # noqa: F401
-    CREATOR_STYLE, GOLD, ICON_ROLE, LIST_WIDTH, LIST_WIDTH_EXPANDED, RAIL_WIDTH, RARITY_COLORS, RARITY_NAMES, RARITY_ROLE,
-    SHORT_LABELS, SOCKETS_ROLE, SOURCE_ROLE, TEXTURE_ROLE, TRAIT_ROLE, UI_SPRITES, ORDER_ROLE, SORT_ROLE, TAGS_ROLE,
-    _AllTiles, _DragScroll, _FilterButton, _FilterPanel, _FilterRow, _ScrollMarker, game_font_style, game_fonts, _ExpandArrow, _RoundButton, _SearchBox, _SlotTabs, _LayerPanel, _HidePopup, _Backdrop, _ItemTitle,
-    _SwatchPopup, _Tiles, _sprite,
+    CREATOR_STYLE,
+    GOLD,
+    ICON_ROLE,
+    LIST_WIDTH,
+    LIST_WIDTH_EXPANDED,
+    RAIL_WIDTH,
+    RARITY_COLORS,
+    RARITY_NAMES,
+    RARITY_ROLE,
+    SHORT_LABELS,
+    SOCKETS_ROLE,
+    SOURCE_ROLE,
+    TEXTURE_ROLE,
+    TRAIT_ROLE,
+    UI_SPRITES,
+    ORDER_ROLE,
+    SORT_ROLE,
+    TAGS_ROLE,
+    _AllTiles,
+    _DragScroll,
+    _FilterButton,
+    _FilterPanel,
+    _FilterRow,
+    _ScrollMarker,
+    game_font_style,
+    game_fonts,
+    _ExpandArrow,
+    _RoundButton,
+    _SearchBox,
+    _SlotTabs,
+    _LayerPanel,
+    _HidePopup,
+    _Backdrop,
+    _ItemTitle,
+    _SwatchPopup,
+    _Tiles,
+    _sprite,
 )
 from gui.widgets.face_makeup_workers import (  # noqa: F401
-    _Signals, _bake_worker, _load, _load_hair_worker, _load_icons, _load_item_icons, _load_meshes_worker,
-    _load_part_worker, _load_ui_sprites_early, export_face,
+    _Signals,
+    _bake_worker,
+    _load,
+    _load_hair_worker,
+    _load_icons,
+    _load_item_icons,
+    _load_meshes_worker,
+    _load_part_worker,
+    _load_ui_sprites_early,
+    export_face,
 )
 
-
-RAIL_BUTTON, RAIL_GAP, RAIL_ICON = 62, 10, 40       # rail button height, the space between buttons, icon size
+RAIL_BUTTON, RAIL_GAP, RAIL_ICON = 62, 10, 40  # rail button height, the space between buttons, icon size
 
 
 _TRIMMED: dict = {}
@@ -52,7 +103,7 @@ def _trimmed(pixmap):
         if right < left:
             _TRIMMED[key] = pixmap
         else:
-            side = max(right - left, bottom - top) + 1           # square, centred: tall and wide icons stay in shape
+            side = max(right - left, bottom - top) + 1  # square, centred: tall and wide icons stay in shape
             cx, cy = (left + right) / 2, (top + bottom) / 2
             box = QtCore.QRect(int(cx - side / 2), int(cy - side / 2), side, side)
             square = QtGui.QPixmap(side, side)
@@ -69,6 +120,7 @@ def game_tables_tag_names(library) -> dict:
     if library is None:
         return {}
     from core.npk import game_tables
+
     return game_tables.tag_names(library.tables)
 
 
@@ -91,7 +143,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         screen = QtGui.QGuiApplication.primaryScreen()
         area = screen.availableGeometry() if screen is not None else QtCore.QRect(0, 0, 1600, 1000)
         self.resize(max(1280, int(area.width() * 0.94)), max(800, int(area.height() * 0.92)))
-        self.fonts = game_fonts(game)                   # the game's own title and text faces, when installed
+        self.fonts = game_fonts(game)  # the game's own title and text faces, when installed
         if self.fonts.get("body"):
             body = QtGui.QFont(self.fonts["body"])
             body.setPointSizeF(max(self.font().pointSizeF(), 9.5))
@@ -110,12 +162,14 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.face = combo()
         self.shape = combo()
         self.skin = combo()
-        self.preset = combo()                      # the game's face presets (face model + shape), shown as tiles
+        self.preset = combo()  # the game's face presets (face model + shape), shown as tiles
         self.choices: dict[str, QtWidgets.QComboBox] = {kind: combo() for kind, _label in KINDS}
         self.hair = combo("A dyeable hairstyle, shown on the head and exported with the face.")
         self.hair_color1 = combo("Main hair colour (where the dye mask is red).")
-        self.hair_color2 = combo("Second colour: two-tone hair blends from it to the main colour. "
-                                 "Leave on \"Same as colour 1\" for one colour.")
+        self.hair_color2 = combo(
+            "Second colour: two-tone hair blends from it to the main colour. "
+            "Leave on \"Same as colour 1\" for one colour."
+        )
         self.wardrobe: dict[str, QtWidgets.QComboBox] = {kind: combo() for kind, _label in WARDROBE}
 
         root = QtWidgets.QVBoxLayout(self)
@@ -129,8 +183,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         bar.setContentsMargins(4, 4, 4, 4)
         bar.setSpacing(2)
         self.view_buttons = QtWidgets.QButtonGroup(self)
-        for number, (label, tip) in enumerate((("3D", "The character in 3D"),
-                                               ("Texture", "The baked face texture"))):
+        for number, (label, tip) in enumerate((("3D", "The character in 3D"), ("Texture", "The baked face texture"))):
             button = QtWidgets.QToolButton()
             button.setText(label)
             button.setToolTip(tip)
@@ -157,8 +210,10 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         actions_row.setSpacing(4)
         add_scene = QtWidgets.QToolButton()
         add_scene.setText("Add to Scene Viewer")
-        add_scene.setToolTip("Put this character (shape, makeup, eyes, eyebrows, dyed hair and outfit) into the "
-                             "Scene Viewer, to export it together with other parts.")
+        add_scene.setToolTip(
+            "Put this character (shape, makeup, eyes, eyebrows, dyed hair and outfit) into the "
+            "Scene Viewer, to export it together with other parts."
+        )
         add_scene.clicked.connect(self._add_to_scene)
         save = QtWidgets.QToolButton()
         save.setText("Save texture \u25bc")
@@ -166,13 +221,23 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         save_menu = QtWidgets.QMenu(save)
         save_menu.setObjectName("creatorPopover")
         for label, tip, slot in (
-                ("Face texture as PNG…", "The face texture with the makeup baked in.", self._save_texture),
-                ("Eye texture as PNG…", "The iris texture (like eye_01.png) with the chosen eye type and colour.",
-                 self._save_eye_texture),
-                ("Eyebrow texture as PNG…", "The separate eyebrow mesh's texture in the chosen eyebrow colour.",
-                 self._save_eyebrow_texture),
-                ("Hair texture as PNG…", "The chosen hairstyle's texture in the chosen dye colours.",
-                 self._save_hair_texture)):
+            ("Face texture as PNG…", "The face texture with the makeup baked in.", self._save_texture),
+            (
+                "Eye texture as PNG…",
+                "The iris texture (like eye_01.png) with the chosen eye type and colour.",
+                self._save_eye_texture,
+            ),
+            (
+                "Eyebrow texture as PNG…",
+                "The separate eyebrow mesh's texture in the chosen eyebrow colour.",
+                self._save_eyebrow_texture,
+            ),
+            (
+                "Hair texture as PNG…",
+                "The chosen hairstyle's texture in the chosen dye colours.",
+                self._save_hair_texture,
+            ),
+        ):
             action = save_menu.addAction(label)
             action.setToolTip(tip)
             action.triggered.connect(lambda _checked=False, slot=slot: slot())
@@ -186,8 +251,9 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         export_menu.setObjectName("creatorPopover")
         for label, fmt in (("GLB…", "glb"), ("PMX…", "pmx"), ("OBJ…", "obj")):
             export_menu.addAction(label).triggered.connect(lambda _checked=False, fmt=fmt: self._export(fmt))
-        try:                                       # the PMX switches only change PMX exports: in their own submenu
+        try:  # the PMX switches only change PMX exports: in their own submenu
             from core.mesh_converter.formats.pmx import pmx_option_actions
+
             export_menu.addSeparator()
             pmx_menu = export_menu.addMenu("PMX options")
             pmx_menu.setObjectName("creatorPopover")
@@ -234,7 +300,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.panel.setObjectName("creatorPanel")
         self.panel.setFixedWidth(LIST_WIDTH)
         panel_layout = QtWidgets.QVBoxLayout(self.panel)
-        panel_layout.setContentsMargins(0, 8, 4, 8)          # the pages keep their own margin (room for halos)
+        panel_layout.setContentsMargins(0, 8, 4, 8)  # the pages keep their own margin (room for halos)
         panel_layout.setSpacing(4)
         self.panel_title = QtWidgets.QLabel()
         self.panel_title.setObjectName("creatorTitle")
@@ -246,7 +312,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.filter.setClearButtonEnabled(False)
         self.filter.textChanged.connect(self._filter_changed)
         self.search_box = _SearchBox(self.filter, self.sprites)
-        self.search_box.hide()                         # shown with the expanded list
+        self.search_box.hide()  # shown with the expanded list
         self.search_row = QtWidgets.QHBoxLayout()
         self.search_row.setContentsMargins(8, 0, 0, 0)
         self.search_row.addWidget(self.search_box)
@@ -255,7 +321,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)   # scrolled by drag or wheel
+        scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # scrolled by drag or wheel
         self.pages = QtWidgets.QStackedWidget()
         scroll.setWidget(self.pages)
         panel_layout.addWidget(scroll, 1)
@@ -294,13 +360,14 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.filter_reset.backdrop = "pic_duijue_gouxuandiban"
         self.filter_reset.clicked.connect(self.filter_panel.reset)
         self.filter_reset.hide()
-        self.rare_first = True                                 # Mythic first
-        self.sort_button = _RoundButton("Rarest first (click for the most common first)", self.sprites, 56,
-                                        sprite="icon_shengxu", text="⇅")
+        self.rare_first = True  # Mythic first
+        self.sort_button = _RoundButton(
+            "Rarest first (click for the most common first)", self.sprites, 56, sprite="icon_shengxu", text="⇅"
+        )
         self.sort_button.backdrop = "btn_mfxj_diban"
         self.sort_button.clicked.connect(self._flip_sort)
         self.filter_bar = QtWidgets.QWidget()
-        self.filter_bar.setObjectName("creatorFilterBar")   # see-through: it also sits on the open Filter's gradient
+        self.filter_bar.setObjectName("creatorFilterBar")  # see-through: it also sits on the open Filter's gradient
         filter_row = QtWidgets.QHBoxLayout(self.filter_bar)
         filter_row.setContentsMargins(8, 0, 0, 0)
         filter_row.setSpacing(6)
@@ -310,7 +377,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         filter_row.addStretch(1)
         panel_layout.addWidget(self.filter_bar)
         self._update_filter_button()
-        self.scroll_marker = _ScrollMarker(self.panel_scroll, self.sprites, self.panel)   # shown while scrolling
+        self.scroll_marker = _ScrollMarker(self.panel_scroll, self.sprites, self.panel)  # shown while scrolling
         body.addWidget(self.panel)
         self.stage = QtWidgets.QWidget()
         self.stage.installEventFilter(self)
@@ -320,6 +387,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.view3d = None
         try:
             from gui.widgets.scene_render import SceneRenderWidget
+
             self.view3d = SceneRenderWidget()
             self.view3d.show_bones = False
             self.tabs.addWidget(self.view3d)
@@ -343,9 +411,15 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         wardrobe_labels = dict(WARDROBE)
         # The rail follows the game's order. Glasses and earrings, scarf and brooch, iris and eye colour, and eyeshadow
         # and blush share a button each and switch with icon tabs.
-        wardrobe_icons = {"clothes": "pic_duijiaoxiang_tubiao1", "hat": "pic_fuzhuangdian_shaixuan_maozi",
-                          "earring": "icon_ershi", "glasses": "icon_yanjing", "scarf": "pic_fuzhuangdian_shaixuan_weijin",
-                          "brooch": "icon_huizhang", "bag": "icon_beibao_01"}
+        wardrobe_icons = {
+            "clothes": "pic_duijiaoxiang_tubiao1",
+            "hat": "pic_fuzhuangdian_shaixuan_maozi",
+            "earring": "icon_ershi",
+            "glasses": "icon_yanjing",
+            "scarf": "pic_fuzhuangdian_shaixuan_weijin",
+            "brooch": "icon_huizhang",
+            "bag": "icon_beibao_01",
+        }
 
         def ward(kind):
             return ("tiles", wardrobe_labels.get(kind, kind), self.wardrobe[kind], wardrobe_icons.get(kind))
@@ -353,15 +427,31 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         by_key = {
             "all": ("All", [("all", "All", None, None)], "pic_yimaojian_quanbu", None),
             "face": ("Face", [("tiles", "Face", self.preset, None)], "icon_lianxing", self.preset),
-            "eyes": ("Eyes", [("tiles", labels["eyetype"], self.choices["eyetype"], "pic_zr_yanzhu_01"),
-                              ("tiles", labels["eyecolor"], self.choices["eyecolor"], "icon_fuzhuang_tiaosepan")],
-                     "icon_tongkongxijie", None),
-            "makeup": ("Makeup", [("tiles", labels["eyeshadow"], self.choices["eyeshadow"], "pic_zr_tongkong_01"),
-                                  ("tiles", labels["blush"], self.choices["blush"], "icon_mianbuxijie")],
-                       "icon_mianbuxijie", None),
+            "eyes": (
+                "Eyes",
+                [
+                    ("tiles", labels["eyetype"], self.choices["eyetype"], "pic_zr_yanzhu_01"),
+                    ("tiles", labels["eyecolor"], self.choices["eyecolor"], "icon_fuzhuang_tiaosepan"),
+                ],
+                "icon_tongkongxijie",
+                None,
+            ),
+            "makeup": (
+                "Makeup",
+                [
+                    ("tiles", labels["eyeshadow"], self.choices["eyeshadow"], "pic_zr_tongkong_01"),
+                    ("tiles", labels["blush"], self.choices["blush"], "icon_mianbuxijie"),
+                ],
+                "icon_mianbuxijie",
+                None,
+            ),
             "lips": (labels["lips"], [("tiles", labels["lips"], self.choices["lips"], None)], "icon_chunse", None),
-            "brows": (labels["eyebrow"], [("tiles", labels["eyebrow"], self.choices["eyebrow"], None)], "icon_meimao",
-                      None),
+            "brows": (
+                labels["eyebrow"],
+                [("tiles", labels["eyebrow"], self.choices["eyebrow"], None)],
+                "icon_meimao",
+                None,
+            ),
             "hair": ("Hairstyle", [("tiles", "Hairstyle", self.hair, None)], "pic_fuzhuangdian_shaixuan_toufa", None),
         }
         for kind in ("clothes", "hat", "bag"):
@@ -373,23 +463,31 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                 by_key[first] = (wardrobe_labels[first], rows, wardrobe_icons[first], None)
         order = ("all", "clothes", "hair", "hat", "glasses", "scarf", "face", "eyes", "makeup", "lips", "brows", "bag")
         categories = [(key,) + by_key[key] for key in order if key in by_key]
-        all_sources = [(self.wardrobe["clothes"], True), (self.hair, True)] + \
-            [(self.wardrobe[kind], True) for kind in ("hat", "glasses", "scarf", "earring", "brooch", "bag")
-             if kind in self.wardrobe] + [(self.preset, False)]
-        notes_for = {"clothes": "An outfit brings the body piece it is worn with (neck, hands…) in the face's skin tone.",
-                     "hat": "With a hat, the hairstyle's trimmed version from the hat is used.",
-                     "face": "Face shapes are the game's edited versions of this face; newer faces have none."}
+        all_sources = (
+            [(self.wardrobe["clothes"], True), (self.hair, True)]
+            + [
+                (self.wardrobe[kind], True)
+                for kind in ("hat", "glasses", "scarf", "earring", "brooch", "bag")
+                if kind in self.wardrobe
+            ]
+            + [(self.preset, False)]
+        )
+        notes_for = {
+            "clothes": "An outfit brings the body piece it is worn with (neck, hands…) in the face's skin tone.",
+            "hat": "With a hat, the hairstyle's trimmed version from the hat is used.",
+            "face": "Face shapes are the game's edited versions of this face; newer faces have none.",
+        }
         self.category_buttons = QtWidgets.QButtonGroup(self)
         self.category_buttons.setExclusive(False)
-        self.categories = []                       # (key, title, sprite, title combo)
+        self.categories = []  # (key, title, sprite, title combo)
         for number, (key, title, rows, sprite, title_combo) in enumerate(categories):
             page = QtWidgets.QWidget()
             page_layout = QtWidgets.QVBoxLayout(page)
-            page_layout.setContentsMargins(16, 12, 4, 0)       # room for the picked tile's halo
+            page_layout.setContentsMargins(16, 12, 4, 0)  # room for the picked tile's halo
             page_layout.setSpacing(4)
             tile_rows = [(label, box) for kind, label, box, _tab in rows if kind == "tiles"]
             slot_bar, sections, form = None, [], None
-            if len(tile_rows) > 1:               # several slots: one grid at a time, picked by icon tabs on top
+            if len(tile_rows) > 1:  # several slots: one grid at a time, picked by icon tabs on top
                 slot_bar = _SlotTabs(self.sprites)
                 page_layout.addWidget(slot_bar)
             for kind, label, box, tab in rows:
@@ -403,7 +501,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                     section = QtWidgets.QWidget()
                     section_layout = QtWidgets.QVBoxLayout(section)
                     section_layout.setContentsMargins(0, 0, 0, 0)
-                    if slot_bar is not None:                 # the tab names the slot, the stage title the item
+                    if slot_bar is not None:  # the tab names the slot, the stage title the item
                         slot_bar.addTab(SHORT_LABELS.get(label, label), tab)
                     tiles = _Tiles(box, self.sprites)
                     tiles.item_filter = self.filter_panel.passes
@@ -417,27 +515,37 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                     form.addRow(label, box)
             page_layout.addStretch(1)
             if slot_bar is not None:
+
                 def pick_slot(index, sections=sections, number=number):
                     for i, section in enumerate(sections):
                         section.setVisible(i == index)
                     self.panel_scroll.verticalScrollBar().setValue(0)
                     self._update_title()
+
                 slot_bar.currentChanged.connect(pick_slot)
                 pick_slot(0)
             self.pages.addWidget(page)
             button = QtWidgets.QToolButton()
             button.setText(title[:5])
-            button.setToolTip(" — ".join([title, notes_for[key]]) if key in notes_for else title)   # no text in the list
+            button.setToolTip(" — ".join([title, notes_for[key]]) if key in notes_for else title)  # no text in the list
             button.setCheckable(True)
             button.setIconSize(QtCore.QSize(RAIL_ICON, RAIL_ICON))
             button.setFixedSize(RAIL_WIDTH - 8, RAIL_BUTTON)
-            button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)   # no focus box: only the glow marks the choice
+            button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)  # no focus box: only the glow marks the choice
             self.category_buttons.addButton(button, number)
             rail_layout.addWidget(button)
             boxes = [box for kind, _label, box, _tab in rows if kind == "tiles"]
-            self.categories.append({"key": key, "title": title, "sprite": sprite, "boxes": boxes, "slots": slot_bar,
-                                    "title_combo": title_combo,
-                                    "slot_titles": [label for kind, label, _box, _tab in rows if kind == "tiles"]})
+            self.categories.append(
+                {
+                    "key": key,
+                    "title": title,
+                    "sprite": sprite,
+                    "boxes": boxes,
+                    "slots": slot_bar,
+                    "title_combo": title_combo,
+                    "slot_titles": [label for kind, label, _box, _tab in rows if kind == "tiles"],
+                }
+            )
             for box in boxes + ([title_combo] if title_combo is not None else []):
                 box.currentIndexChanged.connect(self._update_title)
         rail_layout.addStretch(1)
@@ -472,17 +580,21 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.dye_original = _RoundButton("Original hair colour", self.sprites, sprite="pic_chuangjue_wu", text="—")
         self.dye_original.clicked.connect(self._dye_original)
         self.dye_buttons = []
-        for number, (combo, tip) in enumerate(((self.hair_color1, "Hair colour (main)"),
-                                               (self.hair_color2, "Second hair colour (two-tone)"))):
+        for number, (combo, tip) in enumerate(
+            ((self.hair_color1, "Hair colour (main)"), (self.hair_color2, "Second hair colour (two-tone)"))
+        ):
             button = _RoundButton(tip, self.sprites, sprite="pic_moyao", text=str(number + 1))
             button.clicked.connect(lambda _checked=False, number=number: self._pick_dye(number))
             self.dye_buttons.append(button)
-        self.dye_add = _RoundButton("Add a second colour (two-tone hair)", self.sprites, sprite="pic_jd_tianjia", text="+")
+        self.dye_add = _RoundButton(
+            "Add a second colour (two-tone hair)", self.sprites, sprite="pic_jd_tianjia", text="+"
+        )
         self.dye_add.clicked.connect(lambda: self._pick_dye(1))
         self.size_buttons = QtWidgets.QButtonGroup(self)
         size_widgets = []
-        for number, (key, tip) in enumerate((("original", "Body size I (as modelled)"),
-                                             ("adult", "Body size II (grown-up)"))):
+        for number, (key, tip) in enumerate(
+            (("original", "Body size I (as modelled)"), ("adult", "Body size II (grown-up)"))
+        ):
             button = _RoundButton(tip, self.sprites, sprite="pic_tixing_xuanzhong", text="I" * (number + 1))
             button.badge = "I" * (number + 1)
             button.setCheckable(True)
@@ -496,7 +608,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         for combo in (self.hair, self.hair_color1, self.hair_color2):
             combo.currentIndexChanged.connect(self._update_dye_buttons)
 
-        self.skin_column = QtWidgets.QScrollArea(self.stage)       # skin tones, beside the face tiles
+        self.skin_column = QtWidgets.QScrollArea(self.stage)  # skin tones, beside the face tiles
         self.skin_column.setObjectName("creatorSkins")
         self.skin_column.setWidgetResizable(True)
         self.skin_column.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
@@ -513,7 +625,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.skin.currentIndexChanged.connect(self._update_skin_buttons)
         self.skin_column.hide()
 
-        self.layers = _LayerPanel(self.sprites, self.stage)    # hide pieces from the view and the exports
+        self.layers = _LayerPanel(self.sprites, self.stage)  # hide pieces from the view and the exports
         self.layers.changed.connect(self._update_3d)
         self.layers.title.toggled.connect(lambda _shown: self._layout_overlays())
         self.layers.hide()
@@ -525,10 +637,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         controls = QtWidgets.QHBoxLayout(self.view_controls)
         controls.setContentsMargins(0, 0, 0, 0)
         controls.setSpacing(8)
-        for tip, sprite, text, slot in (("Reset the view", "pic_rukou_chongzhi", "⟲", self._reset_view),
-                                        ("Hide the hat or the scarf", "pic_waiguan_yulan1", "◉",
-                                         self._show_hide_popup),
-                                        ("Collapse the item list", "pic_zhiboxin_jiantou", "«", self._toggle_list)):
+        for tip, sprite, text, slot in (
+            ("Reset the view", "pic_rukou_chongzhi", "⟲", self._reset_view),
+            ("Hide the hat or the scarf", "pic_waiguan_yulan1", "◉", self._show_hide_popup),
+            ("Collapse the item list", "pic_zhiboxin_jiantou", "«", self._toggle_list),
+        ):
             button = _RoundButton(tip, self.sprites, 60, sprite=sprite, text=text)
             if sprite == "pic_zhiboxin_jiantou":
                 button.bare = True
@@ -538,7 +651,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             button.clicked.connect(slot)
             controls.addWidget(button)
 
-        self.hidden_slots: set[str] = set()              # worn pieces the Hide popup takes off the character
+        self.hidden_slots: set[str] = set()  # worn pieces the Hide popup takes off the character
         self.hide_popup = _HidePopup(self.sprites, self)
         self.hide_popup.toggled.connect(self._hide_slot)
         self.expand_arrow = _ExpandArrow(self.sprites, self.stage)
@@ -552,16 +665,16 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._panels_hidden = False
         self._update_size_buttons()
 
-        self.face_items = None          # (key, items) of the loaded face meshes
-        self.dressed = None             # the last bake for the 3D view
+        self.face_items = None  # (key, items) of the loaded face meshes
+        self.dressed = None  # the last bake for the 3D view
         self.objects3d = []
         self._focused_face = None
-        self.eye_preview = QtWidgets.QLabel(self.preview)         # iris inset, bottom-right of the preview
+        self.eye_preview = QtWidgets.QLabel(self.preview)  # iris inset, bottom-right of the preview
         self.eye_preview.setFixedSize(150, 150)
         self.eye_preview.setStyleSheet("background: #202020; border: 1px solid #444")
         self.eye_preview.hide()
         self.eye_image = None
-        self.brow_preview = QtWidgets.QLabel(self.preview)        # eyebrow inset, above the iris
+        self.brow_preview = QtWidgets.QLabel(self.preview)  # eyebrow inset, above the iris
         self.brow_preview.setFixedSize(150, 150)
         self.brow_preview.setStyleSheet("background: #202020; border: 1px solid #444")
         self.brow_preview.hide()
@@ -588,10 +701,10 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._signals.item_icons.connect(self._item_icons_loaded)
         self._signals.ui_sprites.connect(self._ui_sprites_loaded)
         from gui.widgets.character_anim_export import _game_options
+
         threading.Thread(target=_load, args=(game, self._signals, _game_options()), daemon=True).start()
         threading.Thread(target=_load_ui_sprites_early, args=(game, self._signals), daemon=True).start()
 
-    # -- rail, list and floating buttons -----------------------------------------------------------
     def eventFilter(self, obj, event):
         if obj is getattr(self, "stage", None) and event.type() == QtCore.QEvent.Type.Resize:
             self._layout_overlays()
@@ -633,7 +746,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.view_bar.move(x, y)
         self.texture_page.layout().setContentsMargins(side_right + 8, 20, 8, self.action_bar.height() + 20)
         title_width = max(240, min(340, rect.width() - side_right - 40))
-        title_width = self.item_title.used_width(title_width)   # as wide as its widest line: flush with the corner
+        title_width = self.item_title.used_width(title_width)  # as wide as its widest line: flush with the corner
         self.item_title.resize(title_width, self.item_title.fit(title_width))
         self.item_title.move(rect.width() - self.item_title.width() - 16, 16)
         self.item_title.setVisible(self.tabs.currentIndex() == 0 and bool(self.item_title.text()))
@@ -650,7 +763,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.notes.adjustSize()
         self.notes.move(left, rect.height() - self.notes.height() - 12)
         self.notes.hide()
-        if hasattr(self, "collapse_button"):                 # « while the list is open, » when it is folded away
+        if hasattr(self, "collapse_button"):  # « while the list is open, » when it is folded away
             flipped = not self.panel.isHidden()
             if self.collapse_button.flipped != flipped:
                 self.collapse_button.flipped = flipped
@@ -658,8 +771,15 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         if hasattr(self, "expand_arrow"):
             self.expand_arrow.setVisible(not self.panel.isHidden())
             self.expand_arrow.move(0, max(0, (rect.height() - self.expand_arrow.height()) // 2))
-        for widget in (self.side_column, self.sex_bar, self.item_title, self.view_controls, self.notes, self.view_bar,
-                       self.action_bar):
+        for widget in (
+            self.side_column,
+            self.sex_bar,
+            self.item_title,
+            self.view_controls,
+            self.notes,
+            self.view_bar,
+            self.action_bar,
+        ):
             widget.raise_()
         if hasattr(self, "expand_arrow"):
             self.expand_arrow.raise_()
@@ -674,7 +794,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def _category_clicked(self, number):
         if self.pages.currentIndex() == number and not self.panel.isHidden():
-            self.panel.hide()                         # clicking the open category folds the list away
+            self.panel.hide()  # clicking the open category folds the list away
             self.category_buttons.button(number).setChecked(True)
             self._layout_overlays()
             return
@@ -719,8 +839,10 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             # stored with the bar along the bottom: a quarter turn puts it on the right, pointer facing the list
             glow.setPixmap(sprite.transformed(QtGui.QTransform().rotate(-90)))
             self._rail_glow_of = sprite
-            self.setStyleSheet(self.styleSheet() + "\n#creatorRail QToolButton:checked "
-                                                   "{ background: transparent; border-left: none; }\n")
+            self.setStyleSheet(
+                self.styleSheet() + "\n#creatorRail QToolButton:checked "
+                "{ background: transparent; border-left: none; }\n"
+            )
         rect = button.geometry()
         glow.setGeometry(0, rect.top() - 4, self.rail_buttons.width(), rect.height() + 8)
         glow.show()
@@ -753,7 +875,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._update_filter_button()
 
     def _place_filter(self):
-        """From under the title to the bottom (behind the Filter button), as wide as the expanded list and a bit more."""
+        """From under the title to the bottom (behind the Filter button), a bit wider than the expanded list."""
         if not hasattr(self, "filter_overlay") or not self.panel.isVisible():
             return
         top = self.panel.mapTo(self, QtCore.QPoint(0, 0)).y()
@@ -762,8 +884,19 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.filter_overlay.setGeometry(left, top, LIST_WIDTH_EXPANDED + 60, max(160, bottom - top))
         # the lines spread down the whole height (the Trait column has the most: All + 7)
         lines = 1 + max(len(rows) for _h, _a, rows in self.filter_panel.columns.values())
-        self.filter_panel.set_row_height((bottom - top - self.panel_title.sizeHint().height() - 50 - 56 - 24
-                                          - self.filter_bar.sizeHint().height() - 16) // max(1, lines))
+        self.filter_panel.set_row_height(
+            (
+                bottom
+                - top
+                - self.panel_title.sizeHint().height()
+                - 50
+                - 56
+                - 24
+                - self.filter_bar.sizeHint().height()
+                - 16
+            )
+            // max(1, lines)
+        )
 
     def _item_filter_changed(self):
         for tiles in self.pages.findChildren(_Tiles):
@@ -771,7 +904,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._update_filter_button()
 
     def _update_filter_button(self):
-        """"Filter", or "Filtered" in gold with the X to clear it while it hides something (the arrow turns with it)."""
+        """'Filter', or 'Filtered' in gold with an X to clear it while it hides something."""
         active = self.filter_panel.active()
         self.filter_button.setText("Filtered" if active else "Filter")
         self.filter_button.active = active
@@ -792,11 +925,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             if not hasattr(model, "setSortRole"):
                 continue
             for row in range(model.rowCount()):
-                index = model.index(row, 0)                    # indexes, not QStandardItem wrappers (see _AllTiles)
-                if model.data(index, ORDER_ROLE) is None:      # first sort after filling: remember the data order
+                index = model.index(row, 0)  # indexes, not QStandardItem wrappers (see _AllTiles)
+                if model.data(index, ORDER_ROLE) is None:  # first sort after filling: remember the data order
                     model.setData(index, row, ORDER_ROLE)
                 if model.data(index, QtCore.Qt.ItemDataRole.UserRole) is None:
-                    key = -1                                   # "None"
+                    key = -1  # "None"
                 else:
                     rarity = model.data(index, RARITY_ROLE)
                     rarity = rarity if rarity in (1, 2, 3, 4, 5) else 1
@@ -808,8 +941,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
     def _flip_sort(self):
         self.rare_first = not self.rare_first
         self.sort_button.sprite = "icon_shengxu" if self.rare_first else "icon_jiangxu"
-        self.sort_button.setToolTip("Rarest first (click for the most common first)" if self.rare_first
-                                    else "Most common first (click for the rarest first)")
+        self.sort_button.setToolTip(
+            "Rarest first (click for the most common first)"
+            if self.rare_first
+            else "Most common first (click for the rarest first)"
+        )
         self.sort_button.update()
         self._sort_lists()
 
@@ -882,7 +1018,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         if not self.list_expanded and self.filter.text():
             self.filter.clear()
         self._layout_overlays()
-        QtCore.QTimer.singleShot(0, self._reflow_tiles)      # once the panel has its new width
+        QtCore.QTimer.singleShot(0, self._reflow_tiles)  # once the panel has its new width
 
     def _reflow_tiles(self):
         """Every grid laid out again for the panel's width, so none keeps its old columns."""
@@ -905,11 +1041,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.panel.setVisible(self.panel.isHidden())
         self._layout_overlays()
 
-    # -- hair dye circles and body size ------------------------------------------------------------
     def _update_dye_buttons(self, *_args):
         if not hasattr(self, "dye_buttons"):
             return
         from core.npk.hair_dye import hex_color
+
         for button, combo in zip(self.dye_buttons, (self.hair_color1, self.hair_color2)):
             rgb = combo.currentData()
             button.color = hex_color(rgb) if rgb is not None else None
@@ -919,7 +1055,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.dye_original.setCheckable(True)
         self.dye_original.setChecked(self.hair_color1.currentData() is None and self.hair_color2.currentData() is None)
         hair = self.hair.currentData()
-        dyeable = not isinstance(hair, dict) or bool(hair.get("qs"))   # basic hairstyles have preset colours
+        dyeable = not isinstance(hair, dict) or bool(hair.get("qs"))  # basic hairstyles have preset colours
         hair_page = self.categories[max(0, self.pages.currentIndex())]["key"] == "hair" and dyeable
         for widget in [self.dye_original, self.dye_buttons[0]]:
             widget.setVisible(hair_page)
@@ -947,8 +1083,9 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             order, icon = icons.get(number, (10000 + row, "")) if number is not None else (-1, "")
             rows.append((order, row, icon))
         for _order, row, icon in sorted(rows):
-            button = _RoundButton(self.skin.itemText(row), self.sprites, 54, sprite=icon or None,
-                                  text=str(self.skin.itemData(row) or "·"))
+            button = _RoundButton(
+                self.skin.itemText(row), self.sprites, 54, sprite=icon or None, text=str(self.skin.itemData(row) or "·")
+            )
             button.setCheckable(True)
             button.fill = True
             self.skin_buttons.addButton(button, row)
@@ -971,8 +1108,10 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         combo = (self.hair_color1, self.hair_color2)[number]
         if combo.count() <= 1:
             return
-        popup = _SwatchPopup(self, combo, self.sprites, "Original colour" if number == 0 else "Same as colour 1 (one colour)")
-        anchor = (self.dye_buttons[number] if number == 0 or self.dye_buttons[1].isVisible() else self.dye_add)
+        popup = _SwatchPopup(
+            self, combo, self.sprites, "Original colour" if number == 0 else "Same as colour 1 (one colour)"
+        )
+        anchor = self.dye_buttons[number] if number == 0 or self.dye_buttons[1].isVisible() else self.dye_add
         popup.adjustSize()
         popup.move(anchor.mapToGlobal(QtCore.QPoint(anchor.width() + 8, 0)))
         popup.show()
@@ -983,10 +1122,12 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def _update_size_buttons(self):
         from gui.widgets.character_exports import body_size_adult
+
         self.size_buttons.button(1 if body_size_adult() else 0).setChecked(True)
 
     def _size_clicked(self, number):
         from gui.widgets.character_exports import BODY_SIZE_SETTING
+
         settings = self._settings()
         if settings is not None:
             settings.set(BODY_SIZE_SETTING, "adult" if number == 1 else "original", True)
@@ -996,16 +1137,19 @@ class FaceMakeupDialog(QtWidgets.QDialog):
     def _sized_items(self, items):
         """The 3D pieces in body size II when it is chosen (the export's own deform, cached per mesh)."""
         from gui.widgets.character_exports import body_size_adult
+
         if not body_size_adult() or self.library is None:
             return items
         from core.mesh_converter import body_size
+
         paths = tuple(self.wardrobe_paths()) + tuple(self.faces.get(self.face.currentData(), []))
         cache = self.__dict__.setdefault("_size_cache", {})
         if cache.get("paths") != paths:
             notes = []
             try:
                 deformer, _source = body_size.deformer_for(
-                    lambda path: (self.library.index.read(path) or (None,))[0], list(paths), notes)
+                    lambda path: (self.library.index.read(path) or (None,))[0], list(paths), notes
+                )
             except Exception as exc:
                 deformer = None
                 notes.append(str(exc))
@@ -1026,9 +1170,9 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             del meshes[key]
         return sized
 
-    # -- game UI sprites -----------------------------------------------------------------------------
     def _ui_sprites_loaded(self, sprites):
         from gui.widgets.scene_render import pil_to_qimage
+
         for name, image in sprites.items():
             self.sprites[name] = QtGui.QPixmap.fromImage(pil_to_qimage(image))
         QtCore.QTimer.singleShot(0, self._place_rail_glow)
@@ -1047,11 +1191,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                     tag.update()
             elif isinstance(widget, _LayerPanel):
                 widget.refresh()
-            elif isinstance(widget, (_RoundButton, _ExpandArrow, _SearchBox, _FilterRow, _FilterButton, _SlotTabs,
-                                     _FilterPanel)):
+            elif isinstance(
+                widget, (_RoundButton, _ExpandArrow, _SearchBox, _FilterRow, _FilterButton, _SlotTabs, _FilterPanel)
+            ):
                 widget.update()
 
-    # -- loading -----------------------------------------------------------------------------
     def _loaded(self, payload, error):
         if error:
             self._set_notes(f"Could not read the makeup data: {error}")
@@ -1066,23 +1210,25 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                 self.face.setCurrentIndex(found)
                 wanted = True
         from core.npk.hair_dye import hex_color
+
         for combo, first in ((self.hair_color1, "Original colour"), (self.hair_color2, "Same as colour 1")):
             combo.addItem(first, None)
             for color_id, rgb, _main in self.options["hair"]["colors"]:
                 swatch = QtGui.QPixmap(28, 16)
                 swatch.fill(QtGui.QColor(hex_color(rgb)))
                 combo.addItem(QtGui.QIcon(swatch), f"Dye {color_id}  {hex_color(rgb)}", rgb)
-        self._all_presets = list(self.options.get("presets", []))     # shown for the chosen sex (_fill_presets)
+        self._all_presets = list(self.options.get("presets", []))  # shown for the chosen sex (_fill_presets)
         self._sort_lists()
         self.face.currentIndexChanged.connect(self._face_changed)
         self.preset.currentIndexChanged.connect(self._preset_changed)
         self.face.currentIndexChanged.connect(self._sync_preset)
         self.face.currentIndexChanged.connect(self._rebuild_skin_buttons)
         self.shape.currentIndexChanged.connect(self._sync_preset)
-        for combo in [self.shape, self.skin, self.hair, self.hair_color1, self.hair_color2] + \
-                list(self.choices.values()):
+        for combo in [self.shape, self.skin, self.hair, self.hair_color1, self.hair_color2] + list(
+            self.choices.values()
+        ):
             combo.currentIndexChanged.connect(self._schedule)
-        for combo in self.wardrobe.values():                # no re-bake: only the changed piece reloads
+        for combo in self.wardrobe.values():  # no re-bake: only the changed piece reloads
             combo.currentIndexChanged.connect(self._wardrobe_changed)
         self._face_changed()
         for button in self.export_buttons:
@@ -1105,7 +1251,6 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                     combo.setItemIcon(row, QtGui.QIcon(QtGui.QPixmap.fromImage(image)))
         self._refresh_category_icons()
 
-    # -- item icons (hairstyles, outfits, accessories) ----------------------------------------
     def _preset_changed(self, _index=None):
         self._apply_preset(self.preset.currentData())
 
@@ -1118,7 +1263,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         if row < 0:
             return
         if self.face.currentIndex() != row:
-            self.face.setCurrentIndex(row)              # -> _face_changed fills this face's shapes
+            self.face.setCurrentIndex(row)  # -> _face_changed fills this face's shapes
         target = 0
         for number in range(self.shape.count()):
             if (self.shape.itemData(number) or "") == shape:
@@ -1150,7 +1295,9 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                     asked.add(icon)
                     wanted.append(icon)
         if wanted:
-            threading.Thread(target=_load_item_icons, args=(self.library.index, wanted, self._signals), daemon=True).start()
+            threading.Thread(
+                target=_load_item_icons, args=(self.library.index, wanted, self._signals), daemon=True
+            ).start()
 
     def _item_icons_loaded(self, icons):
         self.item_icons.update(icons)
@@ -1170,6 +1317,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def _sex(self):
         from core.npk.face_makeup import face_sex
+
         return face_sex(self.face.currentData() or "")
 
     def _switch_sex(self, sex):
@@ -1180,6 +1328,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         """A random face preset, hairstyle and outfit of this sex (named items only, when there are any)."""
         import random
         from core.npk.face_makeup import face_sex
+
         keys = [p["key"] for p in getattr(self, "_all_presets", []) if face_sex(p["key"].split("|", 1)[0]) == sex]
         if not keys:
             return
@@ -1187,12 +1336,14 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         for combo in (self.hair, self.wardrobe.get("clothes")):
             if combo is None or combo.count() < 2:
                 continue
-            rows = [row for row in range(1, combo.count()) if combo.itemData(row, ICON_ROLE)] or \
-                list(range(1, combo.count()))
+            rows = [row for row in range(1, combo.count()) if combo.itemData(row, ICON_ROLE)] or list(
+                range(1, combo.count())
+            )
             combo.setCurrentIndex(random.choice(rows))
 
     def _fill_presets(self, sex):
         from core.npk.face_makeup import face_sex
+
         blocker = QtCore.QSignalBlocker(self.preset)
         self.preset.clear()
         for preset in getattr(self, "_all_presets", []):
@@ -1215,20 +1366,24 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         if getattr(self, "_preset_sex", None) != sex:
             self._fill_presets(sex)
         blockers = [QtCore.QSignalBlocker(w) for w in [self.shape, self.skin] + list(self.choices.values())]
-        previous = {kind: (combo.currentData().row.get("id") if combo.currentData() is not None else None)
-                    for kind, combo in self.choices.items()}
+        previous = {
+            kind: (combo.currentData().row.get("id") if combo.currentData() is not None else None)
+            for kind, combo in self.choices.items()
+        }
         self.shape.clear()
         self.shape.addItem("Base face", None)
-        shape_files = {p.rsplit("\\", 1)[-1][:-3].rsplit("_", 1)[-1]: p
-                       for p in sorted(p for p in self.files.get(folder, []) if p.lower().endswith(".mb"))}
+        shape_files = {
+            p.rsplit("\\", 1)[-1][:-3].rsplit("_", 1)[-1]: p
+            for p in sorted(p for p in self.files.get(folder, []) if p.lower().endswith(".mb"))
+        }
         offered = [s for s in self.options.get("shapes", {}).get(folder.rsplit("\\", 1)[-1], []) if s in shape_files]
         if not self.options.get("shapes"):
-            offered = list(shape_files)              # no table: offer every shape file
-        for suffix in offered:                       # shape files the game never offers are left out
+            offered = list(shape_files)  # no table: offer every shape file
+        for suffix in offered:  # shape files the game never offers are left out
             self.shape.addItem(f"Shape {suffix}", shape_files[suffix])
         previous_skin = self.skin.currentData()
         self.skin.clear()
-        offered = (self.options or {}).get("skin_icons", {}).get(sex, {})     # the tones the game offers
+        offered = (self.options or {}).get("skin_icons", {}).get(sex, {})  # the tones the game offers
         skins = [skin for skin in self.library.skins(folder) if not offered or skin[0] in offered]
         if not skins:
             self.skin.addItem("Face's own texture", None)
@@ -1237,7 +1392,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         numbers = [self.skin.itemData(row) for row in range(self.skin.count())]
         if previous_skin in numbers:
             self.skin.setCurrentIndex(numbers.index(previous_skin))
-        elif offered and numbers:                    # else the first tone in the game's order
+        elif offered and numbers:  # else the first tone in the game's order
             self.skin.setCurrentIndex(min(range(len(numbers)), key=lambda r: offered.get(numbers[r], (9999,))[0]))
         for kind, combo in self.choices.items():
             combo.clear()
@@ -1288,13 +1443,14 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._request_item_icons()
         self._schedule()
 
-    # -- look --------------------------------------------------------------------------------
     def look(self):
         from core.npk.face_makeup import Look
+
         return Look(skin=self.skin.currentData(), **{kind: combo.currentData() for kind, combo in self.choices.items()})
 
     def _randomize(self):
         import random
+
         for combo in [self.skin] + list(self.choices.values()):
             if combo.count() > 1:
                 combo.setCurrentIndex(random.randrange(1 if combo is not self.skin else 0, combo.count()))
@@ -1303,7 +1459,6 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         for combo in list(self.choices.values()) + [self.hair_color1, self.hair_color2]:
             combo.setCurrentIndex(0)
 
-    # -- wardrobe ----------------------------------------------------------------------------
     def _worn(self):
         """The wardrobe slots with a piece on, without those the Hide popup hides."""
         hidden = getattr(self, "hidden_slots", ())
@@ -1314,9 +1469,14 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def wardrobe_choices(self) -> list[tuple[str, str | None, tuple]]:
         """(mesh path, recolour texture or None, attachment ids) of each piece worn (and not hidden)."""
-        return [(combo.currentData(), combo.itemData(combo.currentIndex(), TEXTURE_ROLE),
-                 tuple(combo.itemData(combo.currentIndex(), SOCKETS_ROLE) or ()))
-                for combo in self._worn()]
+        return [
+            (
+                combo.currentData(),
+                combo.itemData(combo.currentIndex(), TEXTURE_ROLE),
+                tuple(combo.itemData(combo.currentIndex(), SOCKETS_ROLE) or ()),
+            )
+            for combo in self._worn()
+        ]
 
     def hair_path(self):
         """The hairstyle's mesh, or its trimmed version from the chosen hat."""
@@ -1345,8 +1505,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             key = self._part_key(path, texture)
             if key not in cache and key not in loading:
                 loading.add(key)
-                threading.Thread(target=_load_part_worker, daemon=True,
-                                 args=(self.library, path, texture, sockets, self._signals, self._sex(), key)).start()
+                threading.Thread(
+                    target=_load_part_worker,
+                    daemon=True,
+                    args=(self.library, path, texture, sockets, self._signals, self._sex(), key),
+                ).start()
 
     def _part_key(self, path, texture) -> str:
         """A loaded piece is the wearer's: socketed pieces hang on that sex's rig (shared brooches, ...)."""
@@ -1399,8 +1562,17 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         if not folder or self.library is None:
             return
         self.generation += 1
-        args = (self.generation, self.library, folder, self._sex(), self.look(), None,
-                self._face_texture(folder), self.options["hair"], self.hair_choice())
+        args = (
+            self.generation,
+            self.library,
+            folder,
+            self._sex(),
+            self.look(),
+            None,
+            self._face_texture(folder),
+            self.options["hair"],
+            self.hair_choice(),
+        )
         threading.Thread(target=_bake_worker, args=args + (self._signals,), daemon=True).start()
 
     def _face_texture(self, folder):
@@ -1408,8 +1580,14 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         stem = folder.rsplit("\\", 1)[-1]
         for path in self.files.get(folder, []):
             name = path.rsplit("\\", 1)[-1].lower()
-            if name.startswith(stem.lower()) and name.endswith((".dds", ".tga", ".png")) and "_ao" not in name \
-                    and "mask" not in name and "eyes" not in name and "eyebrow" not in name:
+            if (
+                name.startswith(stem.lower())
+                and name.endswith((".dds", ".tga", ".png"))
+                and "_ao" not in name
+                and "mask" not in name
+                and "eyes" not in name
+                and "eyebrow" not in name
+            ):
                 return path
         return None
 
@@ -1419,7 +1597,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         if error:
             self.preview.setText(error)
             self._set_notes(error)
-            self._ensure_meshes()               # the shape and outfit still load; the last good look stays on
+            self._ensure_meshes()  # the shape and outfit still load; the last good look stays on
             self._update_3d()
             return
         self.preview_image = image
@@ -1431,18 +1609,23 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._show_preview()
         notes = split.get("notes", [])
         if split.get("split"):
-            notes = ["This look has a one-cheek decal: the export gives the face a left and a right material, "
-                     "each with its own texture."] + notes
+            notes = [
+                "This look has a one-cheek decal: the export gives the face a left and a right material, "
+                "each with its own texture."
+            ] + notes
         self._set_notes("\n".join(notes))
 
-    # -- 3D --------------------------------------------------------------------------------------
     def _mesh_key(self):
         return (self.face.currentData(), self.shape.currentData())
 
     def _ensure_hair(self):
         path = self.hair_path()
-        if self.view3d is None or path is None or (getattr(self, "hair_items", None) or (None,))[0] == path \
-                or getattr(self, "_loading_hair", None) == path:
+        if (
+            self.view3d is None
+            or path is None
+            or (getattr(self, "hair_items", None) or (None,))[0] == path
+            or getattr(self, "_loading_hair", None) == path
+        ):
             return
         self._loading_hair = path
         threading.Thread(target=_load_hair_worker, args=(self.library, path, self._signals), daemon=True).start()
@@ -1459,14 +1642,20 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._ensure_hair()
         self._ensure_parts()
         key = self._mesh_key()
-        if self.view3d is None or not key[0] or (self.face_items is not None and self.face_items[0] == key) \
-                or getattr(self, "_loading_key", None) == key:
+        if (
+            self.view3d is None
+            or not key[0]
+            or (self.face_items is not None and self.face_items[0] == key)
+            or getattr(self, "_loading_key", None) == key
+        ):
             return
         self._loading_key = key
         folder, shape = key
-        threading.Thread(target=_load_meshes_worker, args=(self.library, key, self.faces.get(folder, []),
-                                                           self.files.get(folder, []), shape, self._signals),
-                         daemon=True).start()
+        threading.Thread(
+            target=_load_meshes_worker,
+            args=(self.library, key, self.faces.get(folder, []), self.files.get(folder, []), shape, self._signals),
+            daemon=True,
+        ).start()
 
     def _meshes_loaded(self, key, items, error):
         if getattr(self, "_loading_key", None) == key:
@@ -1481,15 +1670,29 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._update_3d()
 
     def _update_3d(self):
-        if self.view3d is None or self.face_items is None or self.dressed is None or self.face_items[0] != self._mesh_key():
+        if (
+            self.view3d is None
+            or self.face_items is None
+            or self.dressed is None
+            or self.face_items[0] != self._mesh_key()
+        ):
             return
         from gui.widgets.scene_render import SceneObject, pil_to_qimage
+
         folder = self.face.currentData()
         face = folder.rsplit("\\", 1)[-1]
         look = self.look()
         sides = self.dressed.get("sides") or {None: self.preview_image}
-        items, _eyes = dress_face_items(self.library, self.face_items[1], self._sex(), face, look, sides,
-                                        self.dressed.get("eye"), self.dressed.get("eyebrow"))
+        items, _eyes = dress_face_items(
+            self.library,
+            self.face_items[1],
+            self._sex(),
+            face,
+            look,
+            sides,
+            self.dressed.get("eye"),
+            self.dressed.get("eyebrow"),
+        )
         hair = self.hair.currentData()
         hair_items = getattr(self, "hair_items", None)
         face_count = len(items)
@@ -1521,7 +1724,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                         continue
                     if id(image) not in textures:
                         self.generation3d = getattr(self, "generation3d", 0) + 1
-                        textures[id(image)] = (f"makeup:{self.generation3d}", image)   # held, so ids stay unique
+                        textures[id(image)] = (f"makeup:{self.generation3d}", image)  # held, so ids stay unique
                     texture_key = textures[id(image)][0]
                     qimage = pil_to_qimage(image) if texture_key not in self.view3d.textures else None
                     part.texture_key = self.view3d.set_texture(texture_key, qimage, info.get("texture") or "")
@@ -1548,11 +1751,16 @@ class FaceMakeupDialog(QtWidgets.QDialog):
     def _set_layers(self, face_items, hair_items, wardrobe):
         """The Layers box: the face's meshes, the hair's, then each worn piece under its slot's name."""
         groups = [("Face", [item["name"] for item in face_items]), ("Hair", [item["name"] for item in hair_items])]
-        slots = {self.wardrobe[kind].currentData(): label for kind, label in WARDROBE
-                 if kind in self.wardrobe and self.wardrobe[kind].currentData()}
+        slots = {
+            self.wardrobe[kind].currentData(): label
+            for kind, label in WARDROBE
+            if kind in self.wardrobe and self.wardrobe[kind].currentData()
+        }
         by_slot: dict[str, list[str]] = {}
         for item in wardrobe:
-            by_slot.setdefault(slots.get(item.get("path"), dict(WARDROBE).get("clothes", "Outfit")), []).append(item["name"])
+            by_slot.setdefault(slots.get(item.get("path"), dict(WARDROBE).get("clothes", "Outfit")), []).append(
+                item["name"]
+            )
         groups += list(by_slot.items())
         self.layers.set_layers(groups)
         self._layout_overlays()
@@ -1561,25 +1769,47 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         image = self.preview_image
         if image is None:
             return
-        qimage = QtGui.QImage(image.tobytes("raw", "RGBA"), image.width, image.height, QtGui.QImage.Format.Format_RGBA8888).copy()
-        self.preview.setPixmap(QtGui.QPixmap.fromImage(qimage).scaled(
-            self.preview.size() - QtCore.QSize(8, 8), QtCore.Qt.AspectRatioMode.KeepAspectRatio,
-            QtCore.Qt.TransformationMode.SmoothTransformation))
+        qimage = QtGui.QImage(
+            image.tobytes("raw", "RGBA"), image.width, image.height, QtGui.QImage.Format.Format_RGBA8888
+        ).copy()
+        self.preview.setPixmap(
+            QtGui.QPixmap.fromImage(qimage).scaled(
+                self.preview.size() - QtCore.QSize(8, 8),
+                QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                QtCore.Qt.TransformationMode.SmoothTransformation,
+            )
+        )
         if self.eye_image is not None:
             eye = self.eye_image
-            qeye = QtGui.QImage(eye.tobytes("raw", "RGBA"), eye.width, eye.height, QtGui.QImage.Format.Format_RGBA8888).copy()
-            self.eye_preview.setPixmap(QtGui.QPixmap.fromImage(qeye).scaled(
-                148, 148, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
+            qeye = QtGui.QImage(
+                eye.tobytes("raw", "RGBA"), eye.width, eye.height, QtGui.QImage.Format.Format_RGBA8888
+            ).copy()
+            self.eye_preview.setPixmap(
+                QtGui.QPixmap.fromImage(qeye).scaled(
+                    148,
+                    148,
+                    QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                    QtCore.Qt.TransformationMode.SmoothTransformation,
+                )
+            )
             self.eye_preview.move(self.preview.width() - 158, self.preview.height() - 158)
             self.eye_preview.show()
         else:
             self.eye_preview.hide()
         if self.brow_image is not None:
             brow = self.brow_image
-            brow = brow.crop((brow.width // 2, 0, brow.width, brow.height))      # the mesh uses the right half
-            qbrow = QtGui.QImage(brow.tobytes("raw", "RGBA"), brow.width, brow.height, QtGui.QImage.Format.Format_RGBA8888).copy()
-            self.brow_preview.setPixmap(QtGui.QPixmap.fromImage(qbrow).scaled(
-                148, 148, QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation))
+            brow = brow.crop((brow.width // 2, 0, brow.width, brow.height))  # the mesh uses the right half
+            qbrow = QtGui.QImage(
+                brow.tobytes("raw", "RGBA"), brow.width, brow.height, QtGui.QImage.Format.Format_RGBA8888
+            ).copy()
+            self.brow_preview.setPixmap(
+                QtGui.QPixmap.fromImage(qbrow).scaled(
+                    148,
+                    148,
+                    QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                    QtCore.Qt.TransformationMode.SmoothTransformation,
+                )
+            )
             below = 158 if self.eye_image is not None else 0
             self.brow_preview.move(self.preview.width() - 158, self.preview.height() - 158 - below)
             self.brow_preview.show()
@@ -1596,7 +1826,6 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         super().showEvent(event)
         self._layout_overlays()
 
-    # -- output ------------------------------------------------------------------------------
     def _save_texture(self):
         if self.preview_image is None:
             return
@@ -1607,13 +1836,17 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
     def _save_eye_texture(self):
         if self.eye_image is None:
-            QtWidgets.QMessageBox.information(self, "Save eye texture",
-                                              "Pick an eye type or an eye colour first: the plain eye texture is the "
-                                              "game's own eye_01.png.")
+            QtWidgets.QMessageBox.information(
+                self,
+                "Save eye texture",
+                "Pick an eye type or an eye colour first: the plain eye texture is the " "game's own eye_01.png.",
+            )
             return
         parts = [self.choices["eyetype"].currentText(), self.choices["eyecolor"].currentText()]
         name = "_".join(re.sub(r"[^A-Za-z0-9]+", "_", p).strip("_") for p in parts if p and p != "None") or "eye"
-        target, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save eye texture", f"eye_{name}.png", "PNG image (*.png)")
+        target, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save eye texture", f"eye_{name}.png", "PNG image (*.png)"
+        )
         if target:
             self.eye_image.save(target)
 
@@ -1621,26 +1854,39 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         """The face as shown in 3D (shape, makeup, eyes, brows, dyed hair) into the Scene Viewer."""
         folder = self.face.currentData()
         if not folder or self.dressed is None or self.face_items is None or self.face_items[0] != self._mesh_key():
-            QtWidgets.QMessageBox.information(self, "Add to Scene Viewer",
-                                              "Wait a moment for the 3D preview to finish loading, then try again.")
+            QtWidgets.QMessageBox.information(
+                self, "Add to Scene Viewer", "Wait a moment for the 3D preview to finish loading, then try again."
+            )
             return
         hair = self.hair.currentData()
         hair_items = getattr(self, "hair_items", None)
         sides_now = self.dressed.get("sides") or {None: self.preview_image}
         wardrobe = self.wardrobe_items(sides_now)
         if (hair is not None and (hair_items is None or hair_items[0] != self.hair_path())) or wardrobe is None:
-            QtWidgets.QMessageBox.information(self, "Add to Scene Viewer",
-                                              "Some pieces are still loading; try again in a moment.")
+            QtWidgets.QMessageBox.information(
+                self, "Add to Scene Viewer", "Some pieces are still loading; try again in a moment."
+            )
             return
         from gui.widgets.scene_viewer import show_viewer
+
         face = folder.rsplit("\\", 1)[-1]
         sides = self.dressed.get("sides") or {None: self.preview_image}
-        items, _eyes = dress_face_items(self.library, self.face_items[1], self._sex(), face, self.look(), sides,
-                                        self.dressed.get("eye"), self.dressed.get("eyebrow"))
+        items, _eyes = dress_face_items(
+            self.library,
+            self.face_items[1],
+            self._sex(),
+            face,
+            self.look(),
+            sides,
+            self.dressed.get("eye"),
+            self.dressed.get("eyebrow"),
+        )
         if hair is not None:
             items += dress_hair_items(hair_items[1], hair, self.dressed.get("hair"))
         shape = self.shape.currentText()
-        outfit = self.wardrobe["clothes"].currentText().split("  ·  ")[0] if self.wardrobe["clothes"].currentData() else ""
+        outfit = (
+            self.wardrobe["clothes"].currentText().split("  ·  ")[0] if self.wardrobe["clothes"].currentData() else ""
+        )
         group = f"{face}" + (f" ({shape})" if self.shape.currentData() else "") + (f" + {outfit}" if outfit else "")
         for item in items:
             item["path"] = folder + "\\" + f"{item['name']}.mesh"
@@ -1655,19 +1901,25 @@ class FaceMakeupDialog(QtWidgets.QDialog):
     def _save_hair_texture(self):
         dyed = (self.dressed or {}).get("hair")
         if dyed is None:
-            QtWidgets.QMessageBox.information(self, "Save hair texture",
-                                              "Pick a hairstyle and at least one hair colour first.")
+            QtWidgets.QMessageBox.information(
+                self, "Save hair texture", "Pick a hairstyle and at least one hair colour first."
+            )
             return
         stem = self.hair.currentData()["folder"].rsplit("\\", 1)[-1]
-        target, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save hair texture", f"{stem}_dyed.png", "PNG image (*.png)")
+        target, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save hair texture", f"{stem}_dyed.png", "PNG image (*.png)"
+        )
         if target:
             dyed.save(target)
 
     def _save_eyebrow_texture(self):
         if self.brow_image is None:
-            QtWidgets.QMessageBox.information(self, "Save eyebrow texture",
-                                              "Pick an eyebrow colour first. (Some faces have no separate eyebrow "
-                                              "mesh or no eyebrow colour mask in the game.)")
+            QtWidgets.QMessageBox.information(
+                self,
+                "Save eyebrow texture",
+                "Pick an eyebrow colour first. (Some faces have no separate eyebrow "
+                "mesh or no eyebrow colour mask in the game.)",
+            )
             return
         colour = re.sub(r"[^A-Za-z0-9]+", "_", self.choices["eyebrow"].currentText()).strip("_")
         name = f"{self.face.currentText().replace('_body_', '_eyebrow_')}_h_{colour}.png"
@@ -1679,18 +1931,34 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         folder = self.face.currentData()
         if not folder:
             return
-        export_face(self.main_window, self.game, self.library, folder, self.faces.get(folder, []),
-                    self.options["hair"], self.hair_choice(), self.hair_path(), self.wardrobe_choices(),
-                    self.files.get(folder, []), self._sex(), self.look(), self.shape.currentData(),
-                    self._face_texture(folder), fmt, hidden=tuple(self.layers.hidden))
+        export_face(
+            self.main_window,
+            self.game,
+            self.library,
+            folder,
+            self.faces.get(folder, []),
+            self.options["hair"],
+            self.hair_choice(),
+            self.hair_path(),
+            self.wardrobe_choices(),
+            self.files.get(folder, []),
+            self._sex(),
+            self.look(),
+            self.shape.currentData(),
+            self._face_texture(folder),
+            fmt,
+            hidden=tuple(self.layers.hidden),
+        )
 
 
 def open_dialog(main_window, folder=None) -> None:
     from gui.widgets.character_anim_export import _game_folder
+
     game = _game_folder()
     if game is None:
-        QtWidgets.QMessageBox.information(main_window, "Face makeup",
-                                          "Open any Harry Potter: Magic Awakened .npk first, so the game folder is known.")
+        QtWidgets.QMessageBox.information(
+            main_window, "Face makeup", "Open any Harry Potter: Magic Awakened .npk first, so the game folder is known."
+        )
         return
     dialog = FaceMakeupDialog(main_window, game, folder)
     dialog.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -1704,12 +1972,20 @@ def _keep_with(main_window, window) -> None:
     windows.append(window)
     window.destroyed.connect(lambda *_args, w=window: w in windows and windows.remove(w))
     if getattr(main_window, "_creator_close_watch", None) is None:
+
         class _CloseWatch(QtCore.QObject):
             def eventFilter(self, obj, event):
                 if event.type() == QtCore.QEvent.Type.Close:
                     # after the main window's own close handling, which may still cancel the close
-                    QtCore.QTimer.singleShot(0, lambda: None if obj.isVisible() else
-                                             [w.close() for w in list(obj.__dict__.get("_creator_windows", []))])
+                    QtCore.QTimer.singleShot(
+                        0,
+                        lambda: (
+                            None
+                            if obj.isVisible()
+                            else [w.close() for w in list(obj.__dict__.get("_creator_windows", []))]
+                        ),
+                    )
                 return False
+
         main_window._creator_close_watch = _CloseWatch(main_window)
         main_window.installEventFilter(main_window._creator_close_watch)

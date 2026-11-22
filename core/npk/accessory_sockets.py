@@ -14,9 +14,11 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 RIG_GIMS = {"male": "model\\character\\male\\male_fenli.gim", "female": "model\\character\\female\\female_fenli.gim"}
-_LOCK = threading.RLock()             # pieces load on several threads; the game files are read one at a time
-SKELETONS = {"male": "model\\character\\male\\male_fenli_b72732.skeleton",
-             "female": "model\\character\\female\\female_fenli_5653f7.skeleton"}
+_LOCK = threading.RLock()  # pieces load on several threads; the game files are read one at a time
+SKELETONS = {
+    "male": "model\\character\\male\\male_fenli_b72732.skeleton",
+    "female": "model\\character\\female\\female_fenli_5653f7.skeleton",
+}
 
 
 def bone_key(name: str) -> str:
@@ -72,7 +74,9 @@ class Sockets:
                 sockets = ET.fromstring(found[0]).find("Sockets")
                 for socket in (sockets if sockets is not None else []):
                     try:
-                        matrix = np.array([float(v) for v in socket.get("MatrixToBone").strip("[]").split(",")]).reshape(4, 4)
+                        matrix = np.array(
+                            [float(v) for v in socket.get("MatrixToBone").strip("[]").split(",")]
+                        ).reshape(4, 4)
                     except (AttributeError, ValueError):
                         continue
                     result[socket.get("Name")] = (bone_key(socket.get("BoneName") or "biped"), matrix)
@@ -88,6 +92,7 @@ class Sockets:
         if sex not in self._rest:
             from core.mesh_converter.character_anim import rest_worlds
             from core.npk import neox_anim
+
             found = self.index.read(SKELETONS[sex])
             result = {}
             if found is not None:
@@ -107,7 +112,7 @@ class Sockets:
         rest = self.rest(sex)
         row = self._fitting_row(rows, items, sockets, rest)
         if row is None:
-            return items                               # modelled in character space already: leave it there
+            return items  # modelled in character space already: leave it there
         names = [n for n in (row.get("bind_params") or [])[1:] if isinstance(n, str)]
         placed = []
         for socket_name in names:
@@ -119,11 +124,17 @@ class Sockets:
             place = offset @ rest[bone]
             suffix = socket_name.rsplit("_", 1)[-1] if len(names) > 1 else ""
             for item in items:
-                placed.append(dict(item, name=f"{item['name']}_{suffix}" if suffix else item["name"],
-                                   mesh=_place(item["mesh"], place, bone, rest[bone], suffix or socket_name),
-                                   socket_param=int(row.get("socket_param") or 0), socket_bone=bone, socket_sex=sex))
+                placed.append(
+                    dict(
+                        item,
+                        name=f"{item['name']}_{suffix}" if suffix else item["name"],
+                        mesh=_place(item["mesh"], place, bone, rest[bone], suffix or socket_name),
+                        socket_param=int(row.get("socket_param") or 0),
+                        socket_bone=bone,
+                        socket_sex=sex,
+                    )
+                )
         return placed or items
-
 
     # A placed piece this far from its socket's bone (model units; a character is ~17 tall) is in the wrong
     # space: e.g. glasses modelled at head height but listed on a socket that adds the head's height again
@@ -136,8 +147,11 @@ class Sockets:
         models twice: yanjing for origin-modelled glasses, yanjing02 for ones modelled at head height). None
         when every row would carry it far away: the model is already in character space.
         """
-        points = [np.asarray(item["mesh"].position, float) for item in items if item.get("mesh") is not None
-                  and item["mesh"].position]
+        points = [
+            np.asarray(item["mesh"].position, float)
+            for item in items
+            if item.get("mesh") is not None and item["mesh"].position
+        ]
         if not points:
             return rows[0]
         centre = np.r_[np.concatenate(points).mean(0), 1.0]
@@ -153,10 +167,9 @@ class Sockets:
             if best_distance is None or distance < best_distance:
                 best, best_distance = row, distance
         if best is None:
-            return rows[0]                             # sockets unknown: keep the old behaviour (reported later)
+            return rows[0]  # sockets unknown: keep the old behaviour (reported later)
         return best if best_distance <= Sockets.FAR_FROM_BONE else None
 
-    # -- offsets by what else is worn ---------------------------------------------------------------
     def mesh_of(self, path: str) -> str:
         """The mesh a worn piece's path means (a .gim names its mesh), lower case."""
         with _LOCK:
@@ -220,7 +233,7 @@ def apply_bind_offsets(library, items, worn_paths) -> list:
         if offset is None or rest is None:
             output.append(item)
             continue
-        shift = offset @ rest[:3, :3]                  # bone axes -> character space (row vectors)
+        shift = offset @ rest[:3, :3]  # bone axes -> character space (row vectors)
         output.append(dict(item, mesh=_shifted(item["mesh"], shift)))
     return output
 
@@ -247,7 +260,7 @@ def _place(mesh, place: np.ndarray, bone: str, bone_rest: np.ndarray, tag: str):
         normals = np.asarray(mesh.normal, float) @ np.linalg.inv(linear).T
         normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-9)
         shaped.normal = [tuple(n) for n in normals]
-    if np.linalg.det(linear) < 0:                      # a mirrored socket (the right ear): keep faces outward
+    if np.linalg.det(linear) < 0:  # a mirrored socket (the right ear): keep faces outward
         shaped.face = [(a, c, b) for a, b, c in mesh.face]
     own = list(mesh.bone_name or [])
     names = [f"{tag}_{bone_key(n)}" for n in own] + [bone]
@@ -259,7 +272,7 @@ def _place(mesh, place: np.ndarray, bone: str, bone_rest: np.ndarray, tag: str):
     if own and mesh.vertex_bone and len(mesh.vertex_bone) == count:
         shaped.vertex_bone = [tuple(b) for b in mesh.vertex_bone]
         shaped.vertex_weight = [tuple(w) for w in mesh.vertex_weight]
-    else:                                              # an unskinned piece: all of it on the socket's bone
+    else:  # an unskinned piece: all of it on the socket's bone
         shaped.vertex_bone = [(len(own), 0, 0, 0)] * count
         shaped.vertex_weight = [(1.0, 0.0, 0.0, 0.0)] * count
     try:

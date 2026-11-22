@@ -13,12 +13,17 @@ import threading
 import numpy as np
 from core.logger import get_logger
 
-
 BODY_FOLDERS = ("model\\character\\appearance\\boy\\high\\body\\", "model\\character\\appearance\\girl\\high\\body\\")
 
 
-KINDS = (("eyeshadow", "Eyeshadow"), ("blush", "Blush / face decal"), ("lips", "Lip colour"), ("eyebrow", "Eyebrow colour"),
-         ("eyetype", "Eye type (iris)"), ("eyecolor", "Eye colour"))
+KINDS = (
+    ("eyeshadow", "Eyeshadow"),
+    ("blush", "Blush / face decal"),
+    ("lips", "Lip colour"),
+    ("eyebrow", "Eyebrow colour"),
+    ("eyetype", "Eye type (iris)"),
+    ("eyecolor", "Eye colour"),
+)
 
 
 FACE_TEXTURE = re.compile(r"^(male|female)_body_\d+(_\d+)?$")
@@ -36,6 +41,7 @@ def _library(game, options=None):
     from core.npk.game_tables import RootTables
     from core.npk.stage_export import read_options_for
     from gui.widgets.character_anim_export import _index
+
     options = options or read_options_for(None)
     with _LOCK:
         key = str(game)
@@ -48,11 +54,13 @@ def _library(game, options=None):
                 lower = path.lower()
                 if lower.startswith(BODY_FOLDERS):
                     folder = path.rsplit("\\", 1)[0]
-                    if folder.count("\\") == 6:                # ...\body\<face>\file
+                    if folder.count("\\") == 6:  # ...\body\<face>\file
                         files.setdefault(folder, []).append(path)
-            faces = {folder: sorted(p for p in paths if p.lower().endswith(".mesh"))
-                     for folder, paths in files.items()
-                     if re.search(r"_body_\d+$", folder.lower()) and any(p.lower().endswith(".mesh") for p in paths)}
+            faces = {
+                folder: sorted(p for p in paths if p.lower().endswith(".mesh"))
+                for folder, paths in files.items()
+                if re.search(r"_body_\d+$", folder.lower()) and any(p.lower().endswith(".mesh") for p in paths)
+            }
             _LIBRARY.clear()
             _LIBRARY[key] = (library, dict(sorted(faces.items(), key=lambda kv: _face_sort(kv[0]))), files)
         return _LIBRARY[key]
@@ -72,11 +80,15 @@ def _hair_data(game, library):
     """
     from core.npk import game_tables, hair_dye
     from core.npk.stage_export import read_options_for
+
     dye = hair_dye.HairDye(library.index, library.tables)
     hairs = [dict(h) for h in dye.hairs()]
     try:
-        links = game_tables.mesh_links(game, getattr(library, "read_options", None) or read_options_for(None),
-                                       lambda path: (library.index.read(path) or (None,))[0])
+        links = game_tables.mesh_links(
+            game,
+            getattr(library, "read_options", None) or read_options_for(None),
+            lambda path: (library.index.read(path) or (None,))[0],
+        )
     except Exception:
         links = {}
     for hair in hairs:
@@ -99,19 +111,29 @@ def _basic_hairs(library, listed) -> list[dict]:
     the one shown; qs / rs stay None (no dye).
     """
     from core.npk import game_tables
+
     try:
         tables = library.tables
         styles, items, dresses = (tables.keyed_rows(name) for name in ("color_hair", "item", "role_dress"))
-        english = {key: row.get("text_en", "") for key, row in tables.keyed_rows("item_text_os_en").items()
-                   if isinstance(row, dict)}
+        english = {
+            key: row.get("text_en", "")
+            for key, row in tables.keyed_rows("item_text_os_en").items()
+            if isinstance(row, dict)
+        }
     except Exception:
         return []
     found = []
     for style_id, style in sorted(styles.items(), key=lambda kv: str(kv[0])):
         item = items.get(style_id)
         colours = [items.get(c) for c in (style.get("color_hair_items") or ()) if isinstance(style, dict)]
-        dress = next((dresses.get(c.get("mini_type")) for c in colours if isinstance(c, dict)
-                      and isinstance(dresses.get(c.get("mini_type")), dict)), None)
+        dress = next(
+            (
+                dresses.get(c.get("mini_type"))
+                for c in colours
+                if isinstance(c, dict) and isinstance(dresses.get(c.get("mini_type")), dict)
+            ),
+            None,
+        )
         if not isinstance(item, dict) or not dress or not dress.get("model"):
             continue
         gim = dress["model"].replace("/", "\\")
@@ -122,18 +144,33 @@ def _basic_hairs(library, listed) -> list[dict]:
         name = english.get(item.get("name", ""), "").strip()
         stem = folder.rsplit("\\", 1)[-1]
         icon = item.get("icon_path")
-        found.append({"folder": folder, "mesh": gim, "qs": None, "rs": None, "dress_id": dress.get("id"),
-                      "sex": "female" if "\\girl\\" in folder.lower() else "male",
-                      "name": f"{name}  ·  {stem}" if name else stem,
-                      "icon": None if game_tables.is_generic_icon(icon) else icon,
-                      "rarity": game_tables.item_rarity(tables, style_id),
-                      "traits": game_tables.item_traits(tables, style_id),
-                      "tags": game_tables.item_tags(tables, style_id)})
+        found.append(
+            {
+                "folder": folder,
+                "mesh": gim,
+                "qs": None,
+                "rs": None,
+                "dress_id": dress.get("id"),
+                "sex": "female" if "\\girl\\" in folder.lower() else "male",
+                "name": f"{name}  ·  {stem}" if name else stem,
+                "icon": None if game_tables.is_generic_icon(icon) else icon,
+                "rarity": game_tables.item_rarity(tables, style_id),
+                "traits": game_tables.item_traits(tables, style_id),
+                "tags": game_tables.item_tags(tables, style_id),
+            }
+        )
     return found
 
 
-WARDROBE = (("clothes", "Outfit"), ("hat", "Hat"), ("earring", "Earrings"), ("glasses", "Glasses"),
-            ("scarf", "Scarf"), ("brooch", "Brooch"), ("bag", "Bag"))
+WARDROBE = (
+    ("clothes", "Outfit"),
+    ("hat", "Hat"),
+    ("earring", "Earrings"),
+    ("glasses", "Glasses"),
+    ("scarf", "Scarf"),
+    ("brooch", "Brooch"),
+    ("bag", "Bag"),
+)
 
 
 DRESS_SEXES = {1: ("male",), 2: ("female",), 3: ("male", "female")}
@@ -155,6 +192,7 @@ def _wardrobe(library, links):
     import json
     import xml.etree.ElementTree as ET
     from core.npk import game_tables
+
     kinds = {kind for kind, _label in WARDROBE}
     found = {"male": {k: [] for k in kinds}, "female": {k: [] for k in kinds}}
     masks: dict[str, dict[str, str]] = {}
@@ -176,8 +214,11 @@ def _wardrobe(library, links):
 
     # Find each dress row's name and icon from the shop item that belongs to it.
     tables = library.tables
-    english = {key: row.get("text_en", "") for key, row in tables.keyed_rows("item_text_os_en").items()
-               if isinstance(row, dict)}
+    english = {
+        key: row.get("text_en", "")
+        for key, row in tables.keyed_rows("item_text_os_en").items()
+        if isinstance(row, dict)
+    }
     items_for = game_tables.items_by_dress(tables)
     mesh_of_gim: dict[str, str | None] = {}
 
@@ -211,8 +252,10 @@ def _wardrobe(library, links):
         for material in (mvar_cache[mvar] or {}).values():
             if not isinstance(material, dict):
                 continue
-            columns = [column[1] if isinstance(column, list) and len(column) > 1 else "" for column in
-                       material.get("columns", [])]
+            columns = [
+                column[1] if isinstance(column, list) and len(column) > 1 else ""
+                for column in material.get("columns", [])
+            ]
             if "uniform_Tex0" not in columns:
                 continue
             variant = material.get("variants", {}).get(str(number))
@@ -238,9 +281,14 @@ def _wardrobe(library, links):
         return default_cache[gim]
 
     # Models the game gives colour variants (model_mtg_id > 0 without a texture of their own)
-    variant_models = {str(row["model"]).replace("/", "\\").lower() for row in tables.keyed_rows("role_dress").values()
-                      if isinstance(row, dict) and row.get("model") and not row.get("model_tex")
-                      and row.get("model_mtg_id") not in (None, 0)}
+    variant_models = {
+        str(row["model"]).replace("/", "\\").lower()
+        for row in tables.keyed_rows("role_dress").values()
+        if isinstance(row, dict)
+        and row.get("model")
+        and not row.get("model_tex")
+        and row.get("model_mtg_id") not in (None, 0)
+    }
     incomplete_cache: dict[str, bool] = {}
     hidden: set = set()
 
@@ -258,7 +306,8 @@ def _wardrobe(library, links):
         parts = mesh.split("\\")
         # the row's own sex (1 male, 2 female, 3 both): every brooch is modelled under girl, shared hats under common
         sexes = DRESS_SEXES.get(dress.get("sex")) or (
-            ("male",) if parts[3].lower() == "boy" else ("female",) if parts[3].lower() == "girl" else ())
+            ("male",) if parts[3].lower() == "boy" else ("female",) if parts[3].lower() == "girl" else ()
+        )
         kind = parts[5].lower()
         if not sexes or kind not in kinds:
             continue
@@ -292,29 +341,45 @@ def _wardrobe(library, links):
                 has_item.add((sex, kind, group))
             slot = (sex, mesh.lower(), (texture or "").lower())
             if slot not in best or score > best[slot]["score"]:
-                best[slot] = {"score": score, "kind": kind, "group": group, "mesh": mesh, "texture": texture,
-                              "title": title, "icon": icon, "sockets": list(dress.get("socket_list") or []),
-                              "rarity": game_tables.item_rarity(tables, item.get("_id")) if item else None,
-                              "traits": game_tables.item_traits(tables, item.get("_id")) if item else (),
-                              "tags": game_tables.item_tags(tables, item.get("_id")) if item else ()}
+                best[slot] = {
+                    "score": score,
+                    "kind": kind,
+                    "group": group,
+                    "mesh": mesh,
+                    "texture": texture,
+                    "title": title,
+                    "icon": icon,
+                    "sockets": list(dress.get("socket_list") or []),
+                    "rarity": game_tables.item_rarity(tables, item.get("_id")) if item else None,
+                    "traits": game_tables.item_traits(tables, item.get("_id")) if item else (),
+                    "tags": game_tables.item_tags(tables, item.get("_id")) if item else (),
+                }
     for (sex, _mesh, _texture), row in best.items():
         kind, mesh, texture = row["kind"], row["mesh"], row["texture"]
         if not row["score"][0] and (sex, kind, row["group"]) in has_item:
-            continue                                   # a piece of a sold outfit (hood, effects, inner layer)
+            continue  # a piece of a sold outfit (hood, effects, inner layer)
         stem = mesh.rsplit("\\", 1)[-1][:-5]
         if texture:
             tex_stem = texture.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
             tex_stem = re.sub(r"_(af|h|d|diff)$", "", tex_stem, flags=re.I)
             if tex_stem.lower() != stem.lower() and tex_stem.lower().startswith(stem.lower()):
-                stem = tex_stem                       # recolour: use its own name (..._02) for the filter
+                stem = tex_stem  # recolour: use its own name (..._02) for the filter
             elif tex_stem.lower() != stem.lower():
-                stem = f"{stem} ({tex_stem})"         # a recolour texture named differently (aisidaila_02)
+                stem = f"{stem} ({tex_stem})"  # a recolour texture named differently (aisidaila_02)
         title = row["title"]
-        found[sex][kind].append({"name": f"{title}  ·  {stem}" if title else stem, "path": mesh, "icon": row["icon"],
-                                 "texture": texture, "sockets": row["sockets"], "rarity": row["rarity"],
-                                 "traits": row["traits"], "tags": row["tags"],
-                                 "order": (mesh.lower(), stem.lower() != mesh.rsplit(
-                                     "\\", 1)[-1][:-5].lower(), texture or "")})
+        found[sex][kind].append(
+            {
+                "name": f"{title}  ·  {stem}" if title else stem,
+                "path": mesh,
+                "icon": row["icon"],
+                "texture": texture,
+                "sockets": row["sockets"],
+                "rarity": row["rarity"],
+                "traits": row["traits"],
+                "tags": row["tags"],
+                "order": (mesh.lower(), stem.lower() != mesh.rsplit("\\", 1)[-1][:-5].lower(), texture or ""),
+            }
+        )
     # Add the models that no dress row uses but a shop item still names (found through the item links) at the end;
     # the ones nothing names are cut or unreleased and are left out. In folders of listed outfits, keep only the
     # meshes the rows name; the other meshes are pieces the game swaps in by itself.
@@ -332,12 +397,19 @@ def _wardrobe(library, links):
             if not link or not link.get("name"):
                 continue
             stem = path.rsplit("\\", 1)[-1][:-5]
-            found[sex][parts[5]].append({"name": f"{link['name']}  ·  {stem}", "path": path, "icon": link.get("icon"),
-                                         "texture": None, "sockets": [],
-                                         "rarity": game_tables.item_rarity(tables, link.get("item")),
-                                         "traits": game_tables.item_traits(tables, link.get("item")),
-                                         "tags": game_tables.item_tags(tables, link.get("item")),
-                                         "order": ("~" + path.lower(), False, "")})
+            found[sex][parts[5]].append(
+                {
+                    "name": f"{link['name']}  ·  {stem}",
+                    "path": path,
+                    "icon": link.get("icon"),
+                    "texture": None,
+                    "sockets": [],
+                    "rarity": game_tables.item_rarity(tables, link.get("item")),
+                    "traits": game_tables.item_traits(tables, link.get("item")),
+                    "tags": game_tables.item_tags(tables, link.get("item")),
+                    "order": ("~" + path.lower(), False, ""),
+                }
+            )
     for per_sex in found.values():
         for entries in per_sex.values():
             entries.sort(key=lambda e: e["order"])
@@ -348,6 +420,7 @@ def _read_texture(library, texture):
     """A texture as RGBA (the game ships .dds for the .tga a material names), or None."""
     import io
     from PIL import Image
+
     for candidate in (texture.rsplit(".", 1)[0] + ".dds", texture, texture.rsplit(".", 1)[0] + ".png"):
         found = library.index.read(candidate)
         if found is None:
@@ -355,6 +428,7 @@ def _read_texture(library, texture):
         try:
             return Image.open(io.BytesIO(found[0])).convert("RGBA")
         except Exception:
+            get_logger().debug("Could not decode the texture %s", path, exc_info=True)
             continue
     return None
 
@@ -366,6 +440,7 @@ def _mvar_textures(library, path, texture) -> dict[str, str] | None:
     third); materials a variant leaves out keep their own.
     """
     import json
+
     stem = path.rsplit(".", 1)[0]
     found = None
     for candidate in (stem + ".mvar", re.sub(r"_all$", "", stem) + ".mvar"):
@@ -380,12 +455,13 @@ def _mvar_textures(library, path, texture) -> dict[str, str] | None:
         return None
     wanted = texture.replace("/", "\\").lower()
     variants: dict[str, dict[str, str]] = {}
-    first: dict[str, str] = {}                        # variant -> its first material's Tex0, as _wardrobe names it
+    first: dict[str, str] = {}  # variant -> its first material's Tex0, as _wardrobe names it
     for name, material in materials.items() if isinstance(materials, dict) else ():
         if not isinstance(material, dict):
             continue
-        columns = [column[1] if isinstance(column, list) and len(column) > 1 else "" for column in
-                   material.get("columns", [])]
+        columns = [
+            column[1] if isinstance(column, list) and len(column) > 1 else "" for column in material.get("columns", [])
+        ]
         if "uniform_Tex0" not in columns:
             continue
         column = str(columns.index("uniform_Tex0"))
@@ -408,6 +484,7 @@ def incomplete_remake(library, gim) -> bool:
     not), so the old texture lands on the new UV layout. Only checked for models with colour-variant rows.
     """
     import xml.etree.ElementTree as ET
+
     stem = gim.rsplit(".", 1)[0]
     if library.index.read(stem + ".mvar") is not None:
         return False
@@ -455,18 +532,21 @@ def _recolour(library, items, texture, report, path=None):
                 if tex.lower() not in images:
                     images[tex.lower()] = _read_texture(library, tex)
                     if images[tex.lower()] is None:
-                        report.append(f"Recolour texture {ntpath.basename(tex)} could not be read; that part keeps "
-                                      "its first colours.")
+                        report.append(
+                            f"Recolour texture {ntpath.basename(tex)} could not be read; that part keeps "
+                            "its first colours."
+                        )
                 if images[tex.lower()] is not None:
                     part["image"], part["texture"] = images[tex.lower()], tex
                     swapped += 1
         if swapped:
             return items
-    base_stem = re.sub(r"_\d+(?=(_[a-z]+)?$)", "", stem)          # female_x_lyzw_02_af -> female_x_lyzw_af
+    base_stem = re.sub(r"_\d+(?=(_[a-z]+)?$)", "", stem)  # female_x_lyzw_02_af -> female_x_lyzw_af
     image = _read_texture(library, texture)
     if image is None:
         report.append(f"Recolour texture {stem} could not be read; shown in its first colours.")
         return items
+
     def family(name):
         """male_clothes_146_hdyz_02_af and male_clothes_146_hdyz_04 -> male_clothes_146_hdyz (a colour map's set)."""
         return re.sub(r"(_?\d+)*(_(af|h|d|diff))?$", "", name)
@@ -482,18 +562,24 @@ def _recolour(library, items, texture, report, path=None):
             part_stem = str(part.get("texture") or "").replace("/", "\\").rsplit("\\", 1)[-1].rsplit(".", 1)[0].lower()
             if not part_stem or not is_colour_map(part_stem):
                 continue
-            if part_stem in (base_stem, stem) or (base_stem.startswith(part_stem) and stem != part_stem) or                     family(part_stem) == family(stem):
+            if (
+                part_stem in (base_stem, stem)
+                or (base_stem.startswith(part_stem) and stem != part_stem)
+                or family(part_stem) == family(stem)
+            ):
                 part["image"] = image
                 part["texture"] = texture
                 swapped += 1
-    if not swapped:                                   # one colour map for the whole piece (one or more parts)
+    if not swapped:  # one colour map for the whole piece (one or more parts)
         main = [part for item in items if not item.get("body_piece") for part in item["parts"]]
         used = {str(part.get("texture") or "").lower() for part in main}
         if main and len(used) == 1:
             for part in main:
                 part["image"], part["texture"] = image, texture
         else:
-            report.append(f"Recolour {stem}: no part of the model uses a matching colour texture; shown in its first colours.")
+            report.append(
+                f"Recolour {stem}: no part of the model uses a matching colour texture; shown in its first colours."
+            )
     return items
 
 
@@ -504,6 +590,7 @@ def attachment_items(library, path, sockets, report):
     """
     from core.npk import accessory_sockets
     from core.npk.stage_export import StageLoader
+
     ids = list(sockets or ())
     if not ids:
         return []
@@ -522,7 +609,7 @@ def attachment_items(library, path, sockets, report):
             continue
         gim = row["path"].replace("/", "\\")
         if not gim.lower().endswith((".gim", ".mesh")):
-            continue                                   # particle effects (.sfx) and the like: nothing to show
+            continue  # particle effects (.sfx) and the like: nothing to show
         socket = socket_table.get(row.get("socket"))
         if socket is None or socket[0] not in rest:
             report.append(f"{ntpath.basename(gim)}: socket {row.get('socket')} not found")
@@ -534,8 +621,13 @@ def attachment_items(library, path, sockets, report):
         bone, offset = socket
         place = offset @ rest[bone]
         name = gim.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
-        pieces.append({"name": name, "mesh": accessory_sockets._place(model[0], place, bone, rest[bone], name),
-                       "parts": [dict(part) for part in model[1]]})
+        pieces.append(
+            {
+                "name": name,
+                "mesh": accessory_sockets._place(model[0], place, bone, rest[bone], name),
+                "parts": [dict(part) for part in model[1]],
+            }
+        )
     report.extend(line for line in loader.report if "material taken from" not in line)
     return pieces
 
@@ -548,6 +640,7 @@ def load_wardrobe_items(library, path, report, texture=None, sockets=(), sex=Non
     """
     import xml.etree.ElementTree as ET
     from core.npk.stage_export import StageLoader
+
     items = load_face_items(library, [path], [], None, report)
     if texture:
         items = _recolour(library, items, texture, report, path)
@@ -567,6 +660,7 @@ def load_wardrobe_items(library, path, report, texture=None, sockets=(), sex=Non
         return items
     # Earrings, glasses, hats: the game hangs these on sockets of the character rig
     from core.npk.accessory_sockets import for_library
+
     sockets = for_library(library)
     sex = sex or ("female" if "\\girl\\" in path.lower() else "male")
     return sockets.attach(items, path, sex, report)
@@ -592,9 +686,11 @@ def hair_original(hair_data, hair):
     originals = hair_data["originals"]
     if hair["folder"] not in originals:
         from core.npk.stage_export import StageLoader
+
         model = StageLoader(hair_data["dye"].index).model(hair["mesh"])
-        originals[hair["folder"]] = next((part.get("image") for part in (model[1] if model else [])
-                                          if part.get("image") is not None), None)
+        originals[hair["folder"]] = next(
+            (part.get("image") for part in (model[1] if model else []) if part.get("image") is not None), None
+        )
     return originals[hair["folder"]]
 
 
@@ -604,7 +700,7 @@ def bake_hair(hair_data, hair_choice, notes):
         return None
     hair, color1, color2 = hair_choice
     if hair is None or (color1 is None and color2 is None) or not hair.get("qs"):
-        return None                                    # no dye chosen, or a basic hairstyle (preset colours)
+        return None  # no dye chosen, or a basic hairstyle (preset colours)
     color1 = color1 if color1 is not None else color2
     color2 = color2 if color2 is not None else color1
     try:
@@ -649,13 +745,15 @@ def skin_icons(library) -> dict[str, dict[int, tuple[int, str]]]:
             if not row.get("is_default_skin") and int(row.get("model_mtg_id", 0)) not in EXTRA_SKIN_TONES:
                 continue
             sex = "male" if row.get("sex") == 1 else "female"
-            result[sex].setdefault(int(row.get("model_mtg_id", 0)), (int(row.get("order", 999)), str(row.get("icon", ""))))
+            result[sex].setdefault(
+                int(row.get("model_mtg_id", 0)), (int(row.get("order", 999)), str(row.get("icon", "")))
+            )
     except Exception:
         get_logger().warning("Could not read the skin tone table (face_skincolor)", exc_info=True)
     return result
 
 
-TRAIT_KEYS = ("yifu_qd", "yifu_zc", "yifu_jx", "jiaju_dunhuang", "yifu_ccgb", "yifu_syzp")   # game_tables.TRAITS
+TRAIT_KEYS = ("yifu_qd", "yifu_zc", "yifu_jx", "jiaju_dunhuang", "yifu_ccgb", "yifu_syzp")  # game_tables.TRAITS
 
 
 def face_presets(library, faces, files) -> list[dict]:
@@ -680,14 +778,19 @@ def face_presets(library, faces, files) -> list[dict]:
     try:
         tables = library.tables
         models = {row["id"]: row.get("face_model") for row in tables.keyed_rows("face_shape").values()}
-        english = {key: row.get("text_en", "") for key, row in tables.keyed_rows("item_text_os_en").items()
-                   if isinstance(row, dict)}
+        english = {
+            key: row.get("text_en", "")
+            for key, row in tables.keyed_rows("item_text_os_en").items()
+            if isinstance(row, dict)
+        }
         item_of = {}
         for item_id, row in sorted(tables.keyed_rows("item").items(), key=lambda kv: str(kv[0])):
             if isinstance(row, dict) and row.get("type") == 200 and row.get("mini_type"):
                 item_of.setdefault(row["mini_type"], row)
-        rows = sorted(tables.keyed_rows("role_face").values(),
-                      key=lambda r: (r.get("sex", 0), r.get("hide_in_ui", 0), r.get("sort", 0), r.get("id", 0)))
+        rows = sorted(
+            tables.keyed_rows("role_face").values(),
+            key=lambda r: (r.get("sex", 0), r.get("hide_in_ui", 0), r.get("sort", 0), r.get("id", 0)),
+        )
     except Exception:
         rows, models, english, item_of = [], {}, {}, {}
     for row in rows:
@@ -697,7 +800,7 @@ def face_presets(library, faces, files) -> list[dict]:
         suffix = str(row.get("bone_suffix", ""))
         shape = shape_file.get((folder, suffix), "") if suffix.strip("0") else ""
         if suffix.strip("0") and not shape:
-            continue                                   # the shape file is not in this install
+            continue  # the shape file is not in this install
         key = f"{folder}|{shape}"
         if key in seen:
             continue
@@ -708,11 +811,19 @@ def face_presets(library, faces, files) -> list[dict]:
         title = english.get(item.get("name", ""), "")
         icon = item.get("icon_path")
         if icon and icon.endswith("pic_item_face.png"):
-            icon = face_picture(stem)                  # the generic item icon: use the face's own picture
+            icon = face_picture(stem)  # the generic item icon: use the face's own picture
         rarity = item.get("rarity") if item.get("rarity") in (1, 2, 3, 4, 5) else None
         traits = tuple(key for key in TRAIT_KEYS if key in set(item.get("item_tags") or ()))
-        presets.append({"key": key, "name": f"{title}  ·  {stem}" if title else stem, "icon": icon, "rarity": rarity,
-                        "traits": traits, "tags": tuple(str(t) for t in (item.get("item_tags") or ()))})
+        presets.append(
+            {
+                "key": key,
+                "name": f"{title}  ·  {stem}" if title else stem,
+                "icon": icon,
+                "rarity": rarity,
+                "traits": traits,
+                "tags": tuple(str(t) for t in (item.get("item_tags") or ())),
+            }
+        )
     # Faces with no preset in the game are added as plain base faces. Their extra shape files are left out, since
     # the game never uses them.
     for folder in faces:
@@ -759,9 +870,9 @@ def face_folder_of(path: str | None) -> str | None:
     lower = str(path).lower()
     for root in BODY_FOLDERS:
         if lower.startswith(root):
-            rest = str(path)[len(root):].split("\\")
+            rest = str(path)[len(root) :].split("\\")
             if rest and rest[0] and re.search(r"_body_\d+$", rest[0].lower()):
-                return str(path)[:len(root)] + rest[0]
+                return str(path)[: len(root)] + rest[0]
     return None
 
 
@@ -776,7 +887,7 @@ def without_old_eye_faces(mesh_paths):
     for path in mesh_paths:
         lower = path.lower()
         if lower.endswith("_all_jr.mesh"):
-            plain = lower[:-len("_all_jr.mesh")]
+            plain = lower[: -len("_all_jr.mesh")]
             if plain + ".mesh" in lowered or plain + "_all.mesh" in lowered:
                 continue
         kept.append(path)
@@ -788,6 +899,7 @@ def load_face_items(library, mesh_paths, files, shape_path, report, progress=Non
     from core.mesh_converter import face_shapes
     from core.npk.stage_export import StageLoader
     from gui.widgets.character_exports import textured_model
+
     metadata = [p for p in files if p.lower().endswith((".gim", ".mtg", ".mvar"))]
     mesh_paths = without_old_eye_faces(mesh_paths)
     loader = StageLoader(library.index, max_texture_size=8192)
@@ -804,8 +916,13 @@ def load_face_items(library, mesh_paths, files, shape_path, report, progress=Non
         mesh = model[0]
         if re.search(r"_body_\d+(_all)?\.mesh$", path.lower()):
             mesh = face_shapes.mirror_normal_fix(mesh)
-        items.append({"name": path.rsplit("\\", 1)[-1].rsplit(".", 1)[0], "mesh": mesh,
-                      "parts": [dict(part) for part in model[1]]})
+        items.append(
+            {
+                "name": path.rsplit("\\", 1)[-1].rsplit(".", 1)[0],
+                "mesh": mesh,
+                "parts": [dict(part) for part in model[1]],
+            }
+        )
     # The face mesh is listed twice in many folders (<face>.mesh and <face>_all.mesh): keep one
     seen, unique = set(), []
     for item in items:
@@ -819,8 +936,9 @@ def load_face_items(library, mesh_paths, files, shape_path, report, progress=Non
     if shape_path:
         found = library.index.read(shape_path)
         if found is not None:
-            bones = face_shapes.shape_by_name(face_shapes.read_mb(found[0]),
-                                              face_shapes.reference_mesh([i["mesh"] for i in items]))
+            bones = face_shapes.shape_by_name(
+                face_shapes.read_mb(found[0]), face_shapes.reference_mesh([i["mesh"] for i in items])
+            )
             for item in items:
                 if re.search(r"_eye_(l|r|jyq)_", item["name"].lower()):
                     item["mesh"] = face_shapes.apply_shape_to_eyes(item["mesh"], bones)
@@ -836,6 +954,7 @@ _HALVES: dict[int, tuple] = {}
 def _halves(mesh):
     """The left/right halves of a face mesh, made once per mesh (so redraws reuse them)."""
     from core.npk import face_makeup
+
     found = _HALVES.get(id(mesh))
     if found is None or found[0] is not mesh:
         if len(_HALVES) > 32:
@@ -850,6 +969,7 @@ def dress_face_items(library, items, sex, face, look, baked, eye, brow):
     when the look has a one-cheek decal), the iris and eyebrow textures. Returns (items, eye meshes dressed).
     """
     from core.npk import face_makeup
+
     sides = tuple(baked)
     output, eye_meshes = [], 0
     # Faces have either old one-piece eyeballs (<sex>_eye_jyq_NN) or separate left/right eyes. Prefer the
@@ -865,8 +985,10 @@ def dress_face_items(library, items, sex, face, look, baked, eye, brow):
         item = dict(source, parts=[dict(part) for part in source["parts"]])
         lower = item["name"].lower()
         # The face, and anything else drawn with the face texture (the old one-piece eyeballs _eye_jyq_)
-        is_face = any(FACE_TEXTURE.match(os.path.basename(str(part.get("texture") or "")).rsplit(".", 1)[0].lower())
-                      for part in item["parts"]) or (lower.startswith(f"{sex}_body_") and "eye" not in lower)
+        is_face = any(
+            FACE_TEXTURE.match(os.path.basename(str(part.get("texture") or "")).rsplit(".", 1)[0].lower())
+            for part in item["parts"]
+        ) or (lower.startswith(f"{sex}_body_") and "eye" not in lower)
         if "eyebrow" in lower and look.eyebrow is not None:
             for part in item["parts"]:
                 if brow is not None:
@@ -891,12 +1013,17 @@ def dress_face_items(library, items, sex, face, look, baked, eye, brow):
             output.append(item)
             continue
         for side, half in zip(("left", "right"), _halves(item["mesh"])):
-            parts = [dict(part, image=baked[side], texture=f"{face}_makeup_{side}.png",
-                          material=f"{part.get('material') or face}_makeup_{side}")
-                     for part in item["parts"]]
+            parts = [
+                dict(
+                    part,
+                    image=baked[side],
+                    texture=f"{face}_makeup_{side}.png",
+                    material=f"{part.get('material') or face}_makeup_{side}",
+                )
+                for part in item["parts"]
+            ]
             output.append({"name": f"{item['name']}_{side}", "mesh": half, "parts": parts})
-    output += pupil_items(library, look, [i for i in output if re.search(r"_eye_(l|r)_", i["name"].lower())],
-                          sex, face)
+    output += pupil_items(library, look, [i for i in output if re.search(r"_eye_(l|r)_", i["name"].lower())], sex, face)
     return output, eye_meshes
 
 
@@ -907,6 +1034,7 @@ _FACE_SOCKETS: dict = {}
 def face_sockets(library, sex, face) -> dict:
     """Socket name -> (bone, MatrixToBone) from the face's <face>_all.gim (the pupil sockets tongkong_l / _r)."""
     import xml.etree.ElementTree as ET
+
     key = (sex, face)
     if key not in _FACE_SOCKETS:
         found = {}
@@ -946,6 +1074,7 @@ def pupil_items(library, look, eyes, sex=None, face=None) -> list:
     if not models:
         return []
     import copy
+
     sockets = face_sockets(library, sex, face) if sex and face else {}
     wanted = [n for n in (look.eyetype.row.get("eye_bind_param") or [])[1:] if isinstance(n, str)]
     output = []
@@ -956,14 +1085,15 @@ def pupil_items(library, look, eyes, sex=None, face=None) -> list:
             continue
         side = "l" if "_eye_l_" in eye["name"].lower() else "r"
         names = list(mesh.bone_name or [])
-        socket = next((sockets[n] for n in wanted + [f"tongkong_{side}"]
-                       if n.endswith(f"_{side}") and n in sockets), None)
+        socket = next(
+            (sockets[n] for n in wanted + [f"tongkong_{side}"] if n.endswith(f"_{side}") and n in sockets), None
+        )
         place, bone = None, None
         if socket is not None and socket[0] in names and mesh.bone_matrix:
             bone = names.index(socket[0])
             world = np.asarray(mesh.bone_matrix[bone], float).copy()
             scales = np.linalg.norm(world[:3, :3], axis=1, keepdims=True)
-            world[:3, :3] *= float(scales.min()) / np.maximum(scales, 1e-9)     # evenly sized, as the eye itself
+            world[:3, :3] *= float(scales.min()) / np.maximum(scales, 1e-9)  # evenly sized, as the eye itself
             place = socket[1] @ world
         else:
             middle = points.mean(axis=0)

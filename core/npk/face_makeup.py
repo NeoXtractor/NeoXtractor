@@ -13,34 +13,35 @@ import re
 from dataclasses import dataclass, field
 
 import numpy as np
+from core.logger import get_logger
 
 SEXES = {"male": 1, "female": 2}
 BLUSH_TYPES = ("blush_color", "face_decal_to_blush", "old_face_decal_to_blush")
-TRAIT_KEYS = ("yifu_qd", "yifu_zc", "yifu_jx", "jiaju_dunhuang", "yifu_ccgb", "yifu_syzp")   # game_tables.TRAITS
+TRAIT_KEYS = ("yifu_qd", "yifu_zc", "yifu_jx", "jiaju_dunhuang", "yifu_ccgb", "yifu_syzp")  # game_tables.TRAITS
 ITEM_SUB_TYPES = {"decal": 15, "blush": 28, "lips": 20, "eyebrow": 26, "eyecolor": 18, "eyetype": 22}
 
 
 @dataclass
 class Option:
-    kind: str                 # eyeshadow / blush / lips / eyebrow
+    kind: str  # eyeshadow / blush / lips / eyebrow
     id: int
     name: str
     icon: str | None
     row: dict = field(default_factory=dict)
     rarity: int | None = None  # the item's rarity, 1 Basic ... 5 Mythic
-    traits: tuple = ()         # the item's filter traits (game_tables.TRAITS keys)
-    tags: tuple = ()           # the item's tags as the game shows them (item.item_tags)
+    traits: tuple = ()  # the item's filter traits (game_tables.TRAITS keys)
+    tags: tuple = ()  # the item's tags as the game shows them (item.item_tags)
 
 
 @dataclass
 class Look:
-    skin: int | None = None           # .mvar variant number; None keeps the face's own texture
+    skin: int | None = None  # .mvar variant number; None keeps the face's own texture
     eyeshadow: Option | None = None
     blush: Option | None = None
     lips: Option | None = None
     eyebrow: Option | None = None
-    eyetype: Option | None = None      # eye meshes (*_eye_l / *_eye_r): iris pattern
-    eyecolor: Option | None = None     # eye meshes: iris colour
+    eyetype: Option | None = None  # eye meshes (*_eye_l / *_eye_r): iris pattern
+    eyecolor: Option | None = None  # eye meshes: iris colour
 
 
 def srgb_to_linear(c):
@@ -83,7 +84,6 @@ class MakeupLibrary:
         self._items = None
         self._manifest = None
 
-    # -- data --------------------------------------------------------------------------------
     def mp(self, name: str) -> dict:
         if name not in self._json:
             data = self.tables.read(f"material_plus\\{name}_data.json")
@@ -97,8 +97,11 @@ class MakeupLibrary:
 
     def _names(self):
         if self._items is None:
-            self._english = {key: row.get("text_en", "") for key, row in self.tables.keyed_rows("item_text_os_en").items()
-                             if isinstance(row, dict)}
+            self._english = {
+                key: row.get("text_en", "")
+                for key, row in self.tables.keyed_rows("item_text_os_en").items()
+                if isinstance(row, dict)
+            }
             self._items = {}
             for row in self.tables.keyed_rows("item").values():
                 if isinstance(row, dict) and row.get("type") == 200 and row.get("sub_type") in ITEM_SUB_TYPES.values():
@@ -115,6 +118,7 @@ class MakeupLibrary:
     def image(self, path: str | None):
         """RGBA float32 array (0..1) of a game texture, or None."""
         from core.npk.stage_export import decode_texture
+
         if not path:
             return None
         path = path.replace("/", "\\")
@@ -132,27 +136,36 @@ class MakeupLibrary:
     def icon(self, option: Option):
         """PIL image of an option's icon, or None."""
         from core.npk.stage_export import decode_texture
+
         for path in filter(None, [option.icon]):
             found = self.index.read(path.replace("/", "\\"))
             if found is not None:
                 try:
                     return decode_texture(found[0])
                 except Exception:
+                    get_logger().debug("Could not decode the makeup icon %s", path, exc_info=True)
                     return None
         return None
 
-    # -- options -----------------------------------------------------------------------------
     def options(self, sex: str) -> dict[str, list[Option]]:
         s = SEXES[sex]
         result = {"eyeshadow": [], "blush": [], "lips": [], "eyebrow": [], "eyetype": [], "eyecolor": []}
         for row in sorted(self.rows("face_edit"), key=lambda r: (r.get("sort", 0), r.get("id", 0))):
             if row.get("sex") != s:
                 continue
-            kind = "eyeshadow" if row.get("mp_type") == "eye_shadow" else "blush" if row.get("mp_type") in BLUSH_TYPES else None
+            kind = (
+                "eyeshadow"
+                if row.get("mp_type") == "eye_shadow"
+                else "blush" if row.get("mp_type") in BLUSH_TYPES else None
+            )
             if kind is None:
                 continue
             fallback = str(row.get("res_path", "")).rsplit("/", 1)[-1] or f"#{row['id']}"
-            first, second = (ITEM_SUB_TYPES["blush"], ITEM_SUB_TYPES["decal"]) if row.get("mp_type") == "blush_color"                 else (ITEM_SUB_TYPES["decal"], ITEM_SUB_TYPES["blush"])
+            first, second = (
+                (ITEM_SUB_TYPES["blush"], ITEM_SUB_TYPES["decal"])
+                if row.get("mp_type") == "blush_color"
+                else (ITEM_SUB_TYPES["decal"], ITEM_SUB_TYPES["blush"])
+            )
             name, icon = self._label(first, row["id"], fallback)
             if name == fallback:
                 name, icon = self._label(second, row["id"], fallback)
@@ -164,27 +177,37 @@ class MakeupLibrary:
         for row in sorted(self.rows("face_lips"), key=lambda r: (r.get("sort", 0), r.get("id", 0))):
             if row.get("sex") == s:
                 name, icon = self._label(ITEM_SUB_TYPES["lips"], row["id"], f"Lip colour {row.get('lips_color')}")
-                result["lips"].append(Option("lips", row["id"], name, icon or f"image/face/lips/{row.get('icon')}.png", row))
+                result["lips"].append(
+                    Option("lips", row["id"], name, icon or f"image/face/lips/{row.get('icon')}.png", row)
+                )
         for row in sorted(self.rows("face_eyebrow"), key=lambda r: (r.get("sort", 0), r.get("id", 0))):
             if row.get("sex") == s:
-                fallback = self.mp("eyebrow_color").get(str(row.get("eyebrow_color")), [f"Brow colour {row.get('eyebrow_color')}"])[0]
+                fallback = self.mp("eyebrow_color").get(
+                    str(row.get("eyebrow_color")), [f"Brow colour {row.get('eyebrow_color')}"]
+                )[0]
                 name, icon = self._label(ITEM_SUB_TYPES["eyebrow"], row["id"], fallback)
-                result["eyebrow"].append(Option("eyebrow", row["id"], name, icon or f"image/face/eyebrow/{row.get('icon')}.png", row))
+                result["eyebrow"].append(
+                    Option("eyebrow", row["id"], name, icon or f"image/face/eyebrow/{row.get('icon')}.png", row)
+                )
         masks, colors = self.mp("eye_mask_split"), self.mp("eye_color_split")
         for row in sorted(self.rows("face_eyetype"), key=lambda r: (r.get("sort", 0), r.get("id", 0))):
             if row.get("sex") == s and not row.get("hide_in_ui") and str(int(row.get("eye_mask_mat") or 1)) in masks:
                 name, icon = self._label(ITEM_SUB_TYPES["eyetype"], row["id"], f"Eye type {row.get('eye_mask_mat')}")
-                result["eyetype"].append(Option("eyetype", row["id"], name,
-                                                icon or f"image/face/eyes/{row.get('icon')}.png", row))
+                result["eyetype"].append(
+                    Option("eyetype", row["id"], name, icon or f"image/face/eyes/{row.get('icon')}.png", row)
+                )
         for row in sorted(self.rows("face_eyecolor"), key=lambda r: (r.get("sort", 0), r.get("id", 0))):
             if row.get("sex") == s and not row.get("hide_in_ui") and str(row.get("eye_color")) in colors:
                 name, icon = self._label(ITEM_SUB_TYPES["eyecolor"], row["id"], f"Eye colour {row.get('eye_color')}")
-                result["eyecolor"].append(Option("eyecolor", row["id"], name,
-                                                 icon or f"image/face/eyes/eyescolor/{row.get('icon')}.png", row))
+                result["eyecolor"].append(
+                    Option("eyecolor", row["id"], name, icon or f"image/face/eyes/eyescolor/{row.get('icon')}.png", row)
+                )
         items, _english = self._names()
-        sub_types = {"eyeshadow": (ITEM_SUB_TYPES["decal"], ITEM_SUB_TYPES["blush"]),
-                     "blush": (ITEM_SUB_TYPES["blush"], ITEM_SUB_TYPES["decal"]),
-                     **{kind: (ITEM_SUB_TYPES[kind],) for kind in ("lips", "eyebrow", "eyetype", "eyecolor")}}
+        sub_types = {
+            "eyeshadow": (ITEM_SUB_TYPES["decal"], ITEM_SUB_TYPES["blush"]),
+            "blush": (ITEM_SUB_TYPES["blush"], ITEM_SUB_TYPES["decal"]),
+            **{kind: (ITEM_SUB_TYPES[kind],) for kind in ("lips", "eyebrow", "eyetype", "eyecolor")},
+        }
         for kind, options in result.items():
             for option in options:
                 item = next((items[(sub, option.id)] for sub in sub_types[kind] if (sub, option.id) in items), None)
@@ -195,13 +218,13 @@ class MakeupLibrary:
                 option.tags = tuple(str(t) for t in (item.get("item_tags") or ())) if item else ()
         return result
 
-    # -- eyes (shader/cartoon_eye_common.hlsl) ------------------------------------------------
     def bake_eye(self, look: Look, report: list | None = None):
         """
         The iris texture of the separate eye meshes (*_eye_l / *_eye_r) for the look's eye type and colour,
         or None when the look sets neither. Animated iris patterns are baked at their first frame.
         """
         from PIL import Image
+
         if look.eyetype is None and look.eyecolor is None:
             return None
         report = report if report is not None else []
@@ -233,25 +256,38 @@ class MakeupLibrary:
         tint_mask = _resize(tint_mask, width, height) if tint_mask is not None else np.zeros((height, width, 4))
         coloration = mask[1:5]
         # R, G, B: TintColor + blend + gradient; A: the default black tint (pupil) with its gradient
-        channels = [(13, 14, 15, 16, 17, 18, 19, 20, 21), (22, 23, 24, 25, 26, 27, 28, 29, 30),
-                    (31, 32, 33, 34, 35, 36, 37, 38, 39), (None, 40, 41, 42, 43, 44, 45, 46, 47)]
+        channels = [
+            (13, 14, 15, 16, 17, 18, 19, 20, 21),
+            (22, 23, 24, 25, 26, 27, 28, 29, 30),
+            (31, 32, 33, 34, 35, 36, 37, 38, 39),
+            (None, 40, 41, 42, 43, 44, 45, 46, 47),
+        ]
         src = albedo
         for channel, (tint_i, blend_i, gtype_i, gdir_i, grange_i, gsoft_i, gcolor_i, gx_i, gy_i) in enumerate(channels):
             if not coloration[channel]:
                 continue
             tint = np.asarray(color[tint_i][:3] if tint_i is not None else [0.0, 0.0, 0.0], float)
-            tint = _gradient(tint, u, v, color[gtype_i], color[grange_i], color[gsoft_i],
-                             np.asarray(color[gcolor_i][:3], float), color[gdir_i], (color[gx_i], color[gy_i]))
-            src = src + (blend_color(src, tint, color[blend_i]) - src) * tint_mask[..., channel:channel + 1]
-        albedo = src                                             # TintAlbedoPower 0, TintAlbedoFactor 1
-        pattern = self.image(mask[14])                           # dynamic iris patterns, first frame
+            tint = _gradient(
+                tint,
+                u,
+                v,
+                color[gtype_i],
+                color[grange_i],
+                color[gsoft_i],
+                np.asarray(color[gcolor_i][:3], float),
+                color[gdir_i],
+                (color[gx_i], color[gy_i]),
+            )
+            src = src + (blend_color(src, tint, color[blend_i]) - src) * tint_mask[..., channel : channel + 1]
+        albedo = src  # TintAlbedoPower 0, TintAlbedoFactor 1
+        pattern = self.image(mask[14])  # dynamic iris patterns, first frame
         if pattern is not None:
             ring = self.image(mask[15])
             ring = _resize(ring, width, height) if ring is not None else np.ones((height, width, 4))
             for channel in range(4):
                 if not mask[5 + channel]:
                     continue
-                dtype, tilling, tilling2, _speed, offset_x, offset_y = mask[20 + channel * 6:26 + channel * 6]
+                dtype, tilling, tilling2, _speed, offset_x, offset_y = mask[20 + channel * 6 : 26 + channel * 6]
                 pu, pv = _pattern_uv(dtype, u, v, tilling, tilling2, (offset_x, offset_y))
                 amount = _sample(pattern, pu, pv)[..., channel]
                 mask_type = int(mask[44 + channel] or 0)
@@ -269,13 +305,15 @@ class MakeupLibrary:
         out = np.dstack([linear_to_srgb(albedo), base[..., 3:4]])
         return Image.fromarray((np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8), "RGBA")
 
-    # -- per face ----------------------------------------------------------------------------
     def face_files(self, folder: str) -> list[str]:
         prefix = folder.lower().rstrip("\\") + "\\"
         if self._manifest is None:
-            self._manifest = [p for p in self.index.manifest() if p.lower().endswith((".mvar", ".tga", ".dds", ".png"))
-                              and "\\body\\" in p.lower()]
-        return [p for p in self._manifest if p.lower().startswith(prefix) and "\\" not in p[len(prefix):]]
+            self._manifest = [
+                p
+                for p in self.index.manifest()
+                if p.lower().endswith((".mvar", ".tga", ".dds", ".png")) and "\\body\\" in p.lower()
+            ]
+        return [p for p in self._manifest if p.lower().startswith(prefix) and "\\" not in p[len(prefix) :]]
 
     def skins(self, folder: str) -> list[tuple[int, str, str, str | None]]:
         """(variant number, label, base texture, tint map or None) from the face's .mvar."""
@@ -291,7 +329,9 @@ class MakeupLibrary:
             return []
         material = next(iter(data.values()), {})
         result = []
-        for number, (label, values) in sorted(((int(k), v) for k, v in material.get("variants", {}).items()), key=lambda kv: kv[0]):
+        for number, (label, values) in sorted(
+            ((int(k), v) for k, v in material.get("variants", {}).items()), key=lambda kv: kv[0]
+        ):
             if number == 0:
                 continue
             base, tint = values.get("0"), values.get("1")
@@ -330,6 +370,7 @@ class MakeupLibrary:
         eyebrow_color_split_data.json. None when the look has no eyebrow colour or the face has no eyebrow mesh.
         """
         from PIL import Image
+
         report = report if report is not None else []
         if look.eyebrow is None:
             return None
@@ -362,10 +403,12 @@ class MakeupLibrary:
             if not mask_entry[1 + channel]:
                 continue
             first = 1 + channel * 7
-            tint_c, blend, gtype, gdir, grange, gsoft, gcolor = color[first:first + 7]
-            tint = _gradient(np.asarray(tint_c[:3], float), u, v, gtype, grange, gsoft, np.asarray(gcolor[:3], float), gdir, (0, 0))
-            src = src + (blend_color(src, tint, blend) - src) * mask[..., channel:channel + 1]
-        out = np.dstack([linear_to_srgb(src), base[..., 3:4]])          # TintAlbedoPower 0, TintAlbedoFactor 1
+            tint_c, blend, gtype, gdir, grange, gsoft, gcolor = color[first : first + 7]
+            tint = _gradient(
+                np.asarray(tint_c[:3], float), u, v, gtype, grange, gsoft, np.asarray(gcolor[:3], float), gdir, (0, 0)
+            )
+            src = src + (blend_color(src, tint, blend) - src) * mask[..., channel : channel + 1]
+        out = np.dstack([linear_to_srgb(src), base[..., 3:4]])  # TintAlbedoPower 0, TintAlbedoFactor 1
         return Image.fromarray((np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8), "RGBA")
 
     def tint_eyebrow_texture(self, image, option: Option):
@@ -374,6 +417,7 @@ class MakeupLibrary:
         eyebrow tint (the game's split-eyebrow shader recolours by mask channels).
         """
         from PIL import Image
+
         values = self.mp("eyebrow_color").get(str(option.row.get("eyebrow_color")))
         if image is None or not values:
             return image
@@ -403,16 +447,40 @@ class MakeupLibrary:
                 values = self.mp(kind).get(str(decal))
                 if values:
                     _label, _on, tex, left, right, sx, sy, w, hw, bright = values[:10]
-                    stamps.append(dict(tex=tex, left=left, right=right, sx=sx, sy=sy, w=w, hw=hw, bright=bright,
-                                       blend=False, clip=False))
+                    stamps.append(
+                        dict(
+                            tex=tex,
+                            left=left,
+                            right=right,
+                            sx=sx,
+                            sy=sy,
+                            w=w,
+                            hw=hw,
+                            bright=bright,
+                            blend=False,
+                            clip=False,
+                        )
+                    )
             else:
                 data = self.mp(kind)
                 values = data.get(f"{decal}{s:03d}{self.scheme(row, number):02d}") or data.get(f"{decal}{s:03d}01")
                 if values:
                     _label, tex, left, right, sx, sy, w, hw, _on, blend, clip = values[:11]
                     bright = self.mp("bright_face2_tex").get(str(skin), [None, 1.0])[1]
-                    stamps.append(dict(tex=tex, left=left, right=right, sx=sx, sy=sy, w=w, hw=hw, bright=bright,
-                                       blend=bool(blend), clip=bool(clip)))
+                    stamps.append(
+                        dict(
+                            tex=tex,
+                            left=left,
+                            right=right,
+                            sx=sx,
+                            sy=sy,
+                            w=w,
+                            hw=hw,
+                            bright=bright,
+                            blend=bool(blend),
+                            clip=bool(clip),
+                        )
+                    )
         if look.eyeshadow is not None:
             # Keyed by position in the game's face list, which skips numbers (no male 30), so match the label
             label = f"{'男' if s == 1 else '女'}->{number:02d}"
@@ -421,21 +489,40 @@ class MakeupLibrary:
                 _label, _enable, left, right, sx, sy, w, hw, _macro, blend = values[:10]
                 res = str(look.eyeshadow.row.get("res_path", "")).replace("/", "\\")
                 bright = self.mp("bright_face_tex").get(str(skin), [None, look.eyeshadow.row.get("bright", 1.0)])[1]
-                stamps.append(dict(tex=f"model\\texture\\tiehua\\{res}.png", left=left, right=right,
-                                   sx=sx, sy=sy, w=w, hw=hw, bright=bright, blend=bool(blend), clip=False))
+                stamps.append(
+                    dict(
+                        tex=f"model\\texture\\tiehua\\{res}.png",
+                        left=left,
+                        right=right,
+                        sx=sx,
+                        sy=sy,
+                        w=w,
+                        hw=hw,
+                        bright=bright,
+                        blend=bool(blend),
+                        clip=False,
+                    )
+                )
         return stamps
 
     def needs_split(self, look: Look, folder: str, sex: str) -> bool:
         return any(stamp["left"] or stamp["right"] for stamp in self.stamps(look, folder, sex))
 
-    # -- baking ------------------------------------------------------------------------------
-    def bake(self, folder: str, sex: str, look: Look, base_texture: str | None = None, side: str | None = None,
-             report: list | None = None):
+    def bake(
+        self,
+        folder: str,
+        sex: str,
+        look: Look,
+        base_texture: str | None = None,
+        side: str | None = None,
+        report: list | None = None,
+    ):
         """
         Returns the face texture to user with the makeup baked in. side can be None for both cheeks, or "left" / "right"
         to apply cheek stamps to one side only ("left" is the face's +X half).
         """
         from PIL import Image
+
         report = report if report is not None else []
         s, number = SEXES[sex], face_number(folder) or 1
         skins = {n: (base, tint) for n, _label, base, tint in self.skins(folder)}
@@ -456,7 +543,7 @@ class MakeupLibrary:
                 _label, _macro, bright, power, tint_color = params[:5]
                 tint = _resize(tint, width, height)
                 adjusted = np.power(tint[..., :3], power) * bright * np.asarray(tint_color[:3])
-                adjusted = np.clip(adjusted - 0.5 + 0.5, 0, 1)              # BaseFaceMapContrast 1
+                adjusted = np.clip(adjusted - 0.5 + 0.5, 0, 1)  # BaseFaceMapContrast 1
                 rgb = np.where(tint[..., 3:4] > 0.0001, adjusted, rgb)
         albedo = srgb_to_linear(rgb)
 
@@ -464,15 +551,18 @@ class MakeupLibrary:
         if look.lips is not None or look.eyebrow is not None:
             mask = self.tint_mask(folder, sex)
             if mask is None:
-                report.append("this face has no lip/eyebrow tint mask in the game, so lip and eyebrow colours do not apply to it")
+                report.append(
+                    "this face has no lip/eyebrow tint mask in the game, so lip and eyebrow colours do not apply to it"
+                )
             else:
                 mask = _resize(mask, width, height)
                 src, power, factor = albedo.copy(), 0.0, 1.0
                 if look.lips is not None:
                     color = int(look.lips.row.get("lips_color") or 1)
                     data = self.mp("mouth_color")
-                    values = (data.get(f"{s}{color:08d}{self.scheme(look.lips.row, number):03d}")
-                              or data.get(f"{s}{color:08d}001"))
+                    values = data.get(f"{s}{color:08d}{self.scheme(look.lips.row, number):03d}") or data.get(
+                        f"{s}{color:08d}001"
+                    )
                     if values:
                         tint_b, type_b, power, factor = np.asarray(values[2][:3]), values[3], values[4], values[5]
                         src = src + (blend_color(src, tint_b, type_b) - src) * mask[..., 2:3]
@@ -495,7 +585,7 @@ class MakeupLibrary:
         v = (v + 0.5) / height
         for stamp in self.stamps(look, folder, sex):
             if side is None and (stamp["left"] or stamp["right"]):
-                pass                                      # a preview of both sides still shows it
+                pass  # a preview of both sides still shows it
             elif side == "left" and stamp["right"] and not stamp["left"]:
                 continue
             elif side == "right" and stamp["left"] and not stamp["right"]:
@@ -587,31 +677,38 @@ def _pattern_uv(kind, u, v, tilling, tilling2, offset):
     kind = int(np.floor(kind or 0))
     tilling, tilling2 = float(tilling or 0), float(tilling2 or 0)
     pivot_u, pivot_v = 0.5 + (offset[0] or 0), 0.5 + (offset[1] or 0)
-    if kind == 0:                                        # rotating: no rotation yet at time 0
-        return np.clip(u * tilling - pivot_u * tilling + 0.5, 0, 1), np.clip(v * tilling - pivot_v * tilling + 0.5, 0, 1)
-    if kind == 1:                                        # polar spread
+    if kind == 0:  # rotating: no rotation yet at time 0
+        return np.clip(u * tilling - pivot_u * tilling + 0.5, 0, 1), np.clip(
+            v * tilling - pivot_v * tilling + 0.5, 0, 1
+        )
+    if kind == 1:  # polar spread
         x, y = (u + (offset[0] or 0)) * 2 - 1, (v + (offset[1] or 0)) * 2 - 1
         r = np.mod(np.clip(np.hypot(x, y), 0, 1) * tilling, 1.0)
         theta = np.mod((np.arctan2(y, x) / (2 * np.pi) + 0.5) * tilling2, 1.0)
         return theta, r
-    if kind == 2:                                        # flowing
+    if kind == 2:  # flowing
         return np.mod(u * tilling, 1.0), np.mod(v * tilling, 1.0)
-    scale = (tilling + tilling2) * 0.5                   # pulsing size: halfway at time 0
+    scale = (tilling + tilling2) * 0.5  # pulsing size: halfway at time 0
     if abs(scale) < 1e-6:
         return np.full_like(u, 0.5), np.full_like(v, 0.5)
-    return (np.clip(u * scale - (pivot_u - 0.5 / scale) * scale, 0, 1),
-            np.clip(v * scale - (pivot_v - 0.5 / scale) * scale, 0, 1))
+    return (
+        np.clip(u * scale - (pivot_u - 0.5 / scale) * scale, 0, 1),
+        np.clip(v * scale - (pivot_v - 0.5 / scale) * scale, 0, 1),
+    )
 
 
 def _sample(image, u, v):
     h, w = image.shape[:2]
-    return image[np.clip((np.mod(v, 1.0) * h).astype(int), 0, h - 1), np.clip((np.mod(u, 1.0) * w).astype(int), 0, w - 1)]
+    return image[
+        np.clip((np.mod(v, 1.0) * h).astype(int), 0, h - 1), np.clip((np.mod(u, 1.0) * w).astype(int), 0, w - 1)
+    ]
 
 
 def _resize(image, width, height):
     if image.shape[0] == height and image.shape[1] == width:
         return image
     from PIL import Image
+
     pil = Image.fromarray((np.clip(image, 0, 1) * 255).astype(np.uint8), "RGBA").resize((width, height), Image.BILINEAR)
     return np.asarray(pil, np.float32) / 255.0
 
@@ -627,7 +724,7 @@ def split_by_side(mesh):
         start, new_faces, new_parts = 0, [], []
         for number, count in enumerate(counts):
             count = max(0, min(count, len(faces) - start))
-            chosen = faces[start:start + count][keep[start:start + count]]
+            chosen = faces[start : start + count][keep[start : start + count]]
             new_faces.extend(tuple(int(i) for i in tri) for tri in chosen)
             if mesh.mesh:
                 part = list(mesh.mesh[number])

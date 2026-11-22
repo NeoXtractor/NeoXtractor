@@ -17,26 +17,37 @@ CHARACTER_MODELS = {
     "model\\character\\male": "model\\character\\male\\nanzhu001\\nanzhu001_fenli.gim",
     "model\\character\\female": "model\\character\\female\\nvzhu004\\nvzhu004_fenli.gim",
 }
-CATEGORY_NAMES = {"character": "Characters", "monster": "Creatures", "canon": "Story characters", "partner": "Partners",
-                  "items": "Items", "furniture": "Furniture", "levelsets": "Scenes", "original": "Original characters",
-                  "camera": "Cameras", "fx": "Effects", "levelsets_model": "Scene props", "sushe_jiaju": "Dorm furniture"}
+CATEGORY_NAMES = {
+    "character": "Characters",
+    "monster": "Creatures",
+    "canon": "Story characters",
+    "partner": "Partners",
+    "items": "Items",
+    "furniture": "Furniture",
+    "levelsets": "Scenes",
+    "original": "Original characters",
+    "camera": "Cameras",
+    "fx": "Effects",
+    "levelsets_model": "Scene props",
+    "sushe_jiaju": "Dorm furniture",
+}
 
 
 @dataclass
 class Group:
-    folder: str                         # ...\animations_<skeleton>
-    parent: str                         # the model folder
-    skeleton: str                       # <parent>\<skeleton>.skeleton (may be missing)
+    folder: str  # ...\animations_<skeleton>
+    parent: str  # the model folder
+    skeleton: str  # <parent>\<skeleton>.skeleton (may be missing)
     category: str
     clips: list[str] = field(default_factory=list)
-    models: list[str] = field(default_factory=list)       # .gim files of the model folder
+    models: list[str] = field(default_factory=list)  # .gim files of the model folder
     default_model: str | None = None
 
     @property
     def label(self) -> str:
         if self.parent.lower() in CHARACTER_MODELS:
             return f"Player character ({self.parent.rsplit(B, 1)[-1]})"
-        stem = self.folder.rsplit(B, 1)[-1][len("animations_"):]
+        stem = self.folder.rsplit(B, 1)[-1][len("animations_") :]
         owner = self.parent.rsplit(B, 1)[-1]
         short = re.sub(r"_[0-9a-f]{6}$", "", stem)
         return owner if short.lower() == owner.lower() else f"{owner} / {short}"
@@ -55,7 +66,11 @@ def category_of(parent: str) -> str:
     for part in parts[:3]:
         if part in CATEGORY_NAMES:
             return CATEGORY_NAMES[part]
-    return parts[1].capitalize() if len(parts) > 1 and parts[0] in ("model", "res_dlc1_hogsmeade") else parts[0].capitalize()
+    return (
+        parts[1].capitalize()
+        if len(parts) > 1 and parts[0] in ("model", "res_dlc1_hogsmeade")
+        else parts[0].capitalize()
+    )
 
 
 def scan(paths) -> list[Group]:
@@ -77,7 +92,7 @@ def scan(paths) -> list[Group]:
             key = folder.lower()
             if key not in groups:
                 parent = folder.rsplit(B, 1)[0]
-                stem = folder.rsplit(B, 1)[-1][len("animations_"):]
+                stem = folder.rsplit(B, 1)[-1][len("animations_") :]
                 groups[key] = Group(folder, parent, f"{parent}{B}{stem}.skeleton", category_of(parent))
                 clips[key] = set()
             clips[key].add(name.rsplit(".", 1)[0])
@@ -94,7 +109,7 @@ def scan(paths) -> list[Group]:
 def pick_model(group: Group) -> str | None:
     if group.parent.lower() in CHARACTER_MODELS:
         return CHARACTER_MODELS[group.parent.lower()]
-    stem = group.folder.rsplit(B, 1)[-1][len("animations_"):].lower()
+    stem = group.folder.rsplit(B, 1)[-1][len("animations_") :].lower()
     short = re.sub(r"_[0-9a-f]{6}$", "", stem)
     by_name = {m.rsplit(B, 1)[-1][:-4].lower(): m for m in group.models}
     for candidate in (stem, short):
@@ -118,9 +133,10 @@ def load_clip(read, group: Group, name: str):
     """
     import xml.etree.ElementTree as ET
     from core.npk import neox_anim
+
     raw_path = f"{group.folder}{B}{name}.rawanimation"
     data = read(raw_path)
-    if data is None:                                  # the descriptor may point elsewhere
+    if data is None:  # the descriptor may point elsewhere
         descriptor = read(f"{group.folder}{B}{name}.animation")
         if descriptor is not None:
             try:

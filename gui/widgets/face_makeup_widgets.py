@@ -7,11 +7,10 @@ from __future__ import annotations
 from PySide6 import QtCore, QtGui, QtWidgets
 from core.npk.game_tables import TRAITS
 
-
 ICON_ROLE = QtCore.Qt.ItemDataRole.UserRole + 61
 
 
-TEXTURE_ROLE = QtCore.Qt.ItemDataRole.UserRole + 62      # a recolour's own texture (same mesh, other colours)
+TEXTURE_ROLE = QtCore.Qt.ItemDataRole.UserRole + 62  # a recolour's own texture (same mesh, other colours)
 
 
 RAIL_WIDTH = 80
@@ -23,7 +22,7 @@ TILE = QtCore.QSize(132, 132)
 LIST_WIDTH = 2 * TILE.width() + 34
 
 
-LIST_WIDTH_EXPANDED = 5 * TILE.width() + 34          # the expanded list, five tiles across
+LIST_WIDTH_EXPANDED = 5 * TILE.width() + 34  # the expanded list, five tiles across
 
 
 GOLD = "#d6aa5a"
@@ -32,47 +31,108 @@ GOLD = "#d6aa5a"
 UI_FOLDER = "ui\\storeroom_wardrobe_new_panel\\resource\\"
 
 
-UI_SHEETS = tuple(UI_FOLDER + name for name in ("custom", "b_storeroom_wardrobe_panel1", "b_storeroom_wardrobe_panel2", "plist1")) + \
-    ("ui\\create_role_panel_new\\resource\\create_role_panel1",
-     "ui\\left_tab_list\\resource\\plist1", "ui\\com_tag\\resource\\plist1", "ui\\com_details_right\\resource\\plist1",
-     "ui\\_com_image\\dropdown\\plist", "ui\\_com_image\\button\\plist", "ui\\_com_image\\icon\\plist", "ui\\spontaneous_move_chess\\resource\\spontaneous_move_chess_guide1", "ui\\senior_tailor\\resource\\senior_tailor_main1")   # the wardrobe filter's ticks and frame
+UI_SHEETS = tuple(
+    UI_FOLDER + name for name in ("custom", "b_storeroom_wardrobe_panel1", "b_storeroom_wardrobe_panel2", "plist1")
+) + (
+    "ui\\create_role_panel_new\\resource\\create_role_panel1",
+    "ui\\left_tab_list\\resource\\plist1",
+    "ui\\com_tag\\resource\\plist1",
+    "ui\\com_details_right\\resource\\plist1",
+    "ui\\_com_image\\dropdown\\plist",
+    "ui\\_com_image\\button\\plist",
+    "ui\\_com_image\\icon\\plist",
+    "ui\\spontaneous_move_chess\\resource\\spontaneous_move_chess_guide1",
+    "ui\\senior_tailor\\resource\\senior_tailor_main1",
+)  # the wardrobe filter's ticks and frame
 
 
 SKIN_SPRITE_PREFIX = "pic_chuangjue_fuse_"
 
 
-UI_SPRITES = {"icon_lianxing", "icon_mianbuxijie", "icon_chunse", "icon_meimao", "pic_zr_tongkong_01", "pic_zr_yanzhu_01",
-              "pic_fuzhuangdian_shaixuan_toufa", "pic_duijiaoxiang_tubiao1", "pic_fuzhuangdian_shaixuan_maozi", "icon_ershi",
-              "icon_yanjing", "pic_fuzhuangdian_shaixuan_weijin", "icon_huizhang", "pic_fuzhuangdian_shaixuan_beibao",
-              "pic_fushi_diban", "pic_xuanzhong", "pic_chuangjue_wu", "pic_moyao", "pic_jd_tianjia", "pic_rukou_chongzhi",
-              "pic_waiguan_yulan1", "pic_zhiboxin_jiantou", "pic_tixing_weixuanzhong", "pic_tixing_xuanzhong",
-              "pic_chuangjue_xuanzhong", "pic_yimaojian_quanbu", "pic_fuzhuangdian_shaixuan_yifu", "icon_tongkongxijie",
-              "pic_selected_arrow", "pic_wskj_shurukuang", "pic_fuzhuangdian_xuanzhongguang", "bg_huixiang_pingzhidi_00", "bg_huixiang_pingzhidi_01",
-              "bg_huixiang_pingzhidi_02", "bg_huixiang_pingzhidi_03", "bg_huixiang_pingzhidi_04",
-              "pic_bg_sift", "pic_ktjs_gou", "pic_duijue_gouxuandiban", "pic_tongyong_xialadi",
-              "pic_tongyong_xialaxuanzhong01", "pro_huixiang_line_huang", "pro_huixiang_line2_huang",
-              "pic_zhuangrong_xuanzhong", "pic_zhuangrong_xian", "icon_fuzhuang_tiaosepan", "pic_tongyong_xialafenxian",
-              "pic_wushihuzhu_shaixuan_jiantou", "pic_shaixuan_di", "pic_gou", "btn_mfxj_diban",
-              "icon_zhiboxin_sousuo", "icon_shengxu", "icon_jiangxu", "icon_shejiao_guanbi",
-              "pic_tongyong_biaoqian", "pic_tongyong_xian"}
+UI_SPRITES = {
+    "icon_lianxing",
+    "icon_mianbuxijie",
+    "icon_chunse",
+    "icon_meimao",
+    "pic_zr_tongkong_01",
+    "pic_zr_yanzhu_01",
+    "pic_fuzhuangdian_shaixuan_toufa",
+    "pic_duijiaoxiang_tubiao1",
+    "pic_fuzhuangdian_shaixuan_maozi",
+    "icon_ershi",
+    "icon_yanjing",
+    "pic_fuzhuangdian_shaixuan_weijin",
+    "icon_huizhang",
+    "pic_fuzhuangdian_shaixuan_beibao",
+    "pic_fushi_diban",
+    "pic_xuanzhong",
+    "pic_chuangjue_wu",
+    "pic_moyao",
+    "pic_jd_tianjia",
+    "pic_rukou_chongzhi",
+    "pic_waiguan_yulan1",
+    "pic_zhiboxin_jiantou",
+    "pic_tixing_weixuanzhong",
+    "pic_tixing_xuanzhong",
+    "pic_chuangjue_xuanzhong",
+    "pic_yimaojian_quanbu",
+    "pic_fuzhuangdian_shaixuan_yifu",
+    "icon_tongkongxijie",
+    "pic_selected_arrow",
+    "pic_wskj_shurukuang",
+    "pic_fuzhuangdian_xuanzhongguang",
+    "bg_huixiang_pingzhidi_00",
+    "bg_huixiang_pingzhidi_01",
+    "bg_huixiang_pingzhidi_02",
+    "bg_huixiang_pingzhidi_03",
+    "bg_huixiang_pingzhidi_04",
+    "pic_bg_sift",
+    "pic_ktjs_gou",
+    "pic_duijue_gouxuandiban",
+    "pic_tongyong_xialadi",
+    "pic_tongyong_xialaxuanzhong01",
+    "pro_huixiang_line_huang",
+    "pro_huixiang_line2_huang",
+    "pic_zhuangrong_xuanzhong",
+    "pic_zhuangrong_xian",
+    "icon_fuzhuang_tiaosepan",
+    "pic_tongyong_xialafenxian",
+    "pic_wushihuzhu_shaixuan_jiantou",
+    "pic_shaixuan_di",
+    "pic_gou",
+    "btn_mfxj_diban",
+    "icon_zhiboxin_sousuo",
+    "icon_shengxu",
+    "icon_jiangxu",
+    "icon_shejiao_guanbi",
+    "pic_tongyong_biaoqian",
+    "pic_tongyong_xian",
+}
 
 
 HALO_TURN = 0.0
-HALO_CROP = 0.8           # the middle of pic_xuanzhong: its ring and the bloom around it
-HALO_SCALE = 1.02 / (0.5 / HALO_CROP)   # the ring is half the sprite: sized to lie on the disc's edge
+HALO_CROP = 0.8  # the middle of pic_xuanzhong: its ring and the bloom around it
+HALO_SCALE = 1.02 / (0.5 / HALO_CROP)  # the ring is half the sprite: sized to lie on the disc's edge
 
 
 # Sprites the wardrobe takes from loose files rather than its atlases: {name: path without extension}
-LOOSE_SPRITES = {"icon_beibao_01": "image\\storeroom\\icon_beibao_01",
-                 "bg_huixiang_youdi": "ui\\_bigbg\\bg_huixiang_youdi"}
+LOOSE_SPRITES = {
+    "icon_beibao_01": "image\\storeroom\\icon_beibao_01",
+    "bg_huixiang_youdi": "ui\\_bigbg\\bg_huixiang_youdi",
+}
 
 
-RARITY_ROLE = QtCore.Qt.ItemDataRole.UserRole + 65     # the item's rarity, 1 Basic ... 5 Mythic
+RARITY_ROLE = QtCore.Qt.ItemDataRole.UserRole + 65  # the item's rarity, 1 Basic ... 5 Mythic
 
 
 # The wardrobe's rarity discs: grey Basic, teal Rare, purple Epic, gold Legendary, iridescent Mythic
-RARITY_SPRITES = {1: "bg_huixiang_pingzhidi_03", 2: "bg_huixiang_pingzhidi_02", 3: "bg_huixiang_pingzhidi_01",
-                  4: "bg_huixiang_pingzhidi_00", 5: "bg_huixiang_pingzhidi_04"}
+RARITY_SPRITES = {
+    1: "bg_huixiang_pingzhidi_03",
+    2: "bg_huixiang_pingzhidi_02",
+    3: "bg_huixiang_pingzhidi_01",
+    4: "bg_huixiang_pingzhidi_00",
+    5: "bg_huixiang_pingzhidi_04",
+}
 RARITY_NAMES = {1: "Basic", 2: "Rare", 3: "Epic", 4: "Legendary", 5: "Mythic"}
 RARITY_COLORS = {1: "#b9b2a4", 2: "#62c9be", 3: "#b893e6", 4: "#e9c162", 5: "#eef0ff"}
 # The rarity gems shown in the Filter. The game keeps them as individual images in image/echo/echo_rarity/.
@@ -80,11 +140,11 @@ RARITY_GEMS = {number: f"pic_shangdian_pinjie_{number}" for number in RARITY_NAM
 RARITY_GEM_FOLDER = "image\\echo\\echo_rarity\\"
 
 
-TRAIT_ROLE = QtCore.Qt.ItemDataRole.UserRole + 66      # the item's filter traits (game_tables.TRAITS keys)
-ORDER_ROLE = QtCore.Qt.ItemDataRole.UserRole + 67      # the item's place in the game data (ties keep it)
-SORT_ROLE = QtCore.Qt.ItemDataRole.UserRole + 68       # the sort key the lists are ordered by
-TAGS_ROLE = QtCore.Qt.ItemDataRole.UserRole + 69       # the item's tags (item.item_tags keys)
-FILTER_TRAITS = (("none", "None"),) + TRAITS            # the filter's Trait column after "All", in the game's order
+TRAIT_ROLE = QtCore.Qt.ItemDataRole.UserRole + 66  # the item's filter traits (game_tables.TRAITS keys)
+ORDER_ROLE = QtCore.Qt.ItemDataRole.UserRole + 67  # the item's place in the game data (ties keep it)
+SORT_ROLE = QtCore.Qt.ItemDataRole.UserRole + 68  # the sort key the lists are ordered by
+TAGS_ROLE = QtCore.Qt.ItemDataRole.UserRole + 69  # the item's tags (item.item_tags keys)
+FILTER_TRAITS = (("none", "None"),) + TRAITS  # the filter's Trait column after "All", in the game's order
 
 
 SHORT_LABELS = {"Blush / face decal": "Blush"}
@@ -94,9 +154,11 @@ SHORT_LABELS = {"Blush / face decal": "Blush"}
 # titles and buttons, and the book serif of its other text. Read from the install, never copied.
 # The fonts by file, in preference order per role. Their internal names can be Chinese ("Source Han Serif CN",
 # "uifont_cn") even though the Latin letters are the game's own, so files are picked by name, not by family.
-GAME_FONT_FILES = {"title": ("uifont_en_title_2.ttf", "uifont_en_title.ttf"),
-                   "body": ("uifont_en.ttf", "uifont_en_title.ttf")}
-TITLE_FACE_FILE = "uifont_en_title_2.ttf"     # the decorative title face (its tall line spacing is tightened)
+GAME_FONT_FILES = {
+    "title": ("uifont_en_title_2.ttf", "uifont_en_title.ttf"),
+    "body": ("uifont_en.ttf", "uifont_en_title.ttf"),
+}
+TITLE_FACE_FILE = "uifont_en_title_2.ttf"  # the decorative title face (its tall line spacing is tightened)
 _GAME_FONTS: dict[str, str] = {}
 
 
@@ -107,6 +169,7 @@ def game_fonts(game) -> dict[str, str]:
     """
     import os
     from core.npk.stage_export import game_layers
+
     if _GAME_FONTS:
         return dict(_GAME_FONTS)
     # every layer: the game folder is <install>\Documents when an archive was opened from the patch copy
@@ -135,8 +198,10 @@ def game_font_style(fonts: dict[str, str]) -> str:
     if fonts.get("body"):
         rules.append(f'* {{ font-family: "{fonts["body"]}"; }}')
     if fonts.get("title"):
-        rules.append(f'#creatorTitle, #creatorExport, #creatorViewBar QToolButton, #creatorActionBar QToolButton '
-                     f'{{ font-family: "{fonts["title"]}"; }}')
+        rules.append(
+            f'#creatorTitle, #creatorExport, #creatorViewBar QToolButton, #creatorActionBar QToolButton '
+            f'{{ font-family: "{fonts["title"]}"; }}'
+        )
         rules.append('#creatorTitle { font-size: 21px; font-weight: normal; letter-spacing: 1px; }')
     return "\n" + "\n".join(rules) + "\n" if rules else ""
 
@@ -191,8 +256,9 @@ def _sprite(sprites, name):
 def _draw_fit(painter, rect: QtCore.QRectF, pixmap):
     """pixmap scaled into rect, centred, keeping its shape."""
     scaled = pixmap.size().scaled(rect.size().toSize(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
-    target = QtCore.QRectF(rect.center().x() - scaled.width() / 2, rect.center().y() - scaled.height() / 2,
-                           scaled.width(), scaled.height())
+    target = QtCore.QRectF(
+        rect.center().x() - scaled.width() / 2, rect.center().y() - scaled.height() / 2, scaled.width(), scaled.height()
+    )
     painter.drawPixmap(target, pixmap, QtCore.QRectF(pixmap.rect()))
 
 
@@ -205,8 +271,11 @@ def _draw_nine(painter, rect: QtCore.QRectF, pixmap, edge: int):
     sx, sy = (0, edge, w - edge, w), (0, edge, h - edge, h)
     for i in range(3):
         for j in range(3):
-            painter.drawPixmap(QtCore.QRectF(xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j]), pixmap,
-                               QtCore.QRectF(sx[i], sy[j], sx[i + 1] - sx[i], sy[j + 1] - sy[j]))
+            painter.drawPixmap(
+                QtCore.QRectF(xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j]),
+                pixmap,
+                QtCore.QRectF(sx[i], sy[j], sx[i + 1] - sx[i], sy[j + 1] - sy[j]),
+            )
 
 
 def _draw_check(painter, center: QtCore.QPointF, radius=9.0):
@@ -238,7 +307,9 @@ def _draw_round(painter, circle: QtCore.QRectF, sprites, active=False, hover=Fal
     if not ring:
         return
     painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
-    painter.setPen(QtGui.QPen(QtGui.QColor(GOLD if active else ("#9c8355" if hover else "#5a4a32")), 2.4 if active else 1.2))
+    painter.setPen(
+        QtGui.QPen(QtGui.QColor(GOLD if active else ("#9c8355" if hover else "#5a4a32")), 2.4 if active else 1.2)
+    )
     painter.drawEllipse(circle.adjusted(1, 1, -1, -1))
 
 
@@ -280,16 +351,27 @@ class _RoundTileDelegate(QtWidgets.QStyledItemDelegate):
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
         circle = _tile_circle(option.rect)
         view = self.parent()
-        selected = bool(option.state & QtWidgets.QStyle.StateFlag.State_Selected) or \
-            (hasattr(view, "is_chosen") and view.is_chosen(index))
+        selected = bool(option.state & QtWidgets.QStyle.StateFlag.State_Selected) or (
+            hasattr(view, "is_chosen") and view.is_chosen(index)
+        )
         hover = bool(option.state & QtWidgets.QStyle.StateFlag.State_MouseOver)
         # the game's tiles have no drawn ring: the disc art alone, the halo (painted by the view) when picked
-        _draw_round(painter, circle, self.sprites, selected, hover, index.data(RARITY_ROLE),
-                    ring=_sprite(self.sprites, "pic_fushi_diban") is None)
+        _draw_round(
+            painter,
+            circle,
+            self.sprites,
+            selected,
+            hover,
+            index.data(RARITY_ROLE),
+            ring=_sprite(self.sprites, "pic_fushi_diban") is None,
+        )
         icon = index.data(QtCore.Qt.ItemDataRole.DecorationRole)
         pixmap = icon.pixmap(96, 96) if isinstance(icon, QtGui.QIcon) and not icon.isNull() else None
-        none_item = index.row() == 0 and index.data(QtCore.Qt.ItemDataRole.UserRole) is None and \
-            not hasattr(self.parent(), "is_chosen")
+        none_item = (
+            index.row() == 0
+            and index.data(QtCore.Qt.ItemDataRole.UserRole) is None
+            and not hasattr(self.parent(), "is_chosen")
+        )
         if pixmap is not None and not pixmap.isNull():
             clip = QtGui.QPainterPath()
             clip.addEllipse(circle.adjusted(3, 3, -3, -3))
@@ -304,17 +386,22 @@ class _RoundTileDelegate(QtWidgets.QStyledItemDelegate):
             font = painter.font()
             font.setPointSizeF(max(7.0, font.pointSizeF() - 1.5))
             painter.setFont(font)
-            painter.drawText(circle.adjusted(10, 10, -10, -10),
-                             QtCore.Qt.AlignmentFlag.AlignCenter | QtCore.Qt.TextFlag.TextWordWrap, text)
+            painter.drawText(
+                circle.adjusted(10, 10, -10, -10),
+                QtCore.Qt.AlignmentFlag.AlignCenter | QtCore.Qt.TextFlag.TextWordWrap,
+                text,
+            )
         if selected and (_sprite(self.sprites, "pic_xuanzhong") is None or _sprite(self.sprites, "pic_gou") is None):
-            _draw_check(painter, QtCore.QPointF(circle.right() - 8, circle.top() + 8))   # until the sprites arrive
-        painter.restore()      # with the sprites, the halo and tick are drawn above the tiles by _HaloLayer
+            _draw_check(painter, QtCore.QPointF(circle.right() - 8, circle.top() + 8))  # until the sprites arrive
+        painter.restore()  # with the sprites, the halo and tick are drawn above the tiles by _HaloLayer
 
 
 def _draw_tick(painter, circle: QtCore.QRectF, sprites):
     tick = _sprite(sprites, "pic_gou")
     if tick is not None:
-        painter.drawPixmap(QtCore.QRectF(circle.right() - 22, circle.top() - 2, 24, 24), tick, QtCore.QRectF(tick.rect()))
+        painter.drawPixmap(
+            QtCore.QRectF(circle.right() - 22, circle.top() - 2, 24, 24), tick, QtCore.QRectF(tick.rect())
+        )
 
 
 class _HaloLayer(QtWidgets.QWidget):
@@ -335,7 +422,7 @@ class _HaloLayer(QtWidgets.QWidget):
         self._clock = QtCore.QElapsedTimer()
         self._clock.start()
         self._timer = QtCore.QTimer(self)
-        self._timer.setInterval(120)                    # only to follow the pick (and clear its old spot)
+        self._timer.setInterval(120)  # only to follow the pick (and clear its old spot)
         self._timer.timeout.connect(self._turn)
         self._timer.start()
         self.raise_()
@@ -366,9 +453,11 @@ class _HaloLayer(QtWidgets.QWidget):
                 if not view.isVisible():
                     continue
                 for rect in view.halo_rects():
-                    top_left = view.viewport().mapTo(self.parentWidget(), rect.topLeft())   # the page (the layer covers it)
+                    top_left = view.viewport().mapTo(
+                        self.parentWidget(), rect.topLeft()
+                    )  # the page (the layer covers it)
                     out.append(_tile_circle(QtCore.QRect(top_left, rect.size())))
-            except RuntimeError:                       # a view already deleted
+            except RuntimeError:  # a view already deleted
                 continue
         return out
 
@@ -380,7 +469,7 @@ class _HaloLayer(QtWidgets.QWidget):
         if not self.isVisible() or self.visibleRegion().isEmpty():
             return
         spots = [self._spot(c) for c in self.circles()]
-        if spots == self._last:                            # a still halo: repaint only when the pick moves
+        if spots == self._last:  # a still halo: repaint only when the pick moves
             return
         for spot in spots + [s for s in self._last if s not in spots]:
             self.update(spot)
@@ -401,7 +490,7 @@ class _HaloLayer(QtWidgets.QWidget):
 class _Tiles(QtWidgets.QListView):
     """Round tiles over a combo box's own item list: clicking a tile picks that item."""
 
-    item_filter = None                       # index -> bool: the Filter's rarity / trait choice, or None
+    item_filter = None  # index -> bool: the Filter's rarity / trait choice, or None
 
     def __init__(self, combo: QtWidgets.QComboBox, sprites):
         super().__init__()
@@ -432,7 +521,7 @@ class _Tiles(QtWidgets.QListView):
 
     def _start_halo(self, sprites):
         self.sprites = sprites
-        QtCore.QTimer.singleShot(0, self._join_halo_layer)       # once the grid sits in its list page
+        QtCore.QTimer.singleShot(0, self._join_halo_layer)  # once the grid sits in its list page
 
     def _join_halo_layer(self):
         widget = self.parentWidget()
@@ -475,7 +564,9 @@ class _Tiles(QtWidgets.QListView):
         for row in range(model.rowCount()):
             index = model.index(row, 0)
             # the "None" tile always stays; a list whose first tile is a real item (the faces) filters it too
-            keep = row == 0 and getattr(self, "keep_first", True) and index.data(QtCore.Qt.ItemDataRole.UserRole) is None
+            keep = (
+                row == 0 and getattr(self, "keep_first", True) and index.data(QtCore.Qt.ItemDataRole.UserRole) is None
+            )
             shown = keep or passes is None or passes(index)
             if shown and self._filter and not keep:
                 haystack = f"{index.data() or ''} {index.data(QtCore.Qt.ItemDataRole.UserRole) or ''}".lower()
@@ -500,7 +591,7 @@ class _Tiles(QtWidgets.QListView):
         self._fit()
 
     def wheelEvent(self, event):
-        event.ignore()                      # the panel scrolls, not each grid
+        event.ignore()  # the panel scrolls, not each grid
 
     def viewportEvent(self, event):
         if event.type() == QtCore.QEvent.Type.ToolTip:
@@ -513,10 +604,10 @@ class _Tiles(QtWidgets.QListView):
         return super().viewportEvent(event)
 
 
-SOURCE_ROLE = QtCore.Qt.ItemDataRole.UserRole + 63     # (source number, row) of an "All" tile
+SOURCE_ROLE = QtCore.Qt.ItemDataRole.UserRole + 63  # (source number, row) of an "All" tile
 
 
-SOCKETS_ROLE = QtCore.Qt.ItemDataRole.UserRole + 64    # attachments table ids the game hangs on rig sockets
+SOCKETS_ROLE = QtCore.Qt.ItemDataRole.UserRole + 64  # attachments table ids the game hangs on rig sockets
 
 
 class _AllTiles(_Tiles):
@@ -529,7 +620,7 @@ class _AllTiles(_Tiles):
 
     def __init__(self, sources, sprites):
         QtWidgets.QListView.__init__(self)
-        self.sources = sources                         # [(combo, can be taken off)]
+        self.sources = sources  # [(combo, can be taken off)]
         self._filter = ""
         self.setObjectName("creatorTiles")
         self.item_model = QtGui.QStandardItemModel(self)
@@ -554,8 +645,13 @@ class _AllTiles(_Tiles):
         for combo, _optional in sources:
             combo.currentIndexChanged.connect(self.schedule)
             model = combo.model()
-            for signal in (model.rowsInserted, model.rowsRemoved, model.modelReset, model.dataChanged,
-                           model.layoutChanged):
+            for signal in (
+                model.rowsInserted,
+                model.rowsRemoved,
+                model.modelReset,
+                model.dataChanged,
+                model.layoutChanged,
+            ):
                 signal.connect(self.schedule)
         self.rebuild()
 
@@ -572,7 +668,7 @@ class _AllTiles(_Tiles):
             for row in range(combo.count()):
                 data = combo.itemData(row)
                 if data is None:
-                    continue                           # the "None" tiles stay on their own pages
+                    continue  # the "None" tiles stay on their own pages
                 (worn if row == current else rest).append((number, row, combo, data))
         # Filled through the model's own indexes, never Python-made QStandardItems: those stay registered with
         # PySide after clear() frees them, and an event Qt later puts at the same address arrives as a stale
@@ -601,8 +697,11 @@ class _AllTiles(_Tiles):
         return bool(source and source[2])
 
     def chosen_rows(self) -> list[int]:
-        return [row for row in range(self.item_model.rowCount())
-                if not self.isRowHidden(row) and self.is_chosen(self.item_model.index(row, 0))]
+        return [
+            row
+            for row in range(self.item_model.rowCount())
+            if not self.isRowHidden(row) and self.is_chosen(self.item_model.index(row, 0))
+        ]
 
     def _clicked(self, index):
         source = index.data(SOURCE_ROLE)
@@ -612,7 +711,7 @@ class _AllTiles(_Tiles):
         combo, optional = self.sources[number]
         if chosen:
             if optional and combo.count() and combo.itemData(0) is None:
-                combo.setCurrentIndex(0)               # take it off
+                combo.setCurrentIndex(0)  # take it off
         else:
             combo.setCurrentIndex(row)
 
@@ -641,7 +740,7 @@ class _DragScroll(QtCore.QObject):
         self.watch(area.viewport())
 
     def watch(self, widget):
-        widget.removeEventFilter(self)                 # once per widget, however often it is asked
+        widget.removeEventFilter(self)  # once per widget, however often it is asked
         widget.installEventFilter(self)
 
     def watch_children(self):
@@ -656,14 +755,17 @@ class _DragScroll(QtCore.QObject):
         kind = event.type()
         try:
             bar = self.area.verticalScrollBar()
-        except RuntimeError:                           # the list is gone (window closing)
+        except RuntimeError:  # the list is gone (window closing)
             return False
         if kind == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
             self._start = event.globalPosition().y()
             self._value = bar.value()
             self._dragging = False
-        elif kind == QtCore.QEvent.Type.MouseMove and self._start is not None and \
-                event.buttons() & QtCore.Qt.MouseButton.LeftButton:
+        elif (
+            kind == QtCore.QEvent.Type.MouseMove
+            and self._start is not None
+            and event.buttons() & QtCore.Qt.MouseButton.LeftButton
+        ):
             moved = event.globalPosition().y() - self._start
             if not self._dragging and abs(moved) > self.THRESHOLD and bar.maximum() > 0:
                 self._dragging = True
@@ -680,8 +782,8 @@ class _DragScroll(QtCore.QObject):
                     obj.setDown(False)
                 view = obj.parent()
                 if hasattr(view, "_sync"):
-                    view._sync()                       # put the selection back on the worn item
-                return True                            # the end of a drag is not a click on a tile
+                    view._sync()  # put the selection back on the worn item
+                return True  # the end of a drag is not a click on a tile
         return False
 
 
@@ -726,8 +828,9 @@ class _ExpandArrow(QtWidgets.QAbstractButton):
             painter.setPen(QtGui.QPen(QtGui.QColor(GOLD), 2.4))
             cx, cy = rect.center().x() - 1, rect.center().y()
             dx = -5 if self.expanded else 5
-            painter.drawPolyline([QtCore.QPointF(cx - dx, cy - 9), QtCore.QPointF(cx + dx, cy),
-                                  QtCore.QPointF(cx - dx, cy + 9)])
+            painter.drawPolyline(
+                [QtCore.QPointF(cx - dx, cy - 9), QtCore.QPointF(cx + dx, cy), QtCore.QPointF(cx - dx, cy + 9)]
+            )
 
 
 class _SearchBox(QtWidgets.QFrame):
@@ -754,10 +857,16 @@ class _SearchBox(QtWidgets.QFrame):
             edge = min(18, box.width() // 3)
             source_h = box.height()
             painter.drawPixmap(QtCore.QRectF(0, 0, edge, rect.height()), box, QtCore.QRectF(0, 0, edge, source_h))
-            painter.drawPixmap(QtCore.QRectF(edge, 0, rect.width() - 2 * edge, rect.height()), box,
-                               QtCore.QRectF(edge, 0, box.width() - 2 * edge, source_h))
-            painter.drawPixmap(QtCore.QRectF(rect.width() - edge, 0, edge, rect.height()), box,
-                               QtCore.QRectF(box.width() - edge, 0, edge, source_h))
+            painter.drawPixmap(
+                QtCore.QRectF(edge, 0, rect.width() - 2 * edge, rect.height()),
+                box,
+                QtCore.QRectF(edge, 0, box.width() - 2 * edge, source_h),
+            )
+            painter.drawPixmap(
+                QtCore.QRectF(rect.width() - edge, 0, edge, rect.height()),
+                box,
+                QtCore.QRectF(box.width() - edge, 0, edge, source_h),
+            )
         else:
             painter.setPen(QtGui.QPen(QtGui.QColor("#6b5838"), 1.2))
             painter.setBrush(QtGui.QColor(30, 27, 24))
@@ -768,7 +877,7 @@ class _SearchBox(QtWidgets.QFrame):
             _draw_fit(painter, QtCore.QRectF(rect.width() - side - 6, (rect.height() - side) / 2, side, side), glass)
 
 
-ROW = 48                                  # a Filter line's height, as the game spaces them
+ROW = 48  # a Filter line's height, as the game spaces them
 
 
 class _FilterRow(QtWidgets.QAbstractButton):
@@ -793,12 +902,13 @@ class _FilterRow(QtWidgets.QAbstractButton):
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
         rect = QtCore.QRectF(self.rect())
         middle = rect.center().y()
-        scale = max(1.0, min(1.45, self.height() / ROW))     # taller rows (a tall window) get bigger marks and text
+        scale = max(1.0, min(1.45, self.height() / ROW))  # taller rows (a tall window) get bigger marks and text
         glow = _sprite(self.sprites, "pic_tongyong_xialaxuanzhong01")
         if glow is not None and self.underMouse():
             painter.setOpacity(0.55)
-            painter.drawPixmap(rect.adjusted(0, rect.height() * 0.15, 0, -rect.height() * 0.15), glow,
-                               QtCore.QRectF(glow.rect()))
+            painter.drawPixmap(
+                rect.adjusted(0, rect.height() * 0.15, 0, -rect.height() * 0.15), glow, QtCore.QRectF(glow.rect())
+            )
             painter.setOpacity(1.0)
         side = 30 * scale
         box = QtCore.QRectF(10, middle - side / 2, side, side)
@@ -815,14 +925,20 @@ class _FilterRow(QtWidgets.QAbstractButton):
             _draw_fit(painter, QtCore.QRectF(x, middle - gem_side / 2, gem_side, gem_side), gem)
             x += gem_side + 8
         elif self.gem:
-            x += gem_side + 8                         # keep the names lined up until the gems arrive
+            x += gem_side + 8  # keep the names lined up until the gems arrive
         font = painter.font()
         font.setPixelSize(int(18 * scale))
         painter.setFont(font)
         painter.setPen(QtGui.QColor("#f3e6c6" if self.on else "#b8a988"))
-        painter.drawText(QtCore.QRectF(x, 0, rect.width() - x - 4, rect.height()),
-                         int(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft |
-                             QtCore.Qt.TextFlag.TextWordWrap), self.text())
+        painter.drawText(
+            QtCore.QRectF(x, 0, rect.width() - x - 4, rect.height()),
+            int(
+                QtCore.Qt.AlignmentFlag.AlignVCenter
+                | QtCore.Qt.AlignmentFlag.AlignLeft
+                | QtCore.Qt.TextFlag.TextWordWrap
+            ),
+            self.text(),
+        )
 
 
 class _FilterPanel(QtWidgets.QFrame):
@@ -836,10 +952,14 @@ class _FilterPanel(QtWidgets.QFrame):
     def __init__(self, sprites):
         super().__init__()
         self.setObjectName("creatorFilterPanel")
-        self.columns = {}                     # "rarity" / "trait" -> (heading, "All" row, {key: row})
-        entries = {"rarity": [(number, RARITY_NAMES[number], RARITY_GEMS[number], RARITY_COLORS[number])
-                              for number in sorted(RARITY_NAMES)],
-                   "trait": [(key, name, None, None) for key, name in FILTER_TRAITS]}
+        self.columns = {}  # "rarity" / "trait" -> (heading, "All" row, {key: row})
+        entries = {
+            "rarity": [
+                (number, RARITY_NAMES[number], RARITY_GEMS[number], RARITY_COLORS[number])
+                for number in sorted(RARITY_NAMES)
+            ],
+            "trait": [(key, name, None, None) for key, name in FILTER_TRAITS],
+        }
         for name, title in (("rarity", "Rarity"), ("trait", "Trait")):
             heading = QtWidgets.QLabel(title)
             heading.setObjectName("creatorFilterHeading")
@@ -871,15 +991,19 @@ class _FilterPanel(QtWidgets.QFrame):
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
         for heading, _all, _rows in self.columns.values():
             g = heading.geometry()
-            painter.drawPixmap(QtCore.QRectF(g.left() + 10, g.bottom() - 2, g.width() - 20, 1.5), line,
-                               QtCore.QRectF(line.rect()))
+            painter.drawPixmap(
+                QtCore.QRectF(g.left() + 10, g.bottom() - 2, g.width() - 20, 1.5), line, QtCore.QRectF(line.rect())
+            )
         if self.wide:
             first, second = (h.geometry() for h, _a, _r in self.columns.values())
             x = (first.right() + second.left()) / 2
             turned = line.transformed(QtGui.QTransform().rotate(90))
             bottom = max(r.geometry().bottom() for _h, _a, rows in self.columns.values() for r in rows.values())
-            painter.drawPixmap(QtCore.QRectF(x - 0.75, first.top() + 6, 1.5, bottom - first.top()), turned,
-                               QtCore.QRectF(turned.rect()))
+            painter.drawPixmap(
+                QtCore.QRectF(x - 0.75, first.top() + 6, 1.5, bottom - first.top()),
+                turned,
+                QtCore.QRectF(turned.rect()),
+            )
 
     def set_wide(self, wide: bool):
         """Two columns side by side (the expanded list), or Rarity above Trait (the narrow one)."""
@@ -956,7 +1080,7 @@ class _FilterButton(QtWidgets.QToolButton):
     def __init__(self, sprites):
         super().__init__()
         self.sprites = sprites
-        self.active = False                   # gold text while the Filter hides something
+        self.active = False  # gold text while the Filter hides something
         self.setFixedSize(180, 36)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_Hover)
 
@@ -967,19 +1091,24 @@ class _FilterButton(QtWidgets.QToolButton):
             painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
             _draw_nine(painter, QtCore.QRectF(self.rect()), box, 17)
             painter.end()
-        arrow = _sprite(self.sprites, "pic_wushihuzhu_shaixuan_jiantou")      # the filter chevron, up as stored
+        arrow = _sprite(self.sprites, "pic_wushihuzhu_shaixuan_jiantou")  # the filter chevron, up as stored
         if arrow is not None:
             painter = QtGui.QPainter(self)
             painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
-            turned = arrow.transformed(QtGui.QTransform().rotate(0 if self.isChecked() else 180),
-                                       QtCore.Qt.TransformationMode.SmoothTransformation)
+            turned = arrow.transformed(
+                QtGui.QTransform().rotate(0 if self.isChecked() else 180),
+                QtCore.Qt.TransformationMode.SmoothTransformation,
+            )
             middle = self.height() / 2
             _draw_fit(painter, QtCore.QRectF(8, middle - 12, 26, 24), turned)
             painter.end()
         painter = QtGui.QPainter(self)
         painter.setPen(QtGui.QColor(GOLD if self.active else ("#ffffff" if self.underMouse() else "#d9cdb4")))
-        painter.drawText(QtCore.QRectF(38, 0, self.width() - 40, self.height()),
-                         int(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft), self.text())
+        painter.drawText(
+            QtCore.QRectF(38, 0, self.width() - 40, self.height()),
+            int(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft),
+            self.text(),
+        )
         del event
 
 
@@ -996,7 +1125,7 @@ class _ScrollMarker(QtWidgets.QWidget):
         super().__init__(parent)
         self.area, self.sprites = area, sprites
         self._line_of = self._knob_of = None
-        self._grab = None                      # where on the knob the drag took hold, while dragging
+        self._grab = None  # where on the knob the drag took hold, while dragging
         self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.opacity = QtWidgets.QGraphicsOpacityEffect(self)
         self.opacity.setOpacity(0.0)
@@ -1033,7 +1162,7 @@ class _ScrollMarker(QtWidgets.QWidget):
         self.update()
 
     def _rest_over(self):
-        if self._grab is None and not self.underMouse():       # kept while held or hovered
+        if self._grab is None and not self.underMouse():  # kept while held or hovered
             self._fade_to(0.0)
 
     def _knob_span(self):
@@ -1054,7 +1183,7 @@ class _ScrollMarker(QtWidgets.QWidget):
         knob_h, travel = self._knob_span()
         top = (bar.value() / bar.maximum() if bar.maximum() > 0 else 0.0) * travel
         y = event.position().y()
-        if not top <= y <= top + knob_h:                       # on the line: the knob jumps there first
+        if not top <= y <= top + knob_h:  # on the line: the knob jumps there first
             top = y - knob_h / 2
             self._scroll_to(top)
         self._grab = y - top
@@ -1076,7 +1205,7 @@ class _ScrollMarker(QtWidgets.QWidget):
         sprite = _sprite(self.sprites, name)
         if sprite is None:
             return None
-        if getattr(self, attr + "_of") is not sprite:           # stored lying down: stand it up once
+        if getattr(self, attr + "_of") is not sprite:  # stored lying down: stand it up once
             setattr(self, attr, sprite.transformed(QtGui.QTransform().rotate(90)))
             setattr(self, attr + "_of", sprite)
         return getattr(self, attr)
@@ -1154,7 +1283,9 @@ class _SlotTabs(QtWidgets.QWidget):
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
         line = _sprite(self.sprites, "pic_tongyong_xialafenxian")
         if line is not None:
-            painter.drawPixmap(QtCore.QRectF(4, self.height() - 3, self.width() - 8, 1.5), line, QtCore.QRectF(line.rect()))
+            painter.drawPixmap(
+                QtCore.QRectF(4, self.height() - 3, self.width() - 8, 1.5), line, QtCore.QRectF(line.rect())
+            )
         glow = _sprite(self.sprites, "pic_zhuangrong_xuanzhong")
         divider = _sprite(self.sprites, "pic_zhuangrong_xian")
         for index, (label, sprite) in enumerate(self.tabs):
@@ -1163,8 +1294,11 @@ class _SlotTabs(QtWidgets.QWidget):
             if chosen and glow is not None:
                 _draw_fit(painter, rect.adjusted(2, 4, -2, -2), glow)
             if index and divider is not None:
-                painter.drawPixmap(QtCore.QRectF(rect.left() - 3, rect.top() + 8, 6, rect.height() - 14), divider,
-                                   QtCore.QRectF(divider.rect()))
+                painter.drawPixmap(
+                    QtCore.QRectF(rect.left() - 3, rect.top() + 8, 6, rect.height() - 14),
+                    divider,
+                    QtCore.QRectF(divider.rect()),
+                )
             icon = _sprite(self.sprites, sprite) if sprite else None
             painter.setOpacity(1.0 if chosen else 0.5)
             if icon is not None:
@@ -1182,7 +1316,7 @@ class _LayerPanel(QtWidgets.QFrame):
     """
 
     changed = QtCore.Signal()
-    EYE = 1                                    # the eye column
+    EYE = 1  # the eye column
 
     def __init__(self, sprites, parent=None):
         super().__init__(parent)
@@ -1192,7 +1326,7 @@ class _LayerPanel(QtWidgets.QFrame):
         self._groups: list = []
         self._eyes = None
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(1, 1, 1, 1)          # Blender's outliner: header strip, then the rows
+        layout.setContentsMargins(1, 1, 1, 1)  # Blender's outliner: header strip, then the rows
         layout.setSpacing(0)
         self.title = QtWidgets.QToolButton()
         self.title.setCheckable(True)
@@ -1209,19 +1343,20 @@ class _LayerPanel(QtWidgets.QFrame):
         self.tree.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.tree.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
         self.tree.setIconSize(QtCore.QSize(20, 20))
-        self.tree.setTextElideMode(QtCore.Qt.TextElideMode.ElideMiddle)      # keep the telling end (..._pijian)
+        self.tree.setTextElideMode(QtCore.Qt.TextElideMode.ElideMiddle)  # keep the telling end (..._pijian)
         self.tree.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.tree.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)   # the wheel scrolls
-        self.tree.setAutoScroll(False)            # a click on an eye must not slide the list sideways
+        self.tree.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # the wheel scrolls
+        self.tree.setAutoScroll(False)  # a click on an eye must not slide the list sideways
         self.tree.horizontalScrollBar().rangeChanged.connect(lambda *_: self.tree.horizontalScrollBar().setValue(0))
         self.tree.horizontalScrollBar().valueChanged.connect(
-            lambda value: self.tree.horizontalScrollBar().setValue(0) if value else None)
+            lambda value: self.tree.horizontalScrollBar().setValue(0) if value else None
+        )
         self.tree.header().setStretchLastSection(False)
         self.tree.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Fixed)
         self.tree.header().setSectionResizeMode(self.EYE, QtWidgets.QHeaderView.ResizeMode.Fixed)
         self.tree.header().resizeSection(self.EYE, 30)
         self.tree.itemClicked.connect(self._clicked)
-        self.tree.viewport().installEventFilter(self)            # keeps the eyes on the right edge
+        self.tree.viewport().installEventFilter(self)  # keeps the eyes on the right edge
         layout.addWidget(self.tree)
         self.setFixedWidth(270)
         self._fold(True)
@@ -1235,7 +1370,6 @@ class _LayerPanel(QtWidgets.QFrame):
         self.title.setText(("\u25bc" if shown else "\u25b6") + "  Layers")
         self.tree.setVisible(shown)
         self.adjustSize()
-
 
     def _eye(self, shown: bool):
         """The game's eye, full for shown pieces, faded for hidden ones."""
@@ -1257,8 +1391,11 @@ class _LayerPanel(QtWidgets.QFrame):
         groups = [(title, list(dict.fromkeys(names))) for title, names in groups if names]
         if groups == self._groups:
             return
-        folded = {self.tree.topLevelItem(i).text(0) for i in range(self.tree.topLevelItemCount())
-                  if not self.tree.topLevelItem(i).isExpanded()}
+        folded = {
+            self.tree.topLevelItem(i).text(0)
+            for i in range(self.tree.topLevelItemCount())
+            if not self.tree.topLevelItem(i).isExpanded()
+        }
         self._groups = groups
         self.tree.clear()
         for title, names in groups:
@@ -1289,8 +1426,11 @@ class _LayerPanel(QtWidgets.QFrame):
     def _clicked(self, item, column):
         if column != self.EYE:
             return
-        names = [item.child(j).data(0, QtCore.Qt.ItemDataRole.UserRole) for j in range(item.childCount())] \
-            if item.childCount() else [item.data(0, QtCore.Qt.ItemDataRole.UserRole)]
+        names = (
+            [item.child(j).data(0, QtCore.Qt.ItemDataRole.UserRole) for j in range(item.childCount())]
+            if item.childCount()
+            else [item.data(0, QtCore.Qt.ItemDataRole.UserRole)]
+        )
         if all(name in self.hidden for name in names):
             self.hidden.difference_update(names)
         else:
@@ -1300,9 +1440,11 @@ class _LayerPanel(QtWidgets.QFrame):
 
     def sizeHint(self):
         rows = self.tree.topLevelItemCount() + sum(
-            self.tree.topLevelItem(i).childCount() for i in range(self.tree.topLevelItemCount())
-            if self.tree.topLevelItem(i).isExpanded())
-        tree = (rows * 28 + 6) if self.title.isChecked() else 0     # unfolded, even while the panel is hidden
+            self.tree.topLevelItem(i).childCount()
+            for i in range(self.tree.topLevelItemCount())
+            if self.tree.topLevelItem(i).isExpanded()
+        )
+        tree = (rows * 28 + 6) if self.title.isChecked() else 0  # unfolded, even while the panel is hidden
         return QtCore.QSize(270, 36 + tree)
 
 
@@ -1324,7 +1466,9 @@ class _Backdrop(QtWidgets.QWidget):
         split, fade = w * 0.55, min(200.0, self.width() * 0.4)
         solid_w = max(0.0, self.width() - fade)
         painter.drawPixmap(QtCore.QRectF(0, 0, solid_w, self.height()), backdrop, QtCore.QRectF(0, 0, split, h))
-        painter.drawPixmap(QtCore.QRectF(solid_w, 0, fade, self.height()), backdrop, QtCore.QRectF(split, 0, w - split, h))
+        painter.drawPixmap(
+            QtCore.QRectF(solid_w, 0, fade, self.height()), backdrop, QtCore.QRectF(split, 0, w - split, h)
+        )
 
 
 class _Tag(QtWidgets.QLabel):
@@ -1333,8 +1477,10 @@ class _Tag(QtWidgets.QLabel):
     def __init__(self, text, sprites, font_family=None):
         super().__init__(text)
         self.sprites = sprites
-        self.setStyleSheet("color: #f0e3c4; background: transparent; padding: 3px 14px 4px 14px; font-size: 17px;"
-                           + (f' font-family: "{font_family}";' if font_family else ""))
+        self.setStyleSheet(
+            "color: #f0e3c4; background: transparent; padding: 3px 14px 4px 14px; font-size: 17px;"
+            + (f' font-family: "{font_family}";' if font_family else "")
+        )
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
     def paintEvent(self, event):
@@ -1379,7 +1525,7 @@ class _ItemTitle(QtWidgets.QWidget):
         self._text = name
         safe = name.replace("&", "&amp;").replace("<", "&lt;")
         # the title face has tall built-in line spacing: a two-line name is drawn tighter
-        tight = "line-height:62%" if self.fonts.get("decorative") else "line-height:100%"   # see TITLE_FACE_FILE
+        tight = "line-height:62%" if self.fonts.get("decorative") else "line-height:100%"  # see TITLE_FACE_FILE
         self.name.setText(f"<div style='{tight}'>{safe}</div>" if name else "")
         for tag in self.tags:
             tag.hide()
@@ -1403,7 +1549,7 @@ class _ItemTitle(QtWidgets.QWidget):
         self._rule_y = y
         y += 6 + self.GAP
         x, row_height = 0, 0
-        for tag in self.tags:                              # tags flow like words, onto more lines when needed
+        for tag in self.tags:  # tags flow like words, onto more lines when needed
             hint = tag.sizeHint()
             tag_width = min(hint.width(), width)
             if x and x + tag_width > width:
@@ -1480,8 +1626,11 @@ class _ToggleRow(QtWidgets.QAbstractButton):
         font.setPixelSize(21)
         painter.setFont(font)
         painter.setPen(QtGui.QColor("#ffffff" if self.underMouse() else "#eadfc8"))
-        painter.drawText(QtCore.QRectF(14, 0, box.left() - 20, rect.height()),
-                         int(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft), self.text())
+        painter.drawText(
+            QtCore.QRectF(14, 0, box.left() - 20, rect.height()),
+            int(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignLeft),
+            self.text(),
+        )
 
 
 class _HidePopup(QtWidgets.QFrame):
@@ -1529,10 +1678,10 @@ class _RoundButton(QtWidgets.QAbstractButton):
         self.sprites, self.sprite, self.label = sprites, sprite, text
         self.color = None
         self.badge = ""
-        self.fill = False                     # the sprite covers the whole disc (skin swatches)
-        self.backdrop = None                  # a game disc sprite under the icon, instead of the drawn round frame
-        self.bare = False                     # the icon alone, no disc (the game's collapse chevron)
-        self.flipped = False                  # the icon mirrored left-right
+        self.fill = False  # the sprite covers the whole disc (skin swatches)
+        self.backdrop = None  # a game disc sprite under the icon, instead of the drawn round frame
+        self.bare = False  # the icon alone, no disc (the game's collapse chevron)
+        self.flipped = False  # the icon mirrored left-right
         self.setFixedSize(size, size)
         self.setToolTip(tip)
         self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
@@ -1556,7 +1705,7 @@ class _RoundButton(QtWidgets.QAbstractButton):
             _draw_fit(painter, QtCore.QRectF((self.width() - side) / 2, (self.height() - side) / 2, side, side), icon)
             return
         frame = _sprite(self.sprites, "pic_chuangjue_xuanzhong") if self.isChecked() else None
-        if frame is not None:                         # the game's "picked" frame: gold ring with corner brackets
+        if frame is not None:  # the game's "picked" frame: gold ring with corner brackets
             circle = QtCore.QRectF(self.rect()).adjusted(7, 7, -7, -7)
         _draw_round(painter, circle, self.sprites, self.isChecked() and frame is None, self.underMouse())
         if self.color is not None:
@@ -1569,9 +1718,12 @@ class _RoundButton(QtWidgets.QAbstractButton):
             clip = QtGui.QPainterPath()
             clip.addEllipse(inner)
             painter.setClipPath(clip)
-            middle = pixmap.copy(pixmap.rect().adjusted(pixmap.width() // 4, pixmap.height() // 4,
-                                                        -pixmap.width() // 4, -pixmap.height() // 4))
-            painter.drawPixmap(inner, middle, QtCore.QRectF(middle.rect()))     # the swatch's colour, edge to edge
+            middle = pixmap.copy(
+                pixmap.rect().adjusted(
+                    pixmap.width() // 4, pixmap.height() // 4, -pixmap.width() // 4, -pixmap.height() // 4
+                )
+            )
+            painter.drawPixmap(inner, middle, QtCore.QRectF(middle.rect()))  # the swatch's colour, edge to edge
             painter.setClipping(False)
         elif pixmap is not None:
             _draw_fit(painter, circle.adjusted(8, 8, -8, -8), pixmap)
@@ -1586,8 +1738,11 @@ class _RoundButton(QtWidgets.QAbstractButton):
             font.setPointSizeF(font.pointSizeF() + 1)
             painter.setFont(font)
             painter.setPen(QtGui.QColor(GOLD if self.isChecked() else "#9c8355"))
-            painter.drawText(circle.adjusted(0, 0, -3, -1),
-                             QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignBottom, self.badge)
+            painter.drawText(
+                circle.adjusted(0, 0, -3, -1),
+                QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignBottom,
+                self.badge,
+            )
         painter.end()
 
 
@@ -1597,6 +1752,7 @@ class _SwatchPopup(QtWidgets.QFrame):
     def __init__(self, parent, combo: QtWidgets.QComboBox, sprites, first_tip: str):
         super().__init__(parent, QtCore.Qt.WindowType.Popup)
         from core.npk.hair_dye import hex_color
+
         self.setObjectName("creatorPopup")
         grid = QtWidgets.QGridLayout(self)
         grid.setContentsMargins(8, 8, 8, 8)
@@ -1604,8 +1760,13 @@ class _SwatchPopup(QtWidgets.QFrame):
         columns = 7
         for row in range(combo.count()):
             rgb = combo.itemData(row)
-            button = _RoundButton(first_tip if rgb is None else combo.itemText(row), sprites, 46,
-                                  sprite="pic_chuangjue_wu" if rgb is None else None, text="—" if rgb is None else "")
+            button = _RoundButton(
+                first_tip if rgb is None else combo.itemText(row),
+                sprites,
+                46,
+                sprite="pic_chuangjue_wu" if rgb is None else None,
+                text="—" if rgb is None else "",
+            )
             if rgb is not None:
                 button.color = hex_color(rgb)
             button.setCheckable(True)

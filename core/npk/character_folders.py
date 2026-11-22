@@ -14,7 +14,6 @@ from typing import Any, Iterable
 
 from core.npk.metadata_references import model_paths
 
-
 DEFAULT_CHARACTER_FOLDER_ROOTS = ("model\\canon", "model\\partner")
 
 
@@ -74,13 +73,7 @@ class CharacterFolder:
     def source_extensions(self) -> tuple[str, ...]:
         """Extensions of the decoded entries that provide the evidence."""
         return tuple(
-            sorted(
-                {
-                    reference.source_extension.lower()
-                    for reference in self.references
-                    if reference.source_extension
-                }
-            )
+            sorted({reference.source_extension.lower() for reference in self.references if reference.source_extension})
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -151,6 +144,7 @@ def scan_character_folders(
     entries = getattr(npk_file, "metadata_entries", getattr(npk_file, "entries", {}))
 
     from core.npk.scan_control import checkpoint, report_progress
+
     report_progress(progress, "Scanning character metadata", 0, len(entries))
     for current, (index, entry) in enumerate(sorted(entries.items()), 1):
         checkpoint(cancelled)
@@ -159,7 +153,14 @@ def scan_character_folders(
         flags = getattr(entry, "data_flags", None)
         if flags is not None:
             from core.npk.class_types import NPKEntryDataFlags
-            if not flags & NPKEntryDataFlags.TEXT and getattr(entry, "extension", "") not in {"mtg", "gim", "xml", "dat", "mtl"}:
+
+            if not flags & NPKEntryDataFlags.TEXT and getattr(entry, "extension", "") not in {
+                "mtg",
+                "gim",
+                "xml",
+                "dat",
+                "mtl",
+            }:
                 continue
         if hasattr(npk_file, "get_character_folder_paths"):
             paths = npk_file.get_character_folder_paths(index)
@@ -219,5 +220,6 @@ def find_entry_for_asset_path(
 ) -> tuple[int, Any] | None:
     """Resolve an exact configured name or typed resource-path hash."""
     from core.npk.asset_paths import AssetPathIndex
+
     result = AssetPathIndex(npk_file, signature_name_map).resolve(asset_path)
     return (result[0], npk_file.entries[result[0]]) if result else None

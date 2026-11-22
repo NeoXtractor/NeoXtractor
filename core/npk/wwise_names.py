@@ -14,25 +14,25 @@ import struct
 import threading
 import time
 from pathlib import Path
+from core.logger import get_logger
 
-CACHE_VERSION = 2                     # 2: the paths of hashed names
+CACHE_VERSION = 2  # 2: the paths of hashed names
 SEPARATOR = " · "
 _NUMBERED = re.compile(r"(?:^|[\\/])(\d+)\.wem$", re.IGNORECASE)
 _HASHED = re.compile(r"(?:^|[\\/])0x([0-9a-f]+)\.(?:wem|bnk)$", re.IGNORECASE)
-_LABELS: dict[int, str] = {}          # media id -> the bank(s) that play it
-_PATHS: dict[int, str] = {}           # entry hash -> its path inside the wwise packs
+_LABELS: dict[int, str] = {}  # media id -> the bank(s) that play it
+_PATHS: dict[int, str] = {}  # entry hash -> its path inside the wwise packs
 _STATE = {"started": False, "ready": False, "retry_at": 0.0}
-RETRY_SECONDS = 10.0                  # with no game folder known yet, look again at most this often
+RETRY_SECONDS = 10.0  # with no game folder known yet, look again at most this often
 _LOCK = threading.Lock()
-_NOTIFY = []                          # callables run (on the Qt thread) once the tables are ready
+_NOTIFY = []  # callables run (on the Qt thread) once the tables are ready
 
 
-# -- reading the banks -------------------------------------------------------------------------------------------
 def _chunks(data: bytes) -> dict:
     out, pos = {}, 0
     while pos + 8 <= len(data):
-        tag, size = data[pos:pos + 4], struct.unpack_from("<I", data, pos + 4)[0]
-        out.setdefault(tag, data[pos + 8:pos + 8 + size])
+        tag, size = data[pos : pos + 4], struct.unpack_from("<I", data, pos + 4)[0]
+        out.setdefault(tag, data[pos + 8 : pos + 8 + size])
         pos += 8 + size
     return out
 
@@ -47,8 +47,8 @@ def _sound_media(hirc: bytes, known: set) -> set:
         if pos + 5 > len(hirc):
             break
         kind, size = hirc[pos], struct.unpack_from("<I", hirc, pos + 1)[0]
-        if kind == 2:                                  # Sound: its source data (with the media id) comes first
-            body = hirc[pos + 5:pos + 5 + size]
+        if kind == 2:  # Sound: its source data (with the media id) comes first
+            body = hirc[pos + 5 : pos + 5 + size]
             for offset in range(4, min(len(body) - 3, 24)):
                 value = struct.unpack_from("<I", body, offset)[0]
                 if value in known:
@@ -83,6 +83,7 @@ def build_labels(index) -> dict[int, str]:
             data = index.read(path)
             data = data[0] if isinstance(data, tuple) else data
         except Exception:
+            get_logger().debug("Could not read the sound bank %s", path, exc_info=True)
             continue
         if not data:
             continue
@@ -95,13 +96,14 @@ def build_labels(index) -> dict[int, str]:
 def build_paths(index) -> dict[int, str]:
     """{entry hash: path inside the pack} for every wwise\\ file of the install (murmur3 of that path)."""
     from core.npk.asset_paths import murmur3_32
+
     return {murmur3_32(inner): inner for inner in (p.split("\\", 1)[1] for p in _wwise_paths(index))}
 
 
-# -- cache -------------------------------------------------------------------------------------------------------
 def _cache_file() -> Path:
     try:
         from core.utils import get_application_path
+
         return Path(get_application_path()) / "scan_cache" / "wwise_banks.json"
     except Exception:
         return Path(os.getcwd()) / "scan_cache" / "wwise_banks.json"
@@ -124,8 +126,10 @@ def load_or_build(index) -> tuple[dict[int, str], dict[int, str]]:
     try:
         saved = json.loads(path.read_text(encoding="utf-8"))
         if saved.get("version") == CACHE_VERSION and saved.get("stamp") == stamp and stamp:
-            return ({int(k): v for k, v in saved.get("labels", {}).items()},
-                    {int(k): v for k, v in saved.get("paths", {}).items()})
+            return (
+                {int(k): v for k, v in saved.get("labels", {}).items()},
+                {int(k): v for k, v in saved.get("paths", {}).items()},
+            )
     except (OSError, ValueError):
         pass
     labels, paths = build_labels(index), build_paths(index)
@@ -133,8 +137,12 @@ def load_or_build(index) -> tuple[dict[int, str], dict[int, str]]:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             temp = path.with_suffix(".tmp")
-            temp.write_text(json.dumps({"version": CACHE_VERSION, "stamp": stamp, "labels": labels, "paths": paths},
-                                       separators=(",", ":")), encoding="utf-8")
+            temp.write_text(
+                json.dumps(
+                    {"version": CACHE_VERSION, "stamp": stamp, "labels": labels, "paths": paths}, separators=(",", ":")
+                ),
+                encoding="utf-8",
+            )
             os.replace(temp, path)
         except OSError:
             pass
@@ -144,15 +152,17 @@ def load_or_build(index) -> tuple[dict[int, str], dict[int, str]]:
 def _build_in_background():
     try:
         from gui.widgets.character_anim_export import _game_folder, _index
+
         game = _game_folder()
         if game is None:
             with _LOCK:
-                _STATE["started"] = False          # try again once a game pack is open (not on every row drawn)
+                _STATE["started"] = False  # try again once a game pack is open (not on every row drawn)
                 _STATE["retry_at"] = time.monotonic() + RETRY_SECONDS
             return
         labels, paths = load_or_build(_index(game))
     except Exception:
         from core.logger import get_logger
+
         get_logger().exception("Could not read the sound banks for sound names")
         return
     with _LOCK:
@@ -163,7 +173,7 @@ def _build_in_background():
         try:
             notify()
         except Exception:
-            pass
+            get_logger().debug("Could not refresh the file list after reading the sound banks", exc_info=True)
 
 
 def label_for(filename: str):
@@ -199,12 +209,12 @@ def labelled(filename):
     return f"{filename}{SEPARATOR}{label}" if label else filename
 
 
-# -- the file list -----------------------------------------------------------------------------------------------
 def install(app=None) -> bool:
     """Name sound rows in the file list (display and search only); False if already done."""
     from PySide6 import QtCore, QtWidgets
     from gui.models import npk_file_model
     from gui import npk_entry_filter
+
     model_cls, filter_cls = npk_file_model.NPKFileModel, npk_entry_filter.NPKEntryFilter
     if getattr(model_cls.data, "_wwise_names", False):
         return False
@@ -224,7 +234,7 @@ def install(app=None) -> bool:
     def apply_filter(self, *args, **kwargs):
         model = self._list_view.model() if getattr(self, "_list_view", None) is not None else None
         if model is not None:
-            model._search_labels = True                # the search also matches paths and bank names
+            model._search_labels = True  # the search also matches paths and bank names
         try:
             return original_filter(self, *args, **kwargs)
         finally:
@@ -234,7 +244,7 @@ def install(app=None) -> bool:
     data._wwise_names = True
     model_cls.data, model_cls.get_filename, filter_cls.apply_filter = data, get_filename, apply_filter
 
-    class _Relay(QtCore.QObject):                      # carries "tables ready" from the reading thread to Qt's
+    class _Relay(QtCore.QObject):  # carries "tables ready" from the reading thread to Qt's
         ready = QtCore.Signal()
 
     relay = _Relay()
@@ -242,6 +252,7 @@ def install(app=None) -> bool:
 
     def repaint():
         from gui.widgets.npk_file_list import NPKFileList
+
         for window in QtWidgets.QApplication.topLevelWidgets():
             for view in window.findChildren(NPKFileList):
                 view.viewport().update()

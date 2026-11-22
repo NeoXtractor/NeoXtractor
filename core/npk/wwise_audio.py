@@ -4,9 +4,8 @@ as "Audio". Playing and converting the sounds is NeoXtractor's own code (core.we
 """
 
 from __future__ import annotations
+from core.logger import get_logger
 
-
-# -- the Audio category in the main window ---------------------------------------------------------------
 AUDIO_EXTENSIONS = ("wem", "ogg", "wav", "bnk")
 AUDIO_LABEL = "Audio"
 
@@ -16,6 +15,7 @@ def install_detection() -> None:
     import importlib
     from core.npk import detection
     from core.npk.enums import NPKEntryFileCategories
+
     original = getattr(detection.get_file_category, "_original", detection.get_file_category)
 
     def get_file_category(extension):
@@ -28,6 +28,7 @@ def install_detection() -> None:
         try:
             module = importlib.import_module(name)
         except Exception:
+            get_logger().debug("%s is not available for the Audio category", name, exc_info=True)
             continue
         if hasattr(module, "get_file_category"):
             module.get_file_category = get_file_category
@@ -36,6 +37,7 @@ def install_detection() -> None:
 def install_category(app) -> None:
     """Name the sound bank category "Audio" in each main window's category list."""
     from core.npk.enums import NPKEntryFileCategories
+
     for window in app.topLevelWidgets():
         combo = getattr(window, "entry_category_filter_combobox", None)
         if combo is None:
@@ -45,5 +47,4 @@ def install_category(app) -> None:
             row = combo.findText(NPKEntryFileCategories.BANK.value)
         if row >= 0:
             combo.setItemText(row, AUDIO_LABEL)
-            combo.setItemData(row, "Sound banks (.bnk) and sounds (.wem, .ogg, .wav)",
-                              0x03)  # Qt.ToolTipRole
+            combo.setItemData(row, "Sound banks (.bnk) and sounds (.wem, .ogg, .wav)", 0x03)  # Qt.ToolTipRole

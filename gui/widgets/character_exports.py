@@ -21,8 +21,12 @@ def read_entry_data(archive, index: int) -> bytes:
         entry = archive.find_entry_by_id(index)
     except (KeyError, IndexError):
         entry = None
-    if (entry is None or not getattr(entry, "data", None)) and hasattr(archive, "load_entry") \
-            and getattr(archive, "file_path", None) and not hasattr(archive, "records"):
+    if (
+        (entry is None or not getattr(entry, "data", None))
+        and hasattr(archive, "load_entry")
+        and getattr(archive, "file_path", None)
+        and not hasattr(archive, "records")
+    ):
         with open(archive.file_path, "rb") as stream:
             archive.load_entry(index, stream)
         entry = archive.entries[index]
@@ -69,7 +73,7 @@ SETTING_EXPORT_FOLDER = "model_export.folder"
 
 class _ExportSignals(QtCore.QObject):
     progress = QtCore.Signal(str, int, int)
-    finished = QtCore.Signal(str, str, str)     # written path, report, error
+    finished = QtCore.Signal(str, str, str)  # written path, report, error
 
 
 # Qt objects of running exports, owned here so a worker thread never drops the
@@ -92,6 +96,7 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
     write one .glb or .pmx in the background with a progress dialog.
     """
     from core.mesh_converter import model_export
+
     app = QtWidgets.QApplication.instance()
     settings = app.property("settings_manager") if app is not None else None
     folder = ""
@@ -100,9 +105,9 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
     except Exception:
         folder = ""
     name = re.sub(r'[<>:"/\\|?*]+', "_", default_name).strip() or "export"
-    each = kind.startswith("each:")                   # one folder per mesh, written as it loads
+    each = kind.startswith("each:")  # one folder per mesh, written as it loads
     title = f"Export as {kind[5:].upper()}" if each else f"Export as {kind.upper()}"
-    if kind == "vmd" or each:                         # one folder per object: <name>.pmx, textures, <name>.vmd
+    if kind == "vmd" or each:  # one folder per object: <name>.pmx, textures, <name>.vmd
         caption = "Export animations (PMX + VMD) to" if kind == "vmd" else f"{title}: choose the output folder"
         target = QtWidgets.QFileDialog.getExistingDirectory(parent, caption, folder or "")
         if not target:
@@ -111,8 +116,9 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
             settings.set(SETTING_EXPORT_FOLDER, target, True)
     else:
         label = "glTF Binary (*.glb)" if kind == "glb" else "Polygon Model eXtended (*.pmx)"
-        target, _ = QtWidgets.QFileDialog.getSaveFileName(parent, f"Export as {kind.upper()}",
-                                                          os.path.join(folder or "", f"{name}.{kind}"), label)
+        target, _ = QtWidgets.QFileDialog.getSaveFileName(
+            parent, f"Export as {kind.upper()}", os.path.join(folder or "", f"{name}.{kind}"), label
+        )
         if not target:
             return
         if not target.lower().endswith(f".{kind}"):
@@ -168,12 +174,18 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
         # Only plain Python objects here: Qt objects are reached through _EXPORT_JOBS
         report: list[str] = []
         try:
-            if each:                                  # the builder writes every file itself
-                written = build(lambda text, value, total: _emit(job_id, "progress", text, value, total),
-                                cancel.is_set, report, target)
+            if each:  # the builder writes every file itself
+                written = build(
+                    lambda text, value, total: _emit(job_id, "progress", text, value, total),
+                    cancel.is_set,
+                    report,
+                    target,
+                )
                 _emit(job_id, "finished", str(written), "\n".join(dict.fromkeys(report))[:3000], "")
                 return
-            items = build(lambda text, value, total: _emit(job_id, "progress", text, value, total), cancel.is_set, report)
+            items = build(
+                lambda text, value, total: _emit(job_id, "progress", text, value, total), cancel.is_set, report
+            )
             if not items:
                 raise ValueError("No meshes to export.")
             _emit(job_id, "progress", f"Writing {os.path.basename(target)}…", len(items), len(items))
@@ -181,25 +193,39 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
                 written = model_export.write_glb(items, target)
             elif kind == "vmd":
                 from core.mesh_converter import vmd_export
+
                 pairs = []
                 for number, item in enumerate(items):
                     if cancel.is_set():
                         raise InterruptedError
                     _emit(job_id, "progress", f"Writing {item['name']} (PMX + VMD)…", number, len(items))
-                    pairs.append(vmd_export.write_pmx_vmd(item, os.path.join(target, re.sub(r'[<>:"/\\|?*\s]+', "_", item["name"]))))
+                    pairs.append(
+                        vmd_export.write_pmx_vmd(
+                            item, os.path.join(target, re.sub(r'[<>:"/\\|?*\s]+', "_", item["name"]))
+                        )
+                    )
                     clip = item["animation"]
                     if np.abs(clip.scales - 1.0).max() > 1e-3:
-                        report.append(f"{item['name']}: its loop also scales bones, which VMD cannot store; "
-                                      "that part (e.g. a pulsing shape) is left out")
+                        report.append(
+                            f"{item['name']}: its loop also scales bones, which VMD cannot store; "
+                            "that part (e.g. a pulsing shape) is left out"
+                        )
                 written = f"{len(pairs)} model(s) with motion in {target}"
             else:
                 written = model_export.write_pmx(items, target)
-            untextured = [f"{item['name']}: {part.get('material')}" for item in items
-                          for part in item["parts"] if part.get("image") is None]
+            untextured = [
+                f"{item['name']}: {part.get('material')}"
+                for item in items
+                for part in item["parts"]
+                if part.get("image") is None
+            ]
             notes = sorted(set(report))
             if untextured:
-                notes.append(f"{len(untextured)} part(s) without a texture: " + ", ".join(untextured[:6])
-                             + (" …" if len(untextured) > 6 else ""))
+                notes.append(
+                    f"{len(untextured)} part(s) without a texture: "
+                    + ", ".join(untextured[:6])
+                    + (" …" if len(untextured) > 6 else "")
+                )
             _emit(job_id, "finished", str(written), "\n".join(notes)[:3000], "")
         except InterruptedError:
             _emit(job_id, "finished", "", "", "Export cancelled.")
@@ -213,7 +239,6 @@ def start_export(parent, kind: str, default_name: str, build) -> None:
 
 
 BODY_SIZE_SETTING = "model_export.body_size"
-
 
 
 def body_size_adult() -> bool:
@@ -235,6 +260,7 @@ def with_body_size(index, items, mesh_paths, report):
     if index is None or not body_size_adult() or not any(is_character_path(p) for p in mesh_paths):
         return items
     from core.mesh_converter import body_size
+
     try:
         return body_size.adult_items(lambda p: (index.read(p) or (None,))[0], items, mesh_paths, report)
     except Exception as exc:
@@ -249,6 +275,7 @@ def outfit_body_items(loader, mesh_path: str, exclude=()) -> list[dict]:
     <outfit>_body.mtg, so the piece comes out with the right texture.
     """
     import xml.etree.ElementTree as ET
+
     if loader is None or "\\clothes\\" not in mesh_path.lower():
         return []
     gim_path = mesh_path.rsplit(".", 1)[0] + "_body.gim"
@@ -276,8 +303,10 @@ def export_character_selection(main_window, kind: str) -> None:
         return
     selected = characters.tree.selectedItems()
     found = characters.entry_items(selected, True) or {}
-    meshes = sorted(((index, str(path)) for index, path in found.items() if str(path or "").lower().endswith(".mesh")),
-                    key=lambda item: item[1])
+    meshes = sorted(
+        ((index, str(path)) for index, path in found.items() if str(path or "").lower().endswith(".mesh")),
+        key=lambda item: item[1],
+    )
     if not meshes:
         QtWidgets.QMessageBox.information(main_window, "Export", "The selection has no meshes.")
         return
@@ -295,6 +324,7 @@ def export_character_selection(main_window, kind: str) -> None:
 
     def build(progress, cancelled, report):
         from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for
+
         game = game_root_for(archive.file_path) if getattr(archive, "file_path", None) else None
         loader = StageLoader(PackIndex(game, read_options_for(archive)), max_texture_size=8192) if game else None
         items, mesh_loader = [], MeshLoader()
@@ -317,7 +347,7 @@ def export_character_selection(main_window, kind: str) -> None:
                 model = (mesh, parts)
             items.append({"name": name, "mesh": model[0], "parts": model[1]})
             for body in outfit_body_items(loader, path, [mesh_path for _entry, mesh_path in meshes]):
-                if all(body["name"] != other["name"] for other in items):     # hands/neck shared by outfits: once
+                if all(body["name"] != other["name"] for other in items):  # hands/neck shared by outfits: once
                     items.append(body)
         if loader is not None:
             report.extend(loader.report)
@@ -343,14 +373,19 @@ def textured_model(loader, path, metadata_files=()):
     stem = path.rsplit(".", 1)[0]
     name = stem.rsplit("\\", 1)[-1].lower()
     candidates = [f"{stem}_01.gim", f"{stem}_all.gim"] + sorted(
-        m for m in metadata_files if m.lower().endswith(".gim") and m.rsplit("\\", 1)[-1].lower().startswith(name + "_"))
+        m for m in metadata_files if m.lower().endswith(".gim") and m.rsplit("\\", 1)[-1].lower().startswith(name + "_")
+    )
     for candidate in dict.fromkeys(candidates):
         if loader.index.locate(candidate) is None:
             continue
         variant = loader.model(candidate)
-        if variant is not None and any(part.get("image") is not None for part in variant[1]) \
-                and model is not None and len(variant[0].position) == len(model[0].position):
-            del loader.report[before:]                    # the "missing material" note no longer applies
+        if (
+            variant is not None
+            and any(part.get("image") is not None for part in variant[1])
+            and model is not None
+            and len(variant[0].position) == len(model[0].position)
+        ):
+            del loader.report[before:]  # the "missing material" note no longer applies
             loader.report.append(f"{name}: material taken from {ntpath.basename(candidate)} (it has none of its own)")
             return variant
     return model
@@ -380,6 +415,7 @@ def _display_name(name: str) -> str:
 def save_item_icon(index, link, target) -> bool:
     """Save the item's icon (game path like image/clothes/x.png) as a PNG at target."""
     from core.npk.stage_export import decode_texture
+
     found = index.read(link["icon"].replace("/", "\\"))
     if found is None:
         return False
@@ -399,6 +435,7 @@ def save_metadata_textures(index, metadata_paths, used_textures, folder) -> int:
     that the model itself does not use, as PNGs in folder. Returns how many were written.
     """
     from core.npk.stage_export import decode_texture
+
     used = {str(path).lower().rsplit(".", 1)[0] for path in used_textures if path}
     wanted = {}
     for path in metadata_paths:
@@ -417,6 +454,7 @@ def save_metadata_textures(index, metadata_paths, used_textures, folder) -> int:
         try:
             image = decode_texture(found[0])
         except Exception:
+            get_logger().debug("Could not decode the texture %s", path, exc_info=True)
             continue
         name = _safe_folder(reference.rsplit("\\", 1)[-1].rsplit(".", 1)[0])
         while name.lower() in names:
@@ -428,8 +466,14 @@ def save_metadata_textures(index, metadata_paths, used_textures, folder) -> int:
     return written
 
 
-def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False, faces_only: bool = False,
-                                 hats_only: bool = False, face_shapes: bool = False) -> None:
+def export_character_meshes_each(
+    main_window,
+    fmt: str,
+    per_folder: bool = False,
+    faces_only: bool = False,
+    hats_only: bool = False,
+    face_shapes: bool = False,
+) -> None:
     """
     Export the meshes under the Characters selection, one file at a time.
 
@@ -439,6 +483,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
     """
     faces_only = faces_only or face_shapes
     from gui.windows.character_folders_window import FOLDER_PATH_ROLE
+
     characters = getattr(main_window, "_character_folders_window", None)
     app = QtWidgets.QApplication.instance()
     archive = app.property("npk_file") if app is not None else None
@@ -446,32 +491,44 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
         return
     selected = characters.tree.selectedItems()
     found = characters.entry_items(selected, True) or {}
-    meshes = sorted(((index, str(path)) for index, path in found.items() if str(path or "").lower().endswith(".mesh")),
-                    key=lambda item: item[1])
+    meshes = sorted(
+        ((index, str(path)) for index, path in found.items() if str(path or "").lower().endswith(".mesh")),
+        key=lambda item: item[1],
+    )
     if faces_only:
         # A face folder sits directly in a "body" folder (only_body and other folders are not faces)
         per_folder = True
         meshes = [(index, path) for index, path in meshes if path.lower().split("\\")[-3:-2] == ["body"]]
         # not the older face copy with built-in eyeballs (<face>_all_jr) next to the face itself
         from gui.widgets.face_makeup_data import without_old_eye_faces
+
         kept = set(without_old_eye_faces([path for _index, path in meshes]))
         meshes = [(index, path) for index, path in meshes if path in kept]
         if not meshes:
-            QtWidgets.QMessageBox.information(main_window, "Export faces",
-                                              "The selection has no face folders (folders inside a \"body\" folder).")
+            QtWidgets.QMessageBox.information(
+                main_window, "Export faces", "The selection has no face folders (folders inside a \"body\" folder)."
+            )
             return
     if hats_only:
-        meshes = [(index, path) for index, path in meshes
-                  if "hat" in path.lower().split("\\")[:-1] and "mask" not in path.lower().split("\\")[:-1]]
+        meshes = [
+            (index, path)
+            for index, path in meshes
+            if "hat" in path.lower().split("\\")[:-1] and "mask" not in path.lower().split("\\")[:-1]
+        ]
         if not meshes:
-            QtWidgets.QMessageBox.information(main_window, "Export hats", "The selection has no hats (meshes in a \"hat\" folder).")
+            QtWidgets.QMessageBox.information(
+                main_window, "Export hats", "The selection has no hats (meshes in a \"hat\" folder)."
+            )
             return
     if not meshes:
         QtWidgets.QMessageBox.information(main_window, "Export", "The selection has no meshes.")
         return
     # Each model goes under the selected folder it belongs to (deepest match), named like that folder
-    roots = sorted({str(item.data(0, FOLDER_PATH_ROLE)) for item in selected if item.data(0, FOLDER_PATH_ROLE)},
-                   key=len, reverse=True)
+    roots = sorted(
+        {str(item.data(0, FOLDER_PATH_ROLE)) for item in selected if item.data(0, FOLDER_PATH_ROLE)},
+        key=len,
+        reverse=True,
+    )
 
     def folders_for(folder):
         """
@@ -481,7 +538,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
         """
         for root in roots:
             if folder.lower() == root.lower() or folder.lower().startswith(root.lower() + "\\"):
-                return [root.rsplit("\\", 1)[-1]] + [part for part in folder[len(root):].split("\\") if part]
+                return [root.rsplit("\\", 1)[-1]] + [part for part in folder[len(root) :].split("\\") if part]
         return [folder.rsplit("\\", 1)[-1] or "meshes"]
 
     # Metadata files (.gim / .mtg / .mvar) of every folder involved, from the tab's catalog
@@ -492,8 +549,11 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
         if folder in metadata or catalog is None:
             continue
         keys = catalog.folders.get(folder, ())
-        metadata[folder] = [str(catalog.assets[key].path) for key in keys
-                            if key in catalog.assets and str(catalog.assets[key].path).lower().endswith((".gim", ".mtg", ".mvar"))]
+        metadata[folder] = [
+            str(catalog.assets[key].path)
+            for key in keys
+            if key in catalog.assets and str(catalog.assets[key].path).lower().endswith((".gim", ".mtg", ".mvar"))
+        ]
 
     # Jobs: (output folder parts, file name, [(entry, path)], metadata files)
     jobs = []
@@ -508,7 +568,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
             stem = path.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
             folder = path.rsplit("\\", 1)[0]
             parts = folders_for(folder)
-            if parts[-1].lower() != stem.lower():         # male_hat_100_ng/male_hat_100_ng.mesh: no extra level
+            if parts[-1].lower() != stem.lower():  # male_hat_100_ng/male_hat_100_ng.mesh: no extra level
                 parts.append(stem)
             own = [m for m in metadata.get(folder, []) if m.rsplit("\\", 1)[-1].lower().startswith(stem.lower())]
             jobs.append((parts, stem, [(entry, path)], own))
@@ -518,6 +578,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
     def build(progress, cancelled, report, target):
         from core.mesh_converter import model_export
         from core.npk.stage_export import PackIndex, StageLoader, game_root_for, read_options_for
+
         game = game_root_for(archive.file_path) if getattr(archive, "file_path", None) else None
         options = read_options_for(archive)
         index = PackIndex(game, options) if game else None
@@ -538,10 +599,10 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                     shape_files.setdefault(path.rsplit("\\", 1)[0].lower(), []).append(path)
         if index is not None and include_item_info():
             from core.npk import game_tables
+
             progress("Reading the game's item tables (names and icons)…", 0, 0)
             try:
-                links = game_tables.mesh_links(game, options,
-                                               lambda path: (index.read(path) or (None,))[0])
+                links = game_tables.mesh_links(game, options, lambda path: (index.read(path) or (None,))[0])
             except Exception as exc:
                 report.append(f"Item names and icons unavailable: {exc}")
         for number, (folder_parts, name, members, metadata_files) in enumerate(jobs):
@@ -561,7 +622,9 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                             mesh = mesh_loader.load_from_bytes(read_entry_data(archive, entry))
                             if mesh is None or not mesh.position:
                                 raise ValueError("not a readable mesh")
-                            parts = loader.parts_for(path.rsplit(".", 1)[0] + ".gim", mesh) if loader is not None else []
+                            parts = (
+                                loader.parts_for(path.rsplit(".", 1)[0] + ".gim", mesh) if loader is not None else []
+                            )
                             model = (mesh, parts)
                     except Exception as exc:
                         report.append(f"{stem}: {exc}")
@@ -572,12 +635,14 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                             items.append(body)
                 if not items:
                     continue
-                link = next((found for found in (game_tables_link(links, path) for _entry, path in members) if found), None)
+                link = next(
+                    (found for found in (game_tables_link(links, path) for _entry, path in members) if found), None
+                )
                 parts = [_safe_folder(part) for part in folder_parts]
-                if link and link.get("name"):                 # e.g. male_hair_00_bmy (Golden Rings)
+                if link and link.get("name"):  # e.g. male_hair_00_bmy (Golden Rings)
                     parts[-1] = f"{parts[-1]} ({_display_name(link['name'])})"
                 folder = os.path.join(target, *parts)
-                while folder.lower() in used:                # same name in two sub-folders
+                while folder.lower() in used:  # same name in two sub-folders
                     folder += "_"
                 used.add(folder.lower())
                 file_name = _safe_folder(name)
@@ -588,6 +653,7 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                     if cancelled():
                         raise InterruptedError
                     from core.mesh_converter import face_shapes as shapes
+
                     shape_name = shape_path.rsplit("\\", 1)[-1][:-3]
                     suffix = shape_name.rsplit("_", 1)[-1] if "_" in shape_name else shape_name
                     progress(f"Exporting {name}: face shape {suffix}  ({number + 1}/{len(jobs)})", number, len(jobs))
@@ -597,8 +663,17 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                             raise ValueError("not found")
                         reference = shapes.reference_mesh([item["mesh"] for item in items])
                         bones = shapes.shape_by_name(shapes.read_mb(found[0]), reference)
-                        shaped = [dict(item, mesh=(shapes.apply_shape_to_eyes if re.search(r"_eye_(l|r|jyq)_", item["name"].lower())
-                                                   else shapes.apply_shape)(item["mesh"], bones)) for item in items]
+                        shaped = [
+                            dict(
+                                item,
+                                mesh=(
+                                    shapes.apply_shape_to_eyes
+                                    if re.search(r"_eye_(l|r|jyq)_", item["name"].lower())
+                                    else shapes.apply_shape
+                                )(item["mesh"], bones),
+                            )
+                            for item in items
+                        ]
                         writer(shaped, os.path.join(folder, f"{file_name}_shape_{_safe_folder(suffix)}.{fmt}"))
                         shapes_written += 1
                     except Exception as exc:
@@ -609,8 +684,9 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
                 untextured += sum(1 for item in items for part in item["parts"] if part.get("image") is None)
                 if index is not None and metadata_files:
                     textures = [part.get("texture") for item in items for part in item["parts"]]
-                    extras += save_metadata_textures(index, metadata_files, textures,
-                                                     os.path.join(folder, f"{file_name}_textures", "other"))
+                    extras += save_metadata_textures(
+                        index, metadata_files, textures, os.path.join(folder, f"{file_name}_textures", "other")
+                    )
             except InterruptedError:
                 raise
             except Exception as exc:
@@ -623,13 +699,21 @@ def export_character_meshes_each(main_window, fmt: str, per_folder: bool = False
         if untextured:
             report.insert(0, f"{untextured} part(s) without a texture (see below).")
         if face_shapes:
-            report.insert(0, f"{shapes_written} face shape variant(s) saved as <face>_shape_NN next to each face "
-                             "(skin tones and makeup textures are in each face's _textures/other folder).")
+            report.insert(
+                0,
+                f"{shapes_written} face shape variant(s) saved as <face>_shape_NN next to each face "
+                "(skin tones and makeup textures are in each face's _textures/other folder).",
+            )
         if links:
-            report.insert(0, f"{named} model(s) named after their in-game item, {icons} item icon(s) saved as <name>_icon.png.")
+            report.insert(
+                0, f"{named} model(s) named after their in-game item, {icons} item icon(s) saved as <name>_icon.png."
+            )
         if extras:
-            report.insert(0, f"{extras} extra texture(s) from the metadata (skin tones, makeup, masks…) "
-                             "saved in each model's _textures\\other folder.")
+            report.insert(
+                0,
+                f"{extras} extra texture(s) from the metadata (skin tones, makeup, masks…) "
+                "saved in each model's _textures\\other folder.",
+            )
         return f"{done} of {len(jobs)} {unit}, each in its own folder, in {target}"
 
     start_export(main_window, f"each:{fmt}", unit, build)
@@ -639,6 +723,7 @@ def game_tables_link(links, path):
     if not links:
         return None
     from core.npk.game_tables import link_for
+
     return link_for(links, path)
 
 
@@ -661,6 +746,7 @@ def export_item_icons(main_window) -> None:
     export_selected_item_icons.
     """
     from core.npk.stage_export import game_root_for
+
     app = QtWidgets.QApplication.instance()
     archive = app.property("npk_file") if app is not None else None
     game = game_root_for(archive.file_path) if archive is not None and getattr(archive, "file_path", None) else None
@@ -672,17 +758,24 @@ def export_item_icons(main_window) -> None:
         except Exception:
             game = None
     if game is None:
-        QtWidgets.QMessageBox.information(main_window, "Export icons",
-                                          "Open any Harry Potter: Magic Awakened .npk first, so the game folder is known.")
+        QtWidgets.QMessageBox.information(
+            main_window,
+            "Export icons",
+            "Open any Harry Potter: Magic Awakened .npk first, so the game folder is known.",
+        )
         return
 
     def build(progress, cancelled, report, target):
         from core.npk.stage_export import PackIndex, decode_texture, read_options_for
+
         progress("Reading the game's file list…", 0, 0)
         index = PackIndex(game, read_options_for(archive))
         prefixes = tuple(folder.lower() + "\\" for folder in ICON_FOLDERS)
-        icons = sorted(path for path in index.manifest()
-                       if path.lower().startswith(prefixes) and path.lower().endswith(ICON_EXTENSIONS))
+        icons = sorted(
+            path
+            for path in index.manifest()
+            if path.lower().startswith(prefixes) and path.lower().endswith(ICON_EXTENSIONS)
+        )
         # The same icon can be listed as .dds and .png: keep one file per name
         unique = {}
         for path in icons:
@@ -702,7 +795,7 @@ def export_item_icons(main_window) -> None:
             except Exception as exc:
                 report.append(f"unreadable: {path} ({exc})")
                 continue
-            relative = path.split("\\")[1:]                      # drop "image"
+            relative = path.split("\\")[1:]  # drop "image"
             out = os.path.join(target, *relative[:-1], relative[-1].rsplit(".", 1)[0] + ".png")
             os.makedirs(os.path.dirname(out), exist_ok=True)
             image.save(out)
@@ -722,6 +815,7 @@ def export_selected_item_icons(main_window) -> None:
         return
     try:
         from gui.widgets import characters_items
+
         index = characters_items._state.get("index")
         link_of = characters_items._link
     except Exception:
@@ -734,13 +828,17 @@ def export_selected_item_icons(main_window) -> None:
         if link and link.get("icon"):
             icons.setdefault(link["icon"], link.get("name") or path.rsplit("\\", 1)[-1][:-5])
     if index is None or not icons:
-        QtWidgets.QMessageBox.information(main_window, "Export item icons",
-                                          "None of the selected meshes has an in-game item icon"
-                                          + ("." if index is not None else " (the item list is still loading)."))
+        QtWidgets.QMessageBox.information(
+            main_window,
+            "Export item icons",
+            "None of the selected meshes has an in-game item icon"
+            + ("." if index is not None else " (the item list is still loading)."),
+        )
         return
 
     def build(progress, cancelled, report, target):
         from core.npk.stage_export import decode_texture
+
         done, used = 0, set()
         for number, (icon, name) in enumerate(sorted(icons.items(), key=lambda kv: kv[1].lower())):
             if cancelled():
@@ -774,11 +872,13 @@ def _selected_face_folder(main_window):
     try:
         from gui.widgets.face_makeup_data import face_folder_of
         from gui.windows.character_folders_window import FOLDER_PATH_ROLE, PATH_ROLE
+
         for item in main_window._character_folders_window.tree.selectedItems():
             for role in (FOLDER_PATH_ROLE, PATH_ROLE):
                 folder = face_folder_of(item.data(0, role))
                 if folder:
                     return folder
     except Exception:
+        get_logger().debug("Could not find the face folder of the selection", exc_info=True)
         return None
     return None

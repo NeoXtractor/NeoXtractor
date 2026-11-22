@@ -29,7 +29,11 @@ def install() -> bool:
         return False
     code = target.__code__
     names = vars(_logger)
-    if code.co_argcount != 1 or code.co_freevars or not all(n in names for n in ("inspect", "logging", "default_logger")):
+    if (
+        code.co_argcount != 1
+        or code.co_freevars
+        or not all(n in names for n in ("inspect", "logging", "default_logger"))
+    ):
         return False
     target.__code__ = _get_logger.__code__
     target._fast = True

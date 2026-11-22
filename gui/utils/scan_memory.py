@@ -8,9 +8,10 @@ from __future__ import annotations
 from PySide6 import QtCore
 
 from core import process_memory
+from core.logger import get_logger
 
 BASE_LIMIT = process_memory.SCAN_MEMORY_LIMIT
-SETTLE_MS = 2000          # uploads to the GPU and frees land a little after a job ends
+SETTLE_MS = 2000  # uploads to the GPU and frees land a little after a job ends
 
 _state = {"allowance": 0, "active": 0, "start": None, "start_allowance": 0, "generation": 0}
 
@@ -23,6 +24,7 @@ def _usage():
     try:
         return process_memory.private_memory_bytes()
     except Exception:
+        get_logger().debug("Could not read the process memory use", exc_info=True)
         return None
 
 

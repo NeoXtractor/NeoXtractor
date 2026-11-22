@@ -326,7 +326,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.related_archives_action = menu.addAction("Include same-name res / resN copies (HPMA)")
             self.related_archives_action.setCheckable(True)
             self.related_archives_action.setChecked(self.settings_manager.get("hpma.related_archives", True))
-            self.related_archives_action.setStatusTip("On next open, include matching filenames from res, res2, res3, res4, etc.; no whole-folder scan.")
+            self.related_archives_action.setStatusTip(
+                "On next open, include matching filenames from res, res2, res3, res4, etc.; no whole-folder scan."
+            )
             self.related_archives_action.toggled.connect(
                 lambda enabled: self.settings_manager.set("hpma.related_archives", enabled, save=True)
             )
@@ -645,7 +647,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     "magic awakened" in self.config.name.lower() and \
                     self.related_archives_action.isChecked():
                 archive_file = RelatedArchiveSet(path, read_options)
-                self.setWindowTitle(f"NeoXtractor - {os.path.basename(path)} ({len(archive_file.primary_sources)} same-name packs)")
+                self.setWindowTitle(
+                    f"NeoXtractor - {os.path.basename(path)} ({len(archive_file.primary_sources)} same-name packs)"
+                )
             elif ext in (".npk", ".expk"):
                 archive_file = NPKFile(path, read_options)
             elif ext in (".idx", ".wpk"):

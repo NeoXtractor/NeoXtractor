@@ -19,12 +19,12 @@ def normalize_path(path):
     return text.lstrip(".\\").lower()
 
 
-HASH_MEMO = 600_000                               # entries per hash memo (~70 MB at most for both)
+HASH_MEMO = 600_000  # entries per hash memo (~70 MB at most for both)
 _murmur_memo: dict = {}
 _mesh_memo: dict = {}
 
 
-def murmur3_32(text, seed=2538058380):            # the original's default seed
+def murmur3_32(text, seed=2538058380):  # the original's default seed
     memo = _murmur_memo if seed == 2538058380 else None
     if memo is not None:
         hit = memo.get(text)
@@ -35,7 +35,7 @@ def murmur3_32(text, seed=2538058380):            # the original's default seed
     end = size & -4
     h = seed
     if end:
-        for k in memoryview(data)[:end].cast("I"):      # little-endian 32-bit blocks (install() checks)
+        for k in memoryview(data)[:end].cast("I"):  # little-endian 32-bit blocks (install() checks)
             k = (k * 0xCC9E2D51) & 0xFFFFFFFF
             k = ((k << 15) | (k >> 17)) & 0xFFFFFFFF
             h ^= (k * 0x1B873593) & 0xFFFFFFFF
@@ -95,7 +95,7 @@ def mesh_hash(text):
             a = (a + 2) & 0xFFFFFFFF
         tweak = a
     value = (state ^ tweak) & 0xFFFFFFFF
-    if len(_mesh_memo) < 600_000:                  # HASH_MEMO
+    if len(_mesh_memo) < 600_000:  # HASH_MEMO
         _mesh_memo[text] = value
     return value
 
@@ -103,9 +103,11 @@ def mesh_hash(text):
 # name -> the original body, kept so tests can compare against it
 ORIGINAL_CODE: dict = {}
 
-REPLACEMENTS = ((_asset_paths, "normalize_path", normalize_path, ("re",)),
-                (_asset_paths, "murmur3_32", murmur3_32, ()),
-                (_npkhash, "mesh_hash", mesh_hash, ("struct",)))
+REPLACEMENTS = (
+    (_asset_paths, "normalize_path", normalize_path, ("re",)),
+    (_asset_paths, "murmur3_32", murmur3_32, ()),
+    (_npkhash, "mesh_hash", mesh_hash, ("struct",)),
+)
 # globals the new bodies use, given to the modules they run in (the same dicts, so tests see the memos)
 SHARED = {_asset_paths: {"_murmur_memo": _murmur_memo}, _npkhash: {"_mesh_memo": _mesh_memo}}
 
@@ -124,8 +126,10 @@ def install() -> bool:
             return False
         if not all(n in vars(module) for n in needs):
             return False
-        if any(name in vars(module) and vars(module)[name] is not value for name, value in SHARED.get(module, {}).items()):
-            return False                               # a name the body needs is taken in that module
+        if any(
+            name in vars(module) and vars(module)[name] is not value for name, value in SHARED.get(module, {}).items()
+        ):
+            return False  # a name the body needs is taken in that module
         targets.append((target, fast))
     for module, names in SHARED.items():
         vars(module).update(names)

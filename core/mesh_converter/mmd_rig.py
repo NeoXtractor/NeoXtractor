@@ -16,8 +16,13 @@ SHOULDER_LABEL = "Raise shoulder bones (cleaner raised arms)"
 SIDES = ("左", "右")
 FINGERS = ("親指", "人指", "中指", "薬指", "小指")
 # The 先 tip past each finger's last joint: (joint before, last joint, reach as a share of that last segment)
-FINGER_TIPS = {"親指": ("１", "２", 1.0), "人指": ("２", "３", 0.6), "中指": ("２", "３", 0.6),
-               "薬指": ("２", "３", 0.6), "小指": ("２", "３", 0.6)}
+FINGER_TIPS = {
+    "親指": ("１", "２", 1.0),
+    "人指": ("２", "３", 0.6),
+    "中指": ("２", "３", 0.6),
+    "薬指": ("２", "３", 0.6),
+    "小指": ("２", "３", 0.6),
+}
 FINGER_ENGLISH = {"親指": "thumb", "人指": "index", "中指": "middle", "薬指": "ring", "小指": "little"}
 LEG_FK = {"足D": "足", "ひざD": "ひざ", "足首D": "足首"}
 
@@ -27,6 +32,7 @@ def _switch(key, settings) -> bool:
     if settings is None:
         try:
             from PySide6 import QtWidgets
+
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
         except ImportError:
@@ -47,19 +53,32 @@ def shoulders_enabled(settings=None) -> bool:
 
 def _chain() -> dict[str, list[str]]:
     """MMD name -> preferred parents (first one present wins)."""
-    chain = {"上半身": ["グルーブ"], "上半身2": ["上半身"], "首": ["上半身2", "上半身"], "頭": ["首"],
-             "下半身": ["グルーブ"]}
+    chain = {
+        "上半身": ["グルーブ"],
+        "上半身2": ["上半身"],
+        "首": ["上半身2", "上半身"],
+        "頭": ["首"],
+        "下半身": ["グルーブ"],
+    }
     for s in SIDES:
-        chain.update({
-            f"{s}目": ["頭"], f"{s}肩": ["上半身2", "上半身"], f"{s}腕": [f"{s}肩", "上半身2"],
-            f"{s}ひじ": [f"{s}腕"], f"{s}手首": [f"{s}ひじ"],
-            f"{s}足D": ["下半身"], f"{s}ひざD": [f"{s}足D"], f"{s}足首D": [f"{s}ひざD"], f"{s}足先EX": [f"{s}足首D"],
-        })
+        chain.update(
+            {
+                f"{s}目": ["頭"],
+                f"{s}肩": ["上半身2", "上半身"],
+                f"{s}腕": [f"{s}肩", "上半身2"],
+                f"{s}ひじ": [f"{s}腕"],
+                f"{s}手首": [f"{s}ひじ"],
+                f"{s}足D": ["下半身"],
+                f"{s}ひざD": [f"{s}足D"],
+                f"{s}足首D": [f"{s}ひざD"],
+                f"{s}足先EX": [f"{s}足首D"],
+            }
+        )
         for finger in FINGERS:
             first = "０" if finger == "親指" else "１"
             order = ["０", "１", "２", "３"] if finger == "親指" else ["１", "２", "３"]
             previous = f"{s}手首"
-            for step in order[order.index(first):]:
+            for step in order[order.index(first) :]:
                 chain[f"{s}{finger}{step}"] = [previous]
                 previous = f"{s}{finger}{step}"
     return chain
@@ -83,6 +102,7 @@ def build(bones, translated_names):
     from the translation table. Returns (bones in their new order, {old index: new index}, display slots).
     """
     from pymeshio import common, pmx
+
     names = [b.name for b in bones]
     index = {n: i for i, n in enumerate(names)}
     translated = {n for n in translated_names if n in index}
@@ -135,16 +155,25 @@ def build(bones, translated_names):
     for s in SIDES:
         if not all(f"{s}{d}" in index for d in ("足D", "ひざD", "足首D")):
             continue
-        add(new_bone(f"{s}足", f"leg_{'L' if s == '左' else 'R'}", pos[f"{s}足D"]), "下半身" if "下半身" in index else "グルーブ")
+        add(
+            new_bone(f"{s}足", f"leg_{'L' if s == '左' else 'R'}", pos[f"{s}足D"]),
+            "下半身" if "下半身" in index else "グルーブ",
+        )
         add(new_bone(f"{s}ひざ", f"knee_{'L' if s == '左' else 'R'}", pos[f"{s}ひざD"]), f"{s}足")
         add(new_bone(f"{s}足首", f"ankle_{'L' if s == '左' else 'R'}", pos[f"{s}足首D"]), f"{s}ひざ")
         ankle = pos[f"{s}足首D"]
         joint = pos.get(f"{s}足先EX") or ankle
         # つま先 at the tip of the foot on the ground, ahead of the toe joint
         reach = max(abs(joint.z - ankle.z), 0.3) * 0.7
-        toe_pos = common.Vector3(joint.x + (joint.x - ankle.x) * 0.3, max(0.0, min(joint.y, 0.3)),
-                                 joint.z - reach if joint.z <= ankle.z else joint.z + reach)
-        add(new_bone(f"{s}つま先", f"toe_{'L' if s == '左' else 'R'}", toe_pos, visible=False, operable=False), f"{s}足首")
+        toe_pos = common.Vector3(
+            joint.x + (joint.x - ankle.x) * 0.3,
+            max(0.0, min(joint.y, 0.3)),
+            joint.z - reach if joint.z <= ankle.z else joint.z + reach,
+        )
+        add(
+            new_bone(f"{s}つま先", f"toe_{'L' if s == '左' else 'R'}", toe_pos, visible=False, operable=False),
+            f"{s}足首",
+        )
         add(new_bone(f"{s}足ＩＫ", f"leg IK_{'L' if s == '左' else 'R'}", ankle, move=True), "全ての親")
         add(new_bone(f"{s}つま先ＩＫ", f"toe IK_{'L' if s == '左' else 'R'}", toe_pos, move=True), f"{s}足ＩＫ")
         ik_specs.append(s)
@@ -159,15 +188,23 @@ def build(bones, translated_names):
         add(new_bone("両目先", "eyes tip", common.Vector3(0.0, both.y, eye_z - eye_y * 0.045), visible=False), "両目")
         for s in SIDES:
             eye = pos[f"{s}目"]
-            add(new_bone(f"{s}目先", f"eye tip_{'L' if s == '左' else 'R'}",
-                         common.Vector3(eye.x, eye.y, eye.z - eye_y * 0.025), visible=False), f"{s}目")
+            add(
+                new_bone(
+                    f"{s}目先",
+                    f"eye tip_{'L' if s == '左' else 'R'}",
+                    common.Vector3(eye.x, eye.y, eye.z - eye_y * 0.025),
+                    visible=False,
+                ),
+                f"{s}目",
+            )
     for s in SIDES:
         for finger, (before, last, reach) in FINGER_TIPS.items():
             first, end = pos.get(f"{s}{finger}{before}"), pos.get(f"{s}{finger}{last}")
             if first is None or end is None:
                 continue
-            tip = common.Vector3(end.x + (end.x - first.x) * reach, end.y + (end.y - first.y) * reach,
-                                 end.z + (end.z - first.z) * reach)
+            tip = common.Vector3(
+                end.x + (end.x - first.x) * reach, end.y + (end.y - first.y) * reach, end.z + (end.z - first.z) * reach
+            )
             english = f"{FINGER_ENGLISH[finger]} tip_{'L' if s == '左' else 'R'}"
             add(new_bone(f"{s}{finger}先", english, tip, visible=False), f"{s}{finger}{last}")
 
@@ -186,13 +223,19 @@ def build(bones, translated_names):
         kids = children.get(nodes[i].name, [])
         # MMD deforms in bone order: IK handles first so the legs are solved before
         # anything reads them, then the FK legs, then the D bones that copy them (付与)
-        kids.sort(key=lambda k: (nodes[k].name != "両目", nodes[k].name not in IK_BONES,
-                                 nodes[k].name.endswith(("D", "EX")), k))      # 両目 before the eyes it turns
+        kids.sort(
+            key=lambda k: (
+                nodes[k].name != "両目",
+                nodes[k].name not in IK_BONES,
+                nodes[k].name.endswith(("D", "EX")),
+                k,
+            )
+        )  # 両目 before the eyes it turns
         for k in kids:
             visit(k)
 
     visit(index["全ての親"])
-    for i in range(len(nodes)):                 # anything left keeps its place at the end
+    for i in range(len(nodes)):  # anything left keeps its place at the end
         visit(i)
     new_of = {old: new for new, old in enumerate(order)}
     by_name = {nodes[old].name: new for old, new in new_of.items()}
@@ -210,7 +253,9 @@ def build(bones, translated_names):
             d.setFlag(pmx.BONEFLAG_IS_EXTERNAL_ROTATION, True)
         leg_ik = result[by_name[f"{s}足ＩＫ"]]
         leg_ik.setFlag(pmx.BONEFLAG_IS_IK, True)
-        knee = pmx.IkLink(by_name[f"{s}ひざ"], 1, common.Vector3(-math.pi, 0.0, 0.0), common.Vector3(-0.008727, 0.0, 0.0))
+        knee = pmx.IkLink(
+            by_name[f"{s}ひざ"], 1, common.Vector3(-math.pi, 0.0, 0.0), common.Vector3(-0.008727, 0.0, 0.0)
+        )
         leg_ik.ik = pmx.Ik(by_name[f"{s}足首"], 40, 2.0, [knee, pmx.IkLink(by_name[f"{s}足"], 0)])
         toe_ik = result[by_name[f"{s}つま先ＩＫ"]]
         toe_ik.setFlag(pmx.BONEFLAG_IS_IK, True)
@@ -226,7 +271,7 @@ def build(bones, translated_names):
     # MMD then solves the IK only after 下半身 and the FK legs are placed for the frame, and the D chain
     # copies the solved legs. On layer 0 the IK ran before 下半身 and crossed the legs in TransformView.
     late = {by_name[n] for s in ik_specs for n in (f"{s}足ＩＫ", f"{s}つま先ＩＫ", f"{s}足D", f"{s}ひざD", f"{s}足首D")}
-    for i, bone in enumerate(result):           # parents come first, so one pass reaches all descendants
+    for i, bone in enumerate(result):  # parents come first, so one pass reaches all descendants
         if i in late or bone.parent_index in late:
             late.add(i)
             bone.layer = 1
@@ -234,8 +279,18 @@ def build(bones, translated_names):
     # Tails down each chain
     tails = {"上半身": "上半身2", "上半身2": "首", "首": "頭", "全ての親": "センター"}
     for s in SIDES:
-        tails.update({f"{s}肩": f"{s}腕", f"{s}腕": f"{s}ひじ", f"{s}ひじ": f"{s}手首", f"{s}足": f"{s}ひざ",
-                      f"{s}ひざ": f"{s}足首", f"{s}足首": f"{s}つま先", f"{s}足D": f"{s}ひざD", f"{s}ひざD": f"{s}足首D"})
+        tails.update(
+            {
+                f"{s}肩": f"{s}腕",
+                f"{s}腕": f"{s}ひじ",
+                f"{s}ひじ": f"{s}手首",
+                f"{s}足": f"{s}ひざ",
+                f"{s}ひざ": f"{s}足首",
+                f"{s}足首": f"{s}つま先",
+                f"{s}足D": f"{s}ひざD",
+                f"{s}ひざD": f"{s}足首D",
+            }
+        )
     for parent, child in tails.items():
         if parent in by_name and child in by_name:
             bone = result[by_name[parent]]
@@ -264,16 +319,17 @@ def build(bones, translated_names):
             bone.setFlag(pmx.BONEFLAG_CAN_TRANSLATE, False)
 
     # Display frames
-    groups = [("センター", "Center", ["センター", "グルーブ"]),
-              ("ＩＫ", "IK", [n for n in IK_BONES if n in by_name]),
-              ("体(上)", "Upper body", ["上半身", "上半身2", "首", "頭", "両目", "左目", "右目"]),
-              ("腕", "Arms", [f"{s}{b}" for s in SIDES for b in ("肩", "腕", "ひじ", "手首")]),
-              ("指", "Fingers", [n for n in by_name if any(f in n for f in FINGERS) and not n.endswith("先")]),
-              ("体(下)", "Lower body", ["下半身"]),
-              ("足", "Legs", [f"{s}{b}" for s in SIDES for b in ("足", "ひざ", "足首", "足D", "ひざD", "足首D", "足先EX")])]
+    groups = [
+        ("センター", "Center", ["センター", "グルーブ"]),
+        ("ＩＫ", "IK", [n for n in IK_BONES if n in by_name]),
+        ("体(上)", "Upper body", ["上半身", "上半身2", "首", "頭", "両目", "左目", "右目"]),
+        ("腕", "Arms", [f"{s}{b}" for s in SIDES for b in ("肩", "腕", "ひじ", "手首")]),
+        ("指", "Fingers", [n for n in by_name if any(f in n for f in FINGERS) and not n.endswith("先")]),
+        ("体(下)", "Lower body", ["下半身"]),
+        ("足", "Legs", [f"{s}{b}" for s in SIDES for b in ("足", "ひざ", "足首", "足D", "ひざD", "足首D", "足先EX")]),
+    ]
     used = {"全ての親"}
-    slots = [pmx.DisplaySlot("Root", "Root", 1, [(0, by_name["全ての親"])]),
-             pmx.DisplaySlot("表情", "Exp", 1, [])]
+    slots = [pmx.DisplaySlot("Root", "Root", 1, [(0, by_name["全ての親"])]), pmx.DisplaySlot("表情", "Exp", 1, [])]
     for name, english, members in groups:
         refs = [(0, by_name[m]) for m in members if m in by_name and m not in used]
         used.update(m for m in members if m in by_name)
@@ -296,7 +352,7 @@ def merge_twin_helpers(mesh):
     twins = {}
     for i, name in enumerate(names):
         if name.startswith("bone_"):
-            target = position.get("bip001_" + name[len("bone_"):])
+            target = position.get("bip001_" + name[len("bone_") :])
             if target is not None:
                 twins[i] = target
     if not twins or not mesh.vertex_bone:
@@ -317,6 +373,7 @@ def merge_twin_helpers(mesh):
     if not changed:
         return mesh
     import copy
+
     merged_mesh = copy.copy(mesh)
     merged_mesh.vertex_bone = joints
     merged_mesh.vertex_weight = weights
@@ -336,6 +393,7 @@ def raise_shoulders(model, report=None) -> float:
     the weights). Returns the upper-arm lift applied.
     """
     from pymeshio import common
+
     bones = model.bones
     index = {bone.name: i for i, bone in enumerate(bones)}
     if not all(n in index for n in ("首", "頭", "左肩", "右肩", "左腕", "右腕")):
@@ -373,6 +431,7 @@ def remove_unused(model) -> int:
     Vertex weights, parents, tails, IK, grants and display frames are renumbered. Returns how many were removed.
     """
     from pymeshio import common, pmx
+
     bones = model.bones
     used = set()
     for vertex in model.vertices:
@@ -438,8 +497,11 @@ def remove_unused(model) -> int:
     for slot in model.display_slots or []:
         refs = getattr(slot, "references", None)
         if refs:
-            slot.references = [(kind, remap[index]) if kind == 0 else (kind, index) for kind, index in refs
-                               if kind != 0 or index in remap]
+            slot.references = [
+                (kind, remap[index]) if kind == 0 else (kind, index)
+                for kind, index in refs
+                if kind != 0 or index in remap
+            ]
     model.bones = new_bones
     return len(bones) - len(new_bones)
 
@@ -454,6 +516,7 @@ def link_tails(bones, only=None) -> None:
     """
     import re
     from pymeshio import common, pmx
+
     count = len(bones)
     children: dict[int, list[int]] = {}
     for i, bone in enumerate(bones):
@@ -493,7 +556,7 @@ def link_tails(bones, only=None) -> None:
         match = re.search(r"(\d+)$", name)
         if match:
             number = str(int(match.group(1)) + 1).zfill(len(match.group(1)))
-            return name[:match.start(1)] + number
+            return name[: match.start(1)] + number
         return None
 
     def height():
@@ -528,8 +591,11 @@ def link_tails(bones, only=None) -> None:
                 set_bone(i, toe)
                 continue
         here = vec(i)
-        kids = [j for j in children.get(i, []) if length(sub(vec(j), here)) > 1e-4
-                and not bones[j].hasFlag(pmx.BONEFLAG_IS_IK)]
+        kids = [
+            j
+            for j in children.get(i, [])
+            if length(sub(vec(j), here)) > 1e-4 and not bones[j].hasFlag(pmx.BONEFLAG_IS_IK)
+        ]
         next_name = successor(name)
         chained = [j for j in kids if next_name and bones[j].name == next_name]
         if len(kids) == 1 and not name.endswith("手首"):

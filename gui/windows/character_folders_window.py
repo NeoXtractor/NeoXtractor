@@ -29,6 +29,7 @@ PAGE_SIZE = 200
 
 class CharacterFoldersWindow(QtWidgets.QWidget):
     """Main-window filter page, not a dialog."""
+
     preview_entry_requested = QtCore.Signal(int)
     unresolved_requested = QtCore.Signal(str)
     open_entry_with = QtCore.Signal(int, NPKEntry, type, int)
@@ -126,8 +127,12 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
 
     def _asset_item(self, parent, asset, label=None, key=None):
         entry = self.npk_file.entries.get(asset.entry_index)
-        item = QtWidgets.QTreeWidgetItem([label or asset.path.rsplit("\\", 1)[-1],
-                                          hex(entry.file_signature) if entry is not None else "Not in archive"])
+        item = QtWidgets.QTreeWidgetItem(
+            [
+                label or asset.path.rsplit("\\", 1)[-1],
+                hex(entry.file_signature) if entry is not None else "Not in archive",
+            ]
+        )
         if entry is not None and hasattr(self.npk_file, "source_label"):
             item.setText(1, hex(entry.file_signature) + " · " + self.npk_file.source_label(asset.entry_index))
         item.setData(0, PATH_ROLE, asset.path)
@@ -161,12 +166,22 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
         self._cancel_event = Event()
         # The worker reads a snapshot; a related-archive set does its own
         # locking and is shared directly.
-        snapshot = self.npk_file if hasattr(self.npk_file, "build_catalog") else SimpleNamespace(
-            file_path=self.npk_file.file_path, entries=dict(self.npk_file.entries),
-            indices=list(getattr(self.npk_file, "indices", ())))
-        worker = CharacterScanWorker(generation, snapshot,
-                                     list(self.roots) if self.roots is not None else None,
-                                     dict(self.signature_name_map), self._cancel_event)
+        snapshot = (
+            self.npk_file
+            if hasattr(self.npk_file, "build_catalog")
+            else SimpleNamespace(
+                file_path=self.npk_file.file_path,
+                entries=dict(self.npk_file.entries),
+                indices=list(getattr(self.npk_file, "indices", ())),
+            )
+        )
+        worker = CharacterScanWorker(
+            generation,
+            snapshot,
+            list(self.roots) if self.roots is not None else None,
+            dict(self.signature_name_map),
+            self._cancel_event,
+        )
         worker.signals.progress.connect(self._scan_update)
         worker.signals.finished.connect(self._scan_result)
         self._workers[generation] = worker
@@ -188,8 +203,9 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
         if generation != self._scan_generation or not self.scan_busy:
             return
         if error:
-            self.status_label.setText("Character scan cancelled." if error == "cancelled"
-                                      else "Character scan failed: " + error)
+            self.status_label.setText(
+                "Character scan cancelled." if error == "cancelled" else "Character scan failed: " + error
+            )
             self._finish_scan(error)
             return
         self.tree.clear()
@@ -283,8 +299,7 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
                         directory_counts[directory][asset.kind].add(asset.entry_index)
                 yield "Building character directories", current, max(len(folders), 1)
         for current, (directory, counts) in enumerate(directory_counts.items(), 1):
-            directory_items[directory].setText(
-                1, f"{len(counts['Mesh'])} meshes · {len(counts['Texture'])} textures")
+            directory_items[directory].setText(1, f"{len(counts['Mesh'])} meshes · {len(counts['Texture'])} textures")
             yield "Counting directory contents", current, max(len(directory_counts), 1)
         if self.catalog.unmapped:
             root = self._folder_item(invisible, "Unidentified archive assets", "No recovered path")
@@ -307,8 +322,10 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
 
     def _delete_child(self, parent, index):
         child = parent.takeChild(index)
+
         def size(item):
             return 1 + sum(size(item.child(i)) for i in range(item.childCount()))
+
         self._item_count -= size(child)
         shiboken6.delete(child)
 
@@ -381,7 +398,7 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
                 item.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
                 parent.addChild(item)
                 self._item_count += 1
-            for key in keys[offset:offset + PAGE_SIZE]:
+            for key in keys[offset : offset + PAGE_SIZE]:
                 if spec[0] == "unmapped":
                     entry = self.npk_file.entries[key]
                     detail = hex(entry.file_signature)
@@ -418,8 +435,14 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
     def _filter_steps(self):
         if self._tree_index is None:
             return
-        yield from self._tree_index.filter_steps(self.search_text, self.asset_filter.currentData(),
-                                                 self.show_missing.isChecked(), self.include_binary, self.include_text, self.include_slot)
+        yield from self._tree_index.filter_steps(
+            self.search_text,
+            self.asset_filter.currentData(),
+            self.show_missing.isChecked(),
+            self.include_binary,
+            self.include_text,
+            self.include_slot,
+        )
         with QtCore.QSignalBlocker(self.tree):
             for i in range(self.tree.topLevelItemCount()):
                 self._release_rows(self.tree.topLevelItem(i))
@@ -430,10 +453,19 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
                 if tuple(item.data(0, LAZY_ROLE) or ()) == ("unmapped", "", ""):
                     item.setHidden(not any(self._tree_index.unmapped_matches(index) for index in self.catalog.unmapped))
         meshes = {a.entry_index for a in self.catalog.assets.values() if a.kind == "Mesh" and a.entry_index is not None}
-        textures = {a.entry_index for a in self.catalog.assets.values() if a.kind == "Texture" and a.entry_index is not None}
-        self.status_label.setText(f"{len(meshes)} meshes · {len(textures)} textures identified\n{len(self._tree_index.visible_entries)} available files in filter · rows load on expansion")
+        textures = {
+            a.entry_index for a in self.catalog.assets.values() if a.kind == "Texture" and a.entry_index is not None
+        }
+        self.status_label.setText(
+            f"{len(meshes)} meshes · {len(textures)} textures identified\n"
+            f"{len(self._tree_index.visible_entries)} available files in filter · rows load on expansion"
+        )
         if hasattr(self.npk_file, "archives"):
-            self.status_label.setText(self.status_label.text() + f"\n{len(self.npk_file.primary_sources)} same-name packs · {len(self.npk_file.archives) - len(self.npk_file.primary_sources)} explicitly referenced packs")
+            self.status_label.setText(
+                self.status_label.text()
+                + f"\n{len(self.npk_file.primary_sources)} same-name packs · "
+                f"{len(self.npk_file.archives) - len(self.npk_file.primary_sources)} explicitly referenced packs"
+            )
             self.status_label.setToolTip("\n".join(self.npk_file.warnings))
         if not self.scan_busy:
             self._populate_expanded()
@@ -499,19 +531,24 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
 
     def _create_context_menu(self, items):
         menu = QtWidgets.QMenu(self)
-        menu.addAction("Save selected / folder (including linked textures)…",
-                       lambda: self._extract(self.entry_items(items)))
+        menu.addAction(
+            "Save selected / folder (including linked textures)…", lambda: self._extract(self.entry_items(items))
+        )
         # Viewers open single entries: only rows that are loaded archive
         # entries are offered, in their tree order, without duplicates.
 
-        indices = list(dict.fromkeys(item.data(0, ENTRY_ROLE) for item in items
-                                     if item.data(0, ENTRY_ROLE) in getattr(self.npk_file, "entries", {})))
+        indices = list(
+            dict.fromkeys(
+                item.data(0, ENTRY_ROLE)
+                for item in items
+                if item.data(0, ENTRY_ROLE) in getattr(self.npk_file, "entries", {})
+            )
+        )
         if indices:
             menu.addSeparator()
             for viewer in ALL_VIEWERS:
                 action = menu.addAction("Open in " + viewer.name)
-                action.triggered.connect(
-                    lambda _checked, v=viewer: self._open_entries_with(indices, v))
+                action.triggered.connect(lambda _checked, v=viewer: self._open_entries_with(indices, v))
         return menu
 
     def _open_entries_with(self, indices, viewer):
@@ -552,8 +589,13 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
             target = target.resolve()
             if target.is_relative_to(root):
                 outputs.append((target, index))
-        if any(target.exists() for target, _ in outputs) and \
-                QtWidgets.QMessageBox.question(self, "Replace existing files?", "Some files already exist. Replace them?") != QtWidgets.QMessageBox.StandardButton.Yes:
+        if (
+            any(target.exists() for target, _ in outputs)
+            and QtWidgets.QMessageBox.question(
+                self, "Replace existing files?", "Some files already exist. Replace them?"
+            )
+            != QtWidgets.QMessageBox.StandardButton.Yes
+        ):
             return
         failures, saved = [], 0
         for target, index in outputs:
@@ -564,14 +606,22 @@ class CharacterFoldersWindow(QtWidgets.QWidget):
                 saved += 1
             except OSError as exc:
                 failures.append(str(exc))
-        QtWidgets.QMessageBox.information(self, "Character extraction", f"Saved {saved} files.\n" + ("\n".join(failures[:3]) if failures else str(root)))
+        QtWidgets.QMessageBox.information(
+            self,
+            "Character extraction",
+            f"Saved {saved} files.\n" + ("\n".join(failures[:3]) if failures else str(root)),
+        )
 
     def export_report(self):
         if self.catalog is None:
             return
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Character asset report", "character-assets.json", "JSON (*.json)")
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Character asset report", "character-assets.json", "JSON (*.json)"
+        )
         if path:
             try:
-                Path(path).write_text(json.dumps(self.catalog.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+                Path(path).write_text(
+                    json.dumps(self.catalog.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+                )
             except OSError as exc:
                 QtWidgets.QMessageBox.critical(self, "Report failed", str(exc))

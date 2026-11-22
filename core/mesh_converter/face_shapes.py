@@ -12,7 +12,7 @@ import struct
 
 import numpy as np
 
-SKIP_PREFIXES = ("bip001_prop",)          # weapon/prop sockets: not face bones
+SKIP_PREFIXES = ("bip001_prop",)  # weapon/prop sockets: not face bones
 
 
 def read_mb(data: bytes) -> dict[int, np.ndarray]:
@@ -27,8 +27,8 @@ def read_mb(data: bytes) -> dict[int, np.ndarray]:
     return shape
 
 
-MATCH_LIMIT = 0.15          # median bone movement above which the indices clearly point at the wrong bones
-SEARCH = 12                 # how far a shape's bone numbers may have drifted from the mesh's (bones added later)
+MATCH_LIMIT = 0.15  # median bone movement above which the indices clearly point at the wrong bones
+SEARCH = 12  # how far a shape's bone numbers may have drifted from the mesh's (bones added later)
 
 
 def _pose_difference(a: np.ndarray, b: np.ndarray) -> float:
@@ -87,7 +87,7 @@ def _as_model_space(matrix: np.ndarray, bind: np.ndarray):
         return matrix
     if np.linalg.norm(matrix[3, :3]) < 1.0:
         if np.allclose(matrix, np.eye(4), atol=1e-4):
-            return None                                        # "no change"
+            return None  # "no change"
         return matrix @ bind
     return None
 
@@ -124,23 +124,27 @@ def mirror_normal_fix(mesh):
         groups.setdefault(key, []).append(index)
     # spots whose overlapping vertices all face the same way: only those serve as twins (at closed lips the
     # vertices of both lips share a spot and face opposite ways, on both halves alike)
-    clean = {key: ids[0] for key, ids in groups.items()
-             if all(np.dot(normals[ids[0]], normals[other]) > 0.87 for other in ids[1:])}
+    clean = {
+        key: ids[0]
+        for key, ids in groups.items()
+        if all(np.dot(normals[ids[0]], normals[other]) > 0.87 for other in ids[1:])
+    }
     fits = (normals * surface).sum(1)
     found: dict[int, int] = {}
     for index in range(len(positions)):
         if abs(positions[index, 0]) < 1e-3:
             continue
         twin = clean.get((-keys[index, 0] + 0.0, keys[index, 1], keys[index, 2]))
-        if twin is None or fits[twin] < 0.87:                           # the twin must fit its own surface
+        if twin is None or fits[twin] < 0.87:  # the twin must fit its own surface
             continue
         mirrored = normals[twin] * (-1.0, 1.0, 1.0)
-        off = fits[index] < 0.87 and np.dot(mirrored, normals[index]) < 0.87       # over 30 degrees out
+        off = fits[index] < 0.87 and np.dot(mirrored, normals[index]) < 0.87  # over 30 degrees out
         if off and np.dot(mirrored, surface[index]) > fits[index] + 0.1:
             found[index] = twin
     # a flaw is on one side only: where both halves would take the other's normal, the shape itself differs
-    flawed = {index: twin for index, twin in found.items()
-              if not any(other in found for other in groups[tuple(keys[twin])])}
+    flawed = {
+        index: twin for index, twin in found.items() if not any(other in found for other in groups[tuple(keys[twin])])
+    }
     if not flawed:
         return mesh
     fixed = normals.copy()
@@ -191,10 +195,10 @@ def apply_shape(mesh, bones: dict[str, np.ndarray]):
     weights = np.zeros((vertex_count, 4))
     for row, (b, w) in enumerate(zip(mesh.vertex_bone, mesh.vertex_weight)):
         b, w = list(b)[:4], list(w)[:4]
-        joints[row, :len(b)] = b
-        weights[row, :len(w)] = w
+        joints[row, : len(b)] = b
+        weights[row, : len(w)] = w
     joints = np.where((joints < 0) | (joints >= count), count, joints)
-    blend = np.einsum("vk,vkij->vij", weights, skin[joints])                 # per-vertex 4×4
+    blend = np.einsum("vk,vkij->vij", weights, skin[joints])  # per-vertex 4×4
     total = weights.sum(1)
     blend[total <= 0] = np.eye(4)
     blend[total > 0] /= total[total > 0, None, None]

@@ -19,13 +19,14 @@ EXTENSION = ".pmx"
 
 # Material look in MMD / PMX Editor: no specular highlight, full ambient, lit like the texture
 MATERIAL_SPECULAR_POWER = 50
-MATERIAL_FLAGS = 0x01 | 0x02          # double-sided drawing, ground shadow
+MATERIAL_FLAGS = 0x01 | 0x02  # double-sided drawing, ground shadow
 
 
 def _settings_manager():
     """Return the app's SettingsManager, or None when running without the GUI."""
     try:
         from PySide6 import QtWidgets
+
         app = QtWidgets.QApplication.instance()
         return app.property("settings_manager") if app is not None else None
     except Exception:
@@ -41,8 +42,9 @@ def to_pmx_space(x, y, z):
     return -float(x), float(y), -float(z)
 
 
-def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | None = None,
-            translate_bones: bool | None = None) -> bytes:
+def convert(
+    mesh: MeshData, flip_normals: bool = False, materials: list[dict] | None = None, translate_bones: bool | None = None
+) -> bytes:
     """
     Convert mesh to PMX format.
 
@@ -71,13 +73,15 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
         # helper bones doubling a limb (bone_l_upperarm's shoulder pad) follow that limb
         mesh = mmd_rig.merge_twin_helpers(mesh)
         from core.mesh_converter import fingers
+
         if fingers.enabled(_settings_manager()):
             mesh = fingers.five_fingers(mesh)
 
     if mesh.has_bones:
         names = bone_names.translate(list(mesh.bone_name)) if translate_bones else list(mesh.bone_name)
-        if translate_bones:                          # names VMD can address (15 bytes), the same in every export
+        if translate_bones:  # names VMD can address (15 bytes), the same in every export
             from core.mesh_converter.vmd_export import short_bone_names
+
             names = short_bone_names(names)
         source_names = list(getattr(mesh, "bone_source_names", None) or mesh.bone_name)
         parent_child_dict = {}
@@ -94,18 +98,20 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
             matrix = mesh.bone_matrix[index]
             # NeoX stores row-vector matrices: translation lives in the last row
             x, y, z = to_pmx_space(matrix[3, 0], matrix[3, 1], matrix[3, 2])
-            bone_pool.append(pmx.Bone(
-                name=names[index],
-                english_name=source_names[index] if index < len(source_names) else names[index],
-                position=common.Vector3(x, y, z),
-                parent_index=parent_index,
-                layer=0,
-                flag=0
-            ))
+            bone_pool.append(
+                pmx.Bone(
+                    name=names[index],
+                    english_name=source_names[index] if index < len(source_names) else names[index],
+                    position=common.Vector3(x, y, z),
+                    parent_index=parent_index,
+                    layer=0,
+                    flag=0,
+                )
+            )
             bone_pool[-1].setFlag(pmx.BONEFLAG_CAN_ROTATE, True)
             bone_pool[-1].setFlag(pmx.BONEFLAG_IS_VISIBLE, True)
             bone_pool[-1].setFlag(pmx.BONEFLAG_CAN_MANIPULATE, True)
-            bone_pool[-1].setFlag(pmx.BONEFLAG_CAN_TRANSLATE, True)   # so VMD position keys apply
+            bone_pool[-1].setFlag(pmx.BONEFLAG_CAN_TRANSLATE, True)  # so VMD position keys apply
 
         def deep_first_search(index, index_pool, parent_index):
             index_pool[0] += 1
@@ -140,12 +146,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
     else:
         # Create a default root bone
         root_bone = pmx.Bone(
-            name="root",
-            english_name="root",
-            position=common.Vector3(0, 0, 0),
-            parent_index=-1,
-            layer=0,
-            flag=0
+            name="root", english_name="root", position=common.Vector3(0, 0, 0), parent_index=-1, layer=0, flag=0
         )
         root_bone.setFlag(pmx.BONEFLAG_CAN_ROTATE, True)
         root_bone.setFlag(pmx.BONEFLAG_IS_VISIBLE, True)
@@ -184,7 +185,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
                 common.Vector3(cast(int, nx), cast(int, ny), cast(int, nz)),
                 common.Vector2(cast(int, u), cast(int, v)),
                 pmx.Bdef4(*vertex_joint_index, *vertex_weights),
-                0.0
+                0.0,
             )
         else:
             # No bone data - assign to root bone
@@ -193,7 +194,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
                 common.Vector3(cast(int, nx), cast(int, ny), cast(int, nz)),
                 common.Vector2(cast(int, u), cast(int, v)),
                 pmx.Bdef1(0),
-                0.0
+                0.0,
             )
         pmx_model.vertices.append(vertex)
 
@@ -204,7 +205,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
 
     if mesh.mesh:
         textures: list[str] = []
-        pmx_model.materials = []          # drop pymeshio's empty default material
+        pmx_model.materials = []  # drop pymeshio's empty default material
         for i, (_mesh_vertex_count, mesh_face_count, _, _) in enumerate(mesh.mesh):
             info = materials[i] if materials and i < len(materials) else None
             texture_index = -1
@@ -229,7 +230,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
                 toon_sharing_flag=1,
                 toon_texture_index=0,
                 comment="",
-                vertex_count=mesh_face_count * 3
+                vertex_count=mesh_face_count * 3,
             )
             pmx_model.materials.append(material)
         if textures:
@@ -253,7 +254,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
             toon_sharing_flag=1,
             toon_texture_index=0,
             comment="",
-            vertex_count=len(mesh.face) * 3
+            vertex_count=len(mesh.face) * 3,
         )
         pmx_model.materials.append(material)
 
@@ -274,6 +275,7 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
     # Collision shapes on the body for MMD physics (hair, skirts, capes), sized to this model
     if mesh.has_bones:
         from core.mesh_converter import rigid_bodies
+
         if rigid_bodies.enabled(_settings_manager()):
             try:
                 rigid_bodies.add_body_rigid_bodies(pmx_model)
@@ -287,10 +289,14 @@ def convert(mesh: MeshData, flip_normals: bool = False, materials: list[dict] | 
 
 TRANSLATE_LABEL = "Translate bones to MMD names"
 RIG_LABEL = "MMD bone setup (IK legs, センター, display frames)"
-TRANSLATE_TIP = ("Rename HPMA bones (bip001_l_thigh, lower, …) to MMD names (左足D, 下半身, …); the HPMA name is kept as "
-                 "the English bone name. Add or change names with pmx_bone_names.xlsx/.csv/.txt next to NeoXtractor.")
-RIG_TIP = ("With translated bone names: re-arrange the bones into MMD chains and add 全ての親 / センター / グルーブ, IK legs "
-           "(足ＩＫ, つま先ＩＫ) driving the D bones, and display frames. VMD exports then key the IK legs.")
+TRANSLATE_TIP = (
+    "Rename HPMA bones (bip001_l_thigh, lower, …) to MMD names (左足D, 下半身, …); the HPMA name is kept as "
+    "the English bone name. Add or change names with pmx_bone_names.xlsx/.csv/.txt next to NeoXtractor."
+)
+RIG_TIP = (
+    "With translated bone names: re-arrange the bones into MMD chains and add 全ての親 / センター / グルーブ, IK legs "
+    "(足ＩＫ, つま先ＩＫ) driving the D bones, and display frames. VMD exports then key the IK legs."
+)
 
 
 def _bind_options(translate, rig):
@@ -312,8 +318,10 @@ def _bind_options(translate, rig):
         rig.toggled.connect(lambda checked: settings.set(mmd_rig.SETTING, bool(checked), True))
 
 
-SHOULDER_TIP = ("With translated bone names: move 肩 and 腕 up to where MMD rigs usually have them (the game's "
-                "pivots sit lower), so raising an arm doesn't fold the shoulder or drag the sleeve. Only the bones move.")
+SHOULDER_TIP = (
+    "With translated bone names: move 肩 and 腕 up to where MMD rigs usually have them (the game's "
+    "pivots sit lower), so raising an arm doesn't fold the shoulder or drag the sleeve. Only the bones move."
+)
 
 
 def _bind_shoulders(widget, translate):
@@ -327,13 +335,16 @@ def _bind_shoulders(widget, translate):
         widget.toggled.connect(lambda checked: settings.set(mmd_rig.SHOULDER_SETTING, bool(checked), True))
 
 
-FINGERS_TIP = ("The game rigs thumb, index and middle finger; the ring and little fingers move with the middle one. "
-               "This gives them bones of their own (薬指, 小指) and splits each finger's end into two joints "
-               "(人指３, 中指３…), so MMD finger motions work. Game animations move them with the middle finger.")
+FINGERS_TIP = (
+    "The game rigs thumb, index and middle finger; the ring and little fingers move with the middle one. "
+    "This gives them bones of their own (薬指, 小指) and splits each finger's end into two joints "
+    "(人指３, 中指３…), so MMD finger motions work. Game animations move them with the middle finger."
+)
 
 
 def _bind_fingers(widget):
     from core.mesh_converter import fingers
+
     settings = _settings_manager()
     widget.setChecked(fingers.enabled(settings))
     widget.setToolTip(FINGERS_TIP)
@@ -341,12 +352,15 @@ def _bind_fingers(widget):
         widget.toggled.connect(lambda checked: settings.set(fingers.SETTING, bool(checked), True))
 
 
-RIGID_TIP = ("Bone-following collision capsules on the body (torso, head, arms, hands, legs, feet), sized to the "
-             "model, so MMD physics on hair, skirts and capes doesn't pass through it.")
+RIGID_TIP = (
+    "Bone-following collision capsules on the body (torso, head, arms, hands, legs, feet), sized to the "
+    "model, so MMD physics on hair, skirts and capes doesn't pass through it."
+)
 
 
 def _bind_rigid(widget):
     from core.mesh_converter import rigid_bodies
+
     settings = _settings_manager()
     widget.setChecked(rigid_bodies.enabled(settings))
     widget.setToolTip(RIGID_TIP)
@@ -357,16 +371,19 @@ def _bind_rigid(widget):
 def pmx_option_actions(parent):
     """The PMX export switches as checkable actions (for export menus)."""
     from PySide6 import QtGui
+
     translate = QtGui.QAction(TRANSLATE_LABEL, parent)
     rig = QtGui.QAction(RIG_LABEL, parent)
     translate.setCheckable(True)
     rig.setCheckable(True)
     _bind_options(translate, rig)
     from core.mesh_converter import fingers
+
     five = QtGui.QAction(fingers.LABEL, parent)
     five.setCheckable(True)
     _bind_fingers(five)
     from core.mesh_converter import rigid_bodies
+
     bodies = QtGui.QAction(rigid_bodies.LABEL, parent)
     bodies.setCheckable(True)
     _bind_rigid(bodies)
@@ -395,38 +412,45 @@ def _install_tools_menu_hook() -> None:
         try:
             # The Stages category lives in its own module; this hook is just where it gets attached
             from gui.widgets import stages_page
+
             stages_page.install(app)
         except Exception:
             get_logger().exception("Could not add the Stages category")
         try:
             from gui.widgets import scene_viewer
+
             scene_viewer.install(app)
         except Exception:
             get_logger().exception("Could not add the Scene Viewer")
         try:
             # Opening any pack also combines its copies from the other install (Documents patch layer)
             from core.npk import layered_archives
+
             layered_archives.install()
         except Exception:
             get_logger().exception("Could not combine the game's installs")
         try:
             from gui.widgets import characters_sort
+
             characters_sort.install(app)
         except Exception:
             get_logger().exception("Could not add sorting to the Characters tab")
         try:
             from gui.widgets import characters_items
+
             characters_items.install(app)
         except Exception:
             get_logger().exception("Could not add item names to the Characters tab")
         try:
             from core.npk import wwise_audio
+
             wwise_audio.install_category(app)
         except Exception:
             get_logger().exception("Could not add the Audio category")
         try:
             # Numbered .wem sounds show (and are found by) the sound bank that uses them
             from core.npk import wwise_names
+
             wwise_names.install(app)
         except Exception:
             get_logger().exception("Could not add the sound bank labels")
@@ -441,30 +465,35 @@ _install_tools_menu_hook()
 try:
     # get_logger() without inspect.stack(): makes reading packs noticeably faster everywhere
     from core import fast_logger as _fast_logger
+
     _fast_logger.install()
 except Exception:
     get_logger().exception("Could not install the fast get_logger")
 try:
     # Binary XML to text without the minidom round trip (same text): speeds up metadata scans and .gim reads
     from core import fast_bxml as _fast_bxml
+
     _fast_bxml.install()
 except Exception:
     get_logger().exception("Could not install the fast binary XML decoding")
 try:
     # Path normalising and hashing with the same results in less time: speeds up the Characters tab scan
     from core import fast_paths as _fast_paths
+
     _fast_paths.install()
 except Exception:
     get_logger().exception("Could not install the fast path helpers")
 try:
     # The Characters scan remembers named metadata entries between scans of unchanged packs
     from core.npk import metadata_cache as _metadata_cache
+
     _metadata_cache.install()
 except Exception:
     get_logger().exception("Could not install the metadata cache")
 try:
     # Before any pack is read: .wem / .ogg / .wav files join the sound banks in the Audio category
     from core.npk import wwise_audio as _wwise_audio
+
     _wwise_audio.install_detection()
 except Exception:
     get_logger().exception("Could not hook the Wwise sound detection")

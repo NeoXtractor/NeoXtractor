@@ -69,7 +69,9 @@ class NPKEntryFilter:
             elif self.filter_type == npk_entry.category:
                 if self.filter_type == NPKEntryFileCategories.MESH:
                     # Only do the expensive biped head check if needed
-                    show_item = not self.mesh_biped_head or ransack_agent(npk_file.find_entry_by_id(row).data, "biped head")
+                    show_item = not self.mesh_biped_head or ransack_agent(
+                        npk_file.find_entry_by_id(row).data, "biped head"
+                    )
                 else:
                     show_item = True
             else:

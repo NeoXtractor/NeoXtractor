@@ -9,10 +9,10 @@ import re
 
 from core.npk.asset_paths import normalize_path
 
-
-PATH_RE = re.compile(rb"(?<![A-Za-z0-9_.-])[A-Za-z0-9_.-]+(?:[\\/]+[A-Za-z0-9_.-]+)+\.(?:mesh|gim|mtg|mtl|tga|dds|png|jpg)\b", re.I)
-MODEL_PATH_RE = re.compile(
-    rb"model[\\/]+[A-Za-z0-9_.-]+[\\/]+[A-Za-z0-9_.-]+(?:[\\/]+[A-Za-z0-9_.-]+)*", re.I)
+PATH_RE = re.compile(
+    rb"(?<![A-Za-z0-9_.-])[A-Za-z0-9_.-]+(?:[\\/]+[A-Za-z0-9_.-]+)+\.(?:mesh|gim|mtg|mtl|tga|dds|png|jpg)\b", re.I
+)
+MODEL_PATH_RE = re.compile(rb"model[\\/]+[A-Za-z0-9_.-]+[\\/]+[A-Za-z0-9_.-]+(?:[\\/]+[A-Za-z0-9_.-]+)*", re.I)
 
 
 def metadata_bytes(data):
@@ -27,13 +27,11 @@ def metadata_bytes(data):
 
 
 def metadata_paths(data):
-    return sorted({normalize_path(x.decode("utf-8", "replace"))
-                   for x in PATH_RE.findall(metadata_bytes(data))})
+    return sorted({normalize_path(x.decode("utf-8", "replace")) for x in PATH_RE.findall(metadata_bytes(data))})
 
 
 def model_paths(data):
-    return sorted({normalize_path(x.decode("utf-8", "ignore"))
-                   for x in MODEL_PATH_RE.findall(metadata_bytes(data))})
+    return sorted({normalize_path(x.decode("utf-8", "ignore")) for x in MODEL_PATH_RE.findall(metadata_bytes(data))})
 
 
 @dataclass(frozen=True, slots=True)

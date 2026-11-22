@@ -14,11 +14,15 @@ import numpy as np
 
 ADULT_PLAN = "plan1"
 DEFAULT_OUTFITS = {
-    "male": "model\\character\\appearance\\boy\\high\\clothes\\male_clothes_01_chuangjue\\male_clothes_01_chuangjue.sdm",
-    "female": "model\\character\\appearance\\girl\\high\\clothes\\female_clothes_01_chuangjue\\female_clothes_01_chuangjue.sdm",
+    "male": "model\\character\\appearance\\boy\\high\\clothes\\male_clothes_01_chuangjue\\"
+    "male_clothes_01_chuangjue.sdm",
+    "female": "model\\character\\appearance\\girl\\high\\clothes\\female_clothes_01_chuangjue\\"
+    "female_clothes_01_chuangjue.sdm",
 }
-DEFORMER_SKELETONS = {"male": "model\\character\\skeleton_deformer\\male.skeleton",
-                      "female": "model\\character\\skeleton_deformer\\female.skeleton"}
+DEFORMER_SKELETONS = {
+    "male": "model\\character\\skeleton_deformer\\male.skeleton",
+    "female": "model\\character\\skeleton_deformer\\female.skeleton",
+}
 GROUND_BONES = ("bip001_l_toe0", "bip001_r_toe0", "bip001_l_foot", "bip001_r_foot")
 HIP_BONE = "bip001_pelvis"
 
@@ -61,8 +65,10 @@ def plan_for(read, mesh_paths, report: list) -> tuple[dict | None, str | None, s
         return None, None, ""
     plan = read_plan(read, DEFAULT_OUTFITS[sex])
     if plan:
-        report.append("Adult size: no outfit with an adult plan in this export, so the starter outfit's "
-                      "adult proportions are used.")
+        report.append(
+            "Adult size: no outfit with an adult plan in this export, so the starter outfit's "
+            "adult proportions are used."
+        )
     return plan, sex, DEFAULT_OUTFITS[sex].rsplit("\\", 1)[-1][:-4]
 
 
@@ -71,6 +77,7 @@ class BodyDeformer:
 
     def __init__(self, plan: dict, deformer_skeleton):
         from core.mesh_converter.character_anim import rest_worlds
+
         self.plan = plan
         entries: dict[str, tuple[np.ndarray, bool]] = {}
         for name, sx, sy, sz, carry in plan.get("skeleton_list", []):
@@ -81,10 +88,10 @@ class BodyDeformer:
         self.entries = entries
         worlds = rest_worlds(deformer_skeleton)
         names = [bone_key(n) for n in deformer_skeleton.bone_names]
-        binds = {name: worlds[i].T.copy() for i, name in enumerate(names)}          # row-vector
+        binds = {name: worlds[i].T.copy() for i, name in enumerate(names)}  # row-vector
         parents = {name: (names[p] if p >= 0 else None) for name, p in zip(names, deformer_skeleton.parents)}
         effective, carried, positions = {}, {}, {}
-        for index, name in enumerate(names):            # skeleton files list parents before children
+        for index, name in enumerate(names):  # skeleton files list parents before children
             parent = parents[name]
             own, carry = entries.get(name, (np.ones(3), False))
             inherited = carried.get(parent, np.ones(3))
@@ -116,7 +123,11 @@ class BodyDeformer:
         result = self.maps.get(name)
         if result is None:
             parent = mesh.bone_parent[index] if index < len(mesh.bone_parent) else -1
-            result = self.bone_map(mesh, parent, cache) if 0 <= parent < len(mesh.bone_name) and parent != index else np.eye(4)
+            result = (
+                self.bone_map(mesh, parent, cache)
+                if 0 <= parent < len(mesh.bone_name) and parent != index
+                else np.eye(4)
+            )
         cache[index] = result
         return result
 
@@ -134,15 +145,15 @@ class BodyDeformer:
             bind = np.asarray(mesh.bone_matrix[index], float) if index < len(mesh.bone_matrix) else np.eye(4)
             moved = bind @ mapping
             new_bind = bind.copy()
-            new_bind[3, :3] = moved[3, :3]                       # bones move; their axes stay
+            new_bind[3, :3] = moved[3, :3]  # bones move; their axes stay
             binds.append(new_bind.astype(np.float32))
         vertex_count = len(mesh.position)
         joints = np.full((vertex_count, 4), count, np.int64)
         weights = np.zeros((vertex_count, 4))
         for row, (b, w) in enumerate(zip(mesh.vertex_bone, mesh.vertex_weight)):
             b, w = list(b)[:4], list(w)[:4]
-            joints[row, :len(b)] = b
-            weights[row, :len(w)] = w
+            joints[row, : len(b)] = b
+            weights[row, : len(w)] = w
         joints = np.where((joints < 0) | (joints >= count), count, joints)
         blend = np.einsum("vk,vkij->vij", weights, skins[joints])
         total = weights.sum(1)
@@ -152,8 +163,9 @@ class BodyDeformer:
         shaped = copy.copy(mesh)
         shaped.position = [tuple(p) for p in np.einsum("vi,vij->vj", positions, blend)[:, :3]]
         if mesh.normal and len(mesh.normal) == vertex_count:
-            normals = np.einsum("vi,vij->vj", np.asarray(mesh.normal, float),
-                                np.linalg.inv(blend[:, :3, :3]).transpose(0, 2, 1))
+            normals = np.einsum(
+                "vi,vij->vj", np.asarray(mesh.normal, float), np.linalg.inv(blend[:, :3, :3]).transpose(0, 2, 1)
+            )
             normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-9)
             shaped.normal = [tuple(n) for n in normals]
         shaped.bone_matrix = binds
@@ -163,6 +175,7 @@ class BodyDeformer:
 def deformer_for(read, mesh_paths, report: list):
     """(BodyDeformer, source name) for a character made of these meshes, or (None, "")."""
     from core.npk import neox_anim
+
     plan, sex, source = plan_for(read, mesh_paths, report)
     if plan is None or sex is None:
         return None, ""

@@ -6,7 +6,14 @@ from pathlib import Path
 from threading import RLock
 from types import SimpleNamespace
 
-from core.npk.asset_paths import AssetPathIndex, archive_root, normalize_path, murmur3_32, compatible_extension, RESOURCE_FOLDER
+from core.npk.asset_paths import (
+    AssetPathIndex,
+    archive_root,
+    normalize_path,
+    murmur3_32,
+    compatible_extension,
+    RESOURCE_FOLDER,
+)
 from core.npk.npkhash_v1 import mesh_hash
 from core.npk.class_types import NPKEntry, NPKEntryDataFlags, State
 from core.npk.detection import get_file_category
@@ -15,7 +22,6 @@ from core.npk.scan_control import checkpoint, report_progress
 from core.npk.metadata_references import MetadataReferences
 from core.process_memory import check_scan_memory
 
-
 METADATA_EXTENSIONS = {"mtl", "dat", "xml", "gim", "mtg"}
 BINARY_CACHE_BYTES = 32 * 1024 * 1024
 PATH_CACHE_ENTRIES = 16384
@@ -23,9 +29,11 @@ PATH_CACHE_ENTRIES = 16384
 
 def resource_roots(game):
     """Inspect only immediate resource directories, never the whole game tree."""
-    roots = [child for child in game.iterdir()
-             if RESOURCE_FOLDER.fullmatch(child.name) and child.is_dir()
-             and child.resolve().is_relative_to(game)]
+    roots = [
+        child
+        for child in game.iterdir()
+        if RESOURCE_FOLDER.fullmatch(child.name) and child.is_dir() and child.resolve().is_relative_to(game)
+    ]
     return sorted(roots, key=lambda root: (int(root.name[3:] or "0"), root.name.lower()))
 
 
@@ -98,7 +106,9 @@ class RelatedArchiveSet:
         source_path = str(Path(archive.file_path).resolve())
         location = resource_location(source_path)
         self._locations[source] = location
-        self._source_labels[source] = str(Path(source_path).relative_to(location[0])) if location else Path(source_path).name
+        self._source_labels[source] = (
+            str(Path(source_path).relative_to(location[0])) if location else Path(source_path).name
+        )
         signatures = self._signatures[source] = {}
         self._source_offsets[source] = len(self.indices) if primary else None
         for local, index in enumerate(archive.indices):
@@ -168,7 +178,9 @@ class RelatedArchiveSet:
         if entry.extension in METADATA_EXTENSIONS or entry.data_flags & NPKEntryDataFlags.TEXT:
             self._metadata_references[index] = MetadataReferences.from_bytes(entry.data)
         if cache:
-            size = len(entry.data) + (len(entry.source_data) if entry.source_data is not None and entry.source_data is not entry.data else 0)
+            size = len(entry.data) + (
+                len(entry.source_data) if entry.source_data is not None and entry.source_data is not entry.data else 0
+            )
             self._loaded[index] = size
             while len(self._loaded) > 8 or sum(self._loaded.values()) > BINARY_CACHE_BYTES:
                 old, _ = self._loaded.popitem(last=False)
@@ -219,8 +231,9 @@ class RelatedArchiveSet:
                 for sibling in related_archive_paths(archive.file_path):
                     if str(sibling).lower() == str(Path(archive.file_path).resolve()).lower():
                         continue
-                    paths = AssetPathIndex(SimpleNamespace(file_path=str(sibling), entries={}, indices=[])).manifest_paths(
-                        progress=progress, cancelled=cancelled)
+                    paths = AssetPathIndex(
+                        SimpleNamespace(file_path=str(sibling), entries={}, indices=[])
+                    ).manifest_paths(progress=progress, cancelled=cancelled)
                     if paths:
                         break
             self._manifests[source] = paths
@@ -233,7 +246,7 @@ class RelatedArchiveSet:
                 checkpoint(cancelled)
             if not path.startswith(mount + "\\"):
                 continue
-            for local in self._signatures[source].get(murmur3_32(path[len(mount) + 1:]), ()):
+            for local in self._signatures[source].get(murmur3_32(path[len(mount) + 1 :]), ()):
                 index = self._entry_id(source, local)
                 entry = self.entries[index]
                 entry.filename = path
@@ -257,8 +270,11 @@ class RelatedArchiveSet:
                     # Named metadata is read now; unnamed entries only when small,
                     # since their type is unknown until read.
 
-                    if index not in self._metadata_references and (entry.extension in METADATA_EXTENSIONS or not entry.extension
-                                                                   and entry.file_original_length <= 1048576):
+                    if index not in self._metadata_references and (
+                        entry.extension in METADATA_EXTENSIONS
+                        or not entry.extension
+                        and entry.file_original_length <= 1048576
+                    ):
                         with self._lock:
                             self._read(index, stream=stream)
                     completed += 1
@@ -269,8 +285,7 @@ class RelatedArchiveSet:
             entry.state = State.CACHED
 
     def _target_sources(self, path, preferred):
-        matches = [s for s, mount in self._mounts.items()
-                   if mount and path.startswith(mount + "\\")]
+        matches = [s for s, mount in self._mounts.items() if mount and path.startswith(mount + "\\")]
         if matches:
             return matches
         location = resource_location(self.file_path)
@@ -320,7 +335,7 @@ class RelatedArchiveSet:
                 signatures = set()
                 for actual in variants:
                     if actual.startswith(mount + "\\"):
-                        signatures.add(murmur3_32(actual[len(mount) + 1:]))
+                        signatures.add(murmur3_32(actual[len(mount) + 1 :]))
                     signatures.update((murmur3_32(actual), mesh_hash(actual)))
                 self._remember(self._path_signatures, hash_key, signatures)
             else:
@@ -352,6 +367,7 @@ class RelatedArchiveSet:
 
     def build_catalog(self, roots=None, names=None, *, progress=None, cancelled=None):
         from core.npk.character_catalog import build_character_catalog, CharacterCatalog
+
         if not self.prepared:
             self.prepare(progress=progress, cancelled=cancelled)
         assets, folders, mapped = {}, {}, set()
@@ -359,16 +375,21 @@ class RelatedArchiveSet:
         for source in self.primary_sources:
             checkpoint(cancelled)
             scope = SimpleNamespace(
-                file_path=self.archives[source].file_path, entries=self.entries,
-                indices=[], metadata_entries={i: entry for i, entry in self.entries.items() if self.records[i][0] == source},
+                file_path=self.archives[source].file_path,
+                entries=self.entries,
+                indices=[],
+                metadata_entries={i: entry for i, entry in self.entries.items() if self.records[i][0] == source},
                 get_metadata_paths=self.get_metadata_paths,
                 get_character_folder_paths=self.get_character_folder_paths,
                 resolve_asset_path=lambda path, s=source: self.resolve_asset_path(path, s, cancelled=cancelled),
-                get_manifest_paths=lambda **kw: self.manifest_paths_for(source, **kw))
+                get_manifest_paths=lambda **kw: self.manifest_paths_for(source, **kw),
+            )
             catalog = build_character_catalog(scope, roots, names, progress=progress, cancelled=cancelled)
             manifest_used |= catalog.manifest_used
-            keys = {path: f"{asset.entry_index if asset.entry_index is not None else 'missing' + str(source)}:{path}"
-                    for path, asset in catalog.assets.items()}
+            keys = {
+                path: f"{asset.entry_index if asset.entry_index is not None else 'missing' + str(source)}:{path}"
+                for path, asset in catalog.assets.items()
+            }
             for path, asset in catalog.assets.items():
                 asset.textures = [keys[p] for p in asset.textures]
                 asset.metadata = [keys[p] for p in asset.metadata]
@@ -386,5 +407,9 @@ class RelatedArchiveSet:
                 existing.metadata = list(dict.fromkeys(existing.metadata + asset.metadata))
             for folder, paths in catalog.folders.items():
                 folders[folder] = list(dict.fromkeys(folders.get(folder, []) + [keys[p] for p in paths]))
-        unmapped = [i for i, e in self.entries.items() if i < self.file_count and i not in mapped and e.extension in {"mesh", "dds", "tga"}]
+        unmapped = [
+            i
+            for i, e in self.entries.items()
+            if i < self.file_count and i not in mapped and e.extension in {"mesh", "dds", "tga"}
+        ]
         return CharacterCatalog(assets, folders, unmapped, len(self.entries), manifest_used)

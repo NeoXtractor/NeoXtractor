@@ -15,14 +15,14 @@ from gui.utils.character_tree_index import CharacterTreeIndex
 from gui.windows import character_folders_window as cfw
 
 SEPARATOR = "  ·  "
-LABEL_ROLE = QtCore.Qt.ItemDataRole.UserRole + 41      # a folder's own label, before the name is added
+LABEL_ROLE = QtCore.Qt.ItemDataRole.UserRole + 41  # a folder's own label, before the name is added
 ICON_SIZE = 96
 
 _state = {"links": {}, "names": {}, "index": None, "generation": 0, "pixmaps": {}}
 
 
 class _Signals(QtCore.QObject):
-    loaded = QtCore.Signal(int, object, object)        # generation, links, pack index
+    loaded = QtCore.Signal(int, object, object)  # generation, links, pack index
 
 
 _signals: _Signals | None = None
@@ -32,10 +32,10 @@ def _link(path):
     if not _state["links"] or not path:
         return None
     from core.npk.game_tables import link_for
+
     return link_for(_state["links"], str(path))
 
 
-# -- search ------------------------------------------------------------------------------------------
 def _patch_search() -> None:
     if getattr(CharacterTreeIndex, "_names_patched", False):
         return
@@ -47,10 +47,12 @@ def _patch_search() -> None:
         text = getattr(self, "text", "")
         if not text or not _state["names"]:
             return False
-        name = _state["names"].get(str(getattr(asset, "path", "")).lower()) or _state["names"].get(str(mesh_path).lower())
+        name = _state["names"].get(str(getattr(asset, "path", "")).lower()) or _state["names"].get(
+            str(mesh_path).lower()
+        )
         if not name or text not in name.lower():
             return False
-        self.text = ""                                   # the name matched: apply the tab's other filters
+        self.text = ""  # the name matched: apply the tab's other filters
         try:
             return original(self, asset, mesh_path)
         finally:
@@ -60,7 +62,6 @@ def _patch_search() -> None:
     CharacterTreeIndex._names_patched = True
 
 
-# -- tree labels -------------------------------------------------------------------------------------
 def _folder_link(page, directory):
     catalog = getattr(page, "catalog", None)
     if catalog is None:
@@ -98,7 +99,6 @@ def _wrap_asset_item(page) -> None:
     page._asset_item = asset_item
 
 
-# -- icon panel --------------------------------------------------------------------------------------
 def _icon_pixmap(link):
     path = link.get("icon")
     if not path or _state["index"] is None:
@@ -109,12 +109,17 @@ def _icon_pixmap(link):
         if found is not None:
             try:
                 from core.npk.stage_export import decode_texture
+
                 image = decode_texture(found[0]).convert("RGBA")
-                qimage = QtGui.QImage(image.tobytes(), image.width, image.height, 4 * image.width,
-                                      QtGui.QImage.Format.Format_RGBA8888).copy()
+                qimage = QtGui.QImage(
+                    image.tobytes(), image.width, image.height, 4 * image.width, QtGui.QImage.Format.Format_RGBA8888
+                ).copy()
                 _state["pixmaps"][path] = QtGui.QPixmap.fromImage(qimage).scaled(
-                    ICON_SIZE, ICON_SIZE, QtCore.Qt.AspectRatioMode.KeepAspectRatio,
-                    QtCore.Qt.TransformationMode.SmoothTransformation)
+                    ICON_SIZE,
+                    ICON_SIZE,
+                    QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                    QtCore.Qt.TransformationMode.SmoothTransformation,
+                )
             except Exception:
                 get_logger().warning("Could not decode the item icon %s", path, exc_info=True)
     return _state["pixmaps"][path]
@@ -146,7 +151,7 @@ def _install_panel(page):
             directory = item.data(0, cfw.FOLDER_PATH_ROLE)
             if path:
                 link = _link(path)
-                if link is None:                        # a texture / metadata row: its folder's item
+                if link is None:  # a texture / metadata row: its folder's item
                     link = _folder_link(page, str(path).rsplit("\\", 1)[0])
             elif directory:
                 link = _folder_link(page, directory)
@@ -155,14 +160,15 @@ def _install_panel(page):
             return
         pixmap = _icon_pixmap(link)
         icon.setPixmap(pixmap if pixmap is not None else QtGui.QPixmap())
-        text.setText(f"<b>{link.get('name') or '(no name)'}</b><br><span style='color:gray'>item {link.get('item')}"
-                     f"<br>{link.get('icon', '').rsplit('/', 1)[-1]}</span>")
+        text.setText(
+            f"<b>{link.get('name') or '(no name)'}</b><br><span style='color:gray'>item {link.get('item')}"
+            f"<br>{link.get('icon', '').rsplit('/', 1)[-1]}</span>"
+        )
         panel.show()
 
     page.tree.currentItemChanged.connect(show_for)
 
 
-# -- loading -----------------------------------------------------------------------------------------
 def _load(page) -> None:
     """Load the mesh -> item links for the open archive's game in the background."""
     archive = getattr(page, "npk_file", None)
@@ -170,6 +176,7 @@ def _load(page) -> None:
     if not path or getattr(page, "catalog", None) is None:
         return
     from core.npk.stage_export import game_root_for
+
     game = game_root_for(path)
     if game is None:
         return
@@ -180,6 +187,7 @@ def _load(page) -> None:
         try:
             from core.npk import game_tables
             from core.npk.stage_export import PackIndex, read_options_for
+
             options = read_options_for(archive)
             index = PackIndex(game, options)
             links = game_tables.mesh_links(game, options, lambda p: (index.read(p) or (None,))[0])

@@ -28,8 +28,12 @@ class HairDye:
                 value = row.get("color_value") if isinstance(row, dict) else None
                 if not value:
                     continue
-                colors.append((key, tuple(float(c) for c in value[:3]), row.get("main_color_id", key), row.get("sort_id", 0)))
-            colors.sort(key=lambda c: (c[2] if isinstance(c[2], int) else 0, c[3] or 0, c[0] if isinstance(c[0], int) else 0))
+                colors.append(
+                    (key, tuple(float(c) for c in value[:3]), row.get("main_color_id", key), row.get("sort_id", 0))
+                )
+            colors.sort(
+                key=lambda c: (c[2] if isinstance(c[2], int) else 0, c[3] or 0, c[0] if isinstance(c[0], int) else 0)
+            )
             self._colors = [(c[0], c[1], c[2]) for c in colors]
         return self._colors
 
@@ -44,8 +48,16 @@ class HairDye:
                 folder = rs.rsplit("\\", 1)[0]
                 stem = folder.rsplit("\\", 1)[-1]
                 sex = "female" if "\\girl\\" in folder.lower() else "male"
-                hairs.append({"folder": folder, "mesh": f"{folder}\\{stem}.mesh", "qs": row["high_qs_tex"].replace("/", "\\"),
-                              "rs": rs, "dress_id": key, "sex": sex})
+                hairs.append(
+                    {
+                        "folder": folder,
+                        "mesh": f"{folder}\\{stem}.mesh",
+                        "qs": row["high_qs_tex"].replace("/", "\\"),
+                        "rs": rs,
+                        "dress_id": key,
+                        "sex": sex,
+                    }
+                )
             unique = {}
             for hair in hairs:
                 unique.setdefault(hair["folder"].lower(), hair)
@@ -54,6 +66,7 @@ class HairDye:
 
     def image(self, path):
         from core.npk.stage_export import decode_texture
+
         if path not in self._images:
             found = self.index.read(path)
             image = None
@@ -71,6 +84,7 @@ class HairDye:
         edges.
         """
         from PIL import Image
+
         base = self.image(hair["qs"])
         mask = self.image(hair["rs"])
         if base is None or mask is None:

@@ -12,6 +12,7 @@ import re
 import threading
 import zlib
 from pathlib import Path
+from core.logger import get_logger
 
 CACHE_VERSION = 1
 _LOCK = threading.Lock()
@@ -21,6 +22,7 @@ _RES_FOLDER = re.compile(r"res\d*", re.IGNORECASE)
 def _cache_file(opened: str) -> Path:
     try:
         from core.utils import get_application_path
+
         folder = Path(get_application_path()) / "scan_cache"
     except Exception:
         folder = Path(os.getcwd()) / "scan_cache"
@@ -62,6 +64,7 @@ def load(archive_set) -> int:
     if saved.get("version") != CACHE_VERSION or saved.get("stamp") != current:
         return 0
     from core.npk.metadata_references import MetadataReferences
+
     references = archive_set._metadata_references
     given = 0
     for index, (assets, folders) in saved.get("named", {}).items():
@@ -78,9 +81,13 @@ def save(archive_set, named: set) -> None:
     if current is None:
         return
     references = archive_set._metadata_references
-    data = {"version": CACHE_VERSION, "stamp": current,
-            "named": {str(i): [list(references[i].assets), list(references[i].folders)]
-                      for i in sorted(named) if i in references}}
+    data = {
+        "version": CACHE_VERSION,
+        "stamp": current,
+        "named": {
+            str(i): [list(references[i].assets), list(references[i].folders)] for i in sorted(named) if i in references
+        },
+    }
     path = _cache_file(str(archive_set.file_path))
     try:
         with _LOCK:
@@ -95,6 +102,7 @@ def save(archive_set, named: set) -> None:
 def install() -> bool:
     """Wrap RelatedArchiveSet.prepare (and _read, to learn which entries were named); False if already done."""
     from core.npk import related_archives
+
     cls = related_archives.RelatedArchiveSet
     if getattr(cls.prepare, "_metadata_cache", False):
         return False
@@ -126,7 +134,7 @@ def install() -> bool:
             try:
                 save(self, named)
             except Exception:
-                pass
+                get_logger().debug("Could not save the metadata cache", exc_info=True)
         return result
 
     prepare._metadata_cache = True

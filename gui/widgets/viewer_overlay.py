@@ -37,8 +37,10 @@ def overlay_font() -> QtGui.QFont:
         family = None
         try:
             from core.utils import get_application_path
+
             font_id = QtGui.QFontDatabase.addApplicationFont(
-                os.path.join(str(get_application_path()), "data", "fonts", "Roboto-Regular.ttf"))
+                os.path.join(str(get_application_path()), "data", "fonts", "Roboto-Regular.ttf")
+            )
             families = QtGui.QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
             family = families[0] if families else None
         except Exception:
@@ -61,7 +63,7 @@ class InfoTable(QtWidgets.QWidget):
         self.grid.setHorizontalSpacing(0)
         self.grid.setVerticalSpacing(0)
         self.grid.setColumnMinimumWidth(0, LABEL_WIDTH)
-        self.grid.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetFixedSize)   # always as big as its rows
+        self.grid.setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetFixedSize)  # always as big as its rows
 
     def set_rows(self, rows):
         while self.grid.count():
@@ -98,8 +100,12 @@ class ViewOverlays(QtCore.QObject):
         self.place()
 
     def _show_keys(self):
-        self.keys.set_rows([(key, action[1 if self._alternative else 0] if isinstance(action, tuple) else action)
-                            for key, action in INSTRUCTIONS])
+        self.keys.set_rows(
+            [
+                (key, action[1 if self._alternative else 0] if isinstance(action, tuple) else action)
+                for key, action in INSTRUCTIONS
+            ]
+        )
         self.place()
 
     def place(self):
@@ -119,9 +125,11 @@ class ViewOverlays(QtCore.QObject):
             kind = event.type()
             if kind in (QtCore.QEvent.Type.Resize, QtCore.QEvent.Type.Show):
                 self.place()
-            elif kind in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease) and \
-                    event.key() == QtCore.Qt.Key.Key_Control:
-                alternative = kind == QtCore.QEvent.Type.KeyPress     # Ctrl shows the other view of each key
+            elif (
+                kind in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease)
+                and event.key() == QtCore.Qt.Key.Key_Control
+            ):
+                alternative = kind == QtCore.QEvent.Type.KeyPress  # Ctrl shows the other view of each key
                 if alternative != self._alternative:
                     self._alternative = alternative
                     self._show_keys()

@@ -19,6 +19,7 @@ def enabled(settings=None) -> bool:
     if settings is None:
         try:
             from PySide6 import QtWidgets
+
             app = QtWidgets.QApplication.instance()
             settings = app.property("settings_manager") if app is not None else None
         except Exception:
@@ -123,8 +124,9 @@ def _kmeans_1d(values, centres, rounds=25):
     centres = np.array(centres, float)
     for _ in range(rounds):
         labels = np.argmin(np.abs(values[:, None] - centres[None, :]), axis=1)
-        updated = np.array([values[labels == k].mean() if np.any(labels == k) else centres[k]
-                            for k in range(len(centres))])
+        updated = np.array(
+            [values[labels == k].mean() if np.any(labels == k) else centres[k] for k in range(len(centres))]
+        )
         if np.allclose(updated, centres):
             break
         centres = updated
@@ -142,14 +144,13 @@ def _split_hand(rig: _Rig, side: str, report) -> bool:
     index1, middle1, middle2 = rig.find(prefix + "1"), rig.find(prefix + "2"), rig.find(prefix + "21")
     if None in (index1, middle1, middle2) or rig.find(prefix + "3") is not None:
         return False
-    on_middle = [v for v in range(len(rig.joints))
-                 if rig.weight_on(v, middle1) + rig.weight_on(v, middle2) > 0.0]
+    on_middle = [v for v in range(len(rig.joints)) if rig.weight_on(v, middle1) + rig.weight_on(v, middle2) > 0.0]
     if len(on_middle) < 30:
         return False
     base, tip_bone = rig.pos(middle1), rig.pos(middle2)
-    along = _unit(tip_bone - base)                       # down the finger
+    along = _unit(tip_bone - base)  # down the finger
     across = rig.pos(index1) - base
-    across = _unit(across - along * float(across @ along))   # towards the index finger
+    across = _unit(across - along * float(across @ along))  # towards the index finger
     spacing = abs(float((rig.pos(index1) - base) @ across)) or 0.1
     points = rig.positions[on_middle]
     t = (points - base) @ across
@@ -162,7 +163,7 @@ def _split_hand(rig: _Rig, side: str, report) -> bool:
         apart = dominant
     sample = t[apart]
     centres, _labels = _kmeans_1d(sample, np.percentile(sample, [85, 50, 15]))
-    order = np.argsort(-centres)                         # middle (nearest the index), ring, little
+    order = np.argsort(-centres)  # middle (nearest the index), ring, little
     centres = centres[order]
     counts = [int(np.sum(np.argmin(np.abs(sample[:, None] - centres[None, :]), axis=1) == k)) for k in range(3)]
     gaps = -np.diff(centres)
@@ -194,7 +195,7 @@ def _split_hand(rig: _Rig, side: str, report) -> bool:
     # the three-finger bundle, so the middle finger moves over to its own finger as well
     for k, number in ((1, "3"), (2, "4")):
         shift = across * float(centres[k])
-        shorter = tips[k] - middle_tip                   # < 0: a shorter finger, its joints sit a little higher
+        shorter = tips[k] - middle_tip  # < 0: a shorter finger, its joints sit a little higher
         knuckle = centre(k, 0.25 * shorter, base + shift + along * (0.25 * shorter))
         joint = centre(k, joint_s + 0.6 * shorter, tip_bone + shift + along * (0.6 * shorter))
         first = rig.add_bone(prefix + number, rig.parents[middle1], middle1, knuckle)
@@ -234,7 +235,7 @@ def _split_tip(rig: _Rig, side: str, base_name: str, end_name: str, new_name: st
     split = 0.5 * length
     place = start + along * split
     near = np.array(dominant) & (np.abs(s - split) < 0.15 * length)
-    if int(np.sum(near)) >= 4:                           # in the middle of the finger there, not on its surface
+    if int(np.sum(near)) >= 4:  # in the middle of the finger there, not on its surface
         found = rig.positions[on_end][near].mean(axis=0)
         place = found + along * float(split - (found - start) @ along)
     new = rig.add_bone(prefix + new_name, end, end, place)
@@ -251,8 +252,13 @@ def five_fingers(mesh, report=None):
     rig = _Rig(mesh)
     for side in ("l", "r"):
         _split_hand(rig, side, report)
-        for base_name, end_name, new_name in (("0", "01", "02"), ("1", "11", "12"), ("2", "21", "22"),
-                                              ("3", "31", "32"), ("4", "41", "42")):
+        for base_name, end_name, new_name in (
+            ("0", "01", "02"),
+            ("1", "11", "12"),
+            ("2", "21", "22"),
+            ("3", "31", "32"),
+            ("4", "41", "42"),
+        ):
             _split_tip(rig, side, base_name, end_name, new_name)
     if not rig.added:
         return mesh
@@ -264,7 +270,7 @@ def five_fingers(mesh, report=None):
     shaped.vertex_weight = rig.weights
     sources = getattr(mesh, "bone_source_names", None)
     if sources:
-        shaped.bone_source_names = list(sources) + rig.names[len(sources):]
+        shaped.bone_source_names = list(sources) + rig.names[len(sources) :]
     return shaped
 
 
@@ -292,7 +298,7 @@ def copy_finger_keys(names: list[str], keys):
                 targets.append(position[name])
             source_keys = [key for key in keys if key[0] == source]
             if any(key[0] in targets for key in keys):
-                continue                                  # the motion already moves them
+                continue  # the motion already moves them
             for _bone, frame, offset, rotation in source_keys:
                 extra.extend((target, frame, offset, rotation) for target in targets)
     return names, list(keys) + extra
