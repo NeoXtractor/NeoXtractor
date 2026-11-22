@@ -6,6 +6,7 @@ import sys
 from PySide6 import QtWidgets, QtCore
 from core.utils import get_application_path
 from core.logger import get_logger
+from gui import addons
 from gui.config_manager import ConfigManager
 from gui.fonts import load_font
 from gui.settings_manager import SettingsManager
@@ -17,6 +18,7 @@ def run():
     """Run NeoXtractor as a GUI application."""
 
     get_logger().info("Starting NeoXtractor in GUI mode...")
+    addons.install_speedups()
 
     app = QtWidgets.QApplication(sys.argv)
 
@@ -60,5 +62,6 @@ def run():
     main_window = MainWindow()
     main_window.resize(1000, 800)
     main_window.show()
+    addons.install(app)
 
     app.exec()

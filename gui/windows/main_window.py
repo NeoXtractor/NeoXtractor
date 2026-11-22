@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Any, cast
+from typing import Callable, Any, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -11,8 +11,6 @@ from core.logger import get_logger
 from core.npk.class_types import NPKEntry, NPKEntryDataFlags, NPKReadOptions
 from core.npk.enums import NPKEntryFileCategories
 from core.npk.npk_file import NPKFile
-from core.npk.related_archives import RelatedArchiveSet, resource_location
-from core.npk.scan_control import CharacterScanCancelled
 from core.wpk.wpk_file import IDXWPKFile
 from gui.config_manager import ConfigManager
 from gui.models.npk_file_model import NPKFileModel
@@ -23,7 +21,6 @@ from gui.utils.viewer import ALL_VIEWERS, find_best_viewer
 from gui.widgets.npk_file_list import NPKFileList
 from gui.widgets.preview_widget import PreviewWidget
 from gui.windows.about_window import AboutWindow
-from gui.windows.character_folders_window import CharacterFoldersWindow
 from gui.windows.config_manager import ConfigManagerWindow
 from gui.windows.settings_window import SettingsWindow
 from gui.windows.viewer_tab_window import ViewerTabWindow
@@ -44,12 +41,14 @@ class MainWindow(QtWidgets.QMainWindow):
     _config_list_refreshing = False
 
     _viewer_windows: dict[Any, ViewerTabWindow] = {}
-    _character_folders_window: CharacterFoldersWindow | None = None
 
     def __init__(self):
         super().__init__()
+        # Per window: the class-level dict would be shared by every main window
         self._viewer_windows = {}
-        self._archive_loading = False
+        # Add-ons may open an archive their own way: each opener takes (path, read options) and returns an
+        # archive, or None to leave it to the next one (and in the end to the NPK / IDX readers)
+        self.archive_openers: list[Callable[[str, NPKReadOptions], Any]] = []
 
         self.app = cast(QtCore.QCoreApplication, QtWidgets.QApplication.instance())
 
@@ -58,7 +57,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update_model_signal.connect(self._update_model)
         self.loading_complete_signal.connect(self._loading_complete)
         self.loading_error_signal.connect(self._loading_failed)
-        self.loading_stage_signal.connect(self._character_scan_progress)
+        self.loading_stage_signal.connect(self._loading_stage)
 
         self.setWindowTitle("NeoXtractor")
 
@@ -117,8 +116,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         def filter_text_changed():
             self.filter.filter_string = self.name_filter_input.text().lower()
-            self._apply_archive_filter_if_visible()
-            self._sync_character_filters()
+            self.filter.apply_filter()
 
         self.name_filter_input.textChanged.connect(filter_text_changed)
         self.filter_section.addWidget(self.name_filter_input)
@@ -130,8 +128,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         def filter_binary_filter_changed(checked: bool):
             self.filter.include_binary = checked
-            self._apply_archive_filter_if_visible()
-            self._sync_character_filters()
+            self.filter.apply_filter()
 
         self.filter_binary_filter.toggled.connect(filter_binary_filter_changed)
         self.filter_checkbox_section.addWidget(self.filter_binary_filter, 0, 0)
@@ -141,8 +138,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         def filter_text_filter_changed(checked: bool):
             self.filter.include_text = checked
-            self._apply_archive_filter_if_visible()
-            self._sync_character_filters()
+            self.filter.apply_filter()
 
         self.filter_text_filter.toggled.connect(filter_text_filter_changed)
         self.filter_checkbox_section.addWidget(self.filter_text_filter, 0, 1)
@@ -152,8 +148,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         def filter_slot_filter_changed(checked: bool):
             self.filter.include_slot = checked
-            self._apply_archive_filter_if_visible()
-            self._sync_character_filters()
+            self.filter.apply_filter()
 
         self.filter_slot_filter.toggled.connect(filter_slot_filter_changed)
         self.filter_checkbox_section.addWidget(self.filter_slot_filter, 0, 2)
@@ -164,19 +159,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.entry_category_filter_combobox.addItem("All", None)
         for i in NPKEntryFileCategories:
             self.entry_category_filter_combobox.addItem(i.value, i)
-        self.entry_category_filter_combobox.addItem("Characters", "characters")
         self.entry_category_filter_combobox.setCurrentIndex(0)
 
         def filter_type_changed(index: int):
-            selected_filter = self.entry_category_filter_combobox.itemData(index)
-            if selected_filter == "characters":
-                self.filter.filter_type = None
-                self.mesh_biped_head_filter_checkbox.setVisible(False)
-                self.open_character_folders()
-                return
-
-            self.left_content.setCurrentWidget(self.list_widget)
-            self.filter.filter_type = selected_filter
+            self.filter.filter_type = self.entry_category_filter_combobox.itemData(
+                index
+            )
             self.mesh_biped_head_filter_checkbox.setVisible(
                 self.filter.filter_type == NPKEntryFileCategories.MESH
             )
@@ -202,21 +190,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.filter_section.addWidget(self.mesh_biped_head_filter_checkbox)
 
         self.control_layout.addLayout(self.filter_section)
-        self.left_content = QtWidgets.QStackedWidget(self)
-        self.left_content.addWidget(self.list_widget)
-        self._character_folders_window = CharacterFoldersWindow(None, None, self)
-        self._character_folders_window.open_entry_with.connect(open_tab_window_for_entry)
-        self._character_folders_window.scan_started.connect(self._character_scan_started)
-        self._character_folders_window.scan_progress.connect(self._character_scan_progress)
-        self._character_folders_window.scan_finished.connect(self._character_scan_finished)
-        self._character_folders_window.preview_entry_requested.connect(
-            self.preview_character_entry
-        )
-        self._character_folders_window.unresolved_requested.connect(
-            self.show_unresolved_character_asset
-        )
-        self.left_content.addWidget(self._character_folders_window)
-        self.control_layout.addWidget(self.left_content, stretch=1)
+        self.control_layout.addWidget(self.list_widget)
 
         self.progress_bar = QtWidgets.QProgressBar(self)
         self.progress_bar.setVisible(False)
@@ -227,21 +201,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cancel_button.setVisible(False)
 
         def cancel_loading():
-            if self._character_folders_window.scan_busy:
-                self._character_folders_window.cancel_scan()
-            else:
-                self._loading_cancelled = True
+            self._loading_cancelled = True
 
         self.cancel_button.clicked.connect(cancel_loading)
         self.control_layout.addWidget(self.cancel_button)
 
         def extract_all(visible_only: bool = False):
-            if visible_only and self.entry_category_filter_combobox.currentData() == "characters":
-                self._character_folders_window.extract_visible()
-                return
             model = self.list_widget.model()
-            if model is None:
-                return
             all_indexes = [model.index(i, 0) for i in range(model.rowCount())]
 
             if visible_only:
@@ -323,15 +289,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             open_file.triggered.connect(open_file_dialog)
             self.open_file_action = open_file
-            self.related_archives_action = menu.addAction("Load all same-name related copies together (HPMA)")
-            self.related_archives_action.setCheckable(True)
-            self.related_archives_action.setChecked(self.settings_manager.get("hpma.related_archives", True))
-            self.related_archives_action.setStatusTip(
-                "On next open, include matching filenames from res, res2, res3, res4, etc.; no whole-folder scan."
-            )
-            self.related_archives_action.toggled.connect(
-                lambda enabled: self.settings_manager.set("hpma.related_archives", enabled, save=True)
-            )
 
             unload_npk = QtGui.QAction(
                 self.style().standardIcon(
@@ -390,16 +347,6 @@ class MainWindow(QtWidgets.QMainWindow):
         def tools_menu() -> QtWidgets.QMenu:
             menu = QtWidgets.QMenu("Tools")
 
-            self.character_folders_action = menu.addAction(
-                "Scan character folders", self.scan_character_folders
-            )
-            self.character_folders_action.setEnabled(False)
-            self.character_folders_action.setStatusTip(
-                "Find character-family folders from decoded model metadata."
-            )
-
-            menu.addSeparator()
-
             for viewer in ALL_VIEWERS:
                 menu.addAction(
                     viewer.name,
@@ -425,92 +372,6 @@ class MainWindow(QtWidgets.QMainWindow):
         """Get all viewer tab windows."""
         return list(self._viewer_windows.values())
 
-    def _sync_character_filters(self):
-        page = self._character_folders_window
-        if page is not None:
-            page.set_filters(
-                self.name_filter_input.text(),
-                self.filter_binary_filter.isChecked(),
-                self.filter_text_filter.isChecked(),
-                self.filter_slot_filter.isChecked(),
-            )
-
-    def _apply_archive_filter_if_visible(self):
-        # The archive list is hidden while the Characters page is shown;
-        # filtering it then would only read every entry for nothing.
-        if self.entry_category_filter_combobox.currentData() != "characters":
-            self.filter.apply_filter()
-
-    def scan_character_folders(self):
-        """Explicit Tools scan always refreshes the current archive's catalog."""
-        npk_file = self.app.property("npk_file")
-        if npk_file is None:
-            return
-        self._character_folders_window.set_archive(
-            npk_file,
-            getattr(self.config, "character_folder_roots", None),
-            getattr(self.config, "entry_signature_name_map", {}),
-        )
-        self.open_character_folders()
-
-    def _character_scan_started(self):
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 1)
-        self.progress_bar.setValue(0)
-        self.cancel_button.setVisible(True)
-        self.cancel_button.setStatusTip("Cancel the character-folder scan; keep the archive loaded.")
-        self.open_file_action.setEnabled(False)
-        self.active_config.setEnabled(False)
-        self.character_folders_action.setEnabled(False)
-        self.extract_button_widget.setEnabled(False)
-
-    @QtCore.Slot(str, int, int)
-    def _character_scan_progress(self, stage, current, total):
-        self.progress_bar.setFormat(stage + "… (%v/%m)")
-        self.progress_bar.setRange(0, max(total, 1))
-        self.progress_bar.setValue(current)
-
-    def _character_scan_finished(self, _outcome):
-        if self._archive_loading:
-            return
-        self.progress_bar.setVisible(False)
-        self.cancel_button.setVisible(False)
-        self.cancel_button.setStatusTip("Cancel loading the NPK file.")
-        self.open_file_action.setEnabled(True)
-        self.active_config.setEnabled(True)
-        self.character_folders_action.setEnabled(self.app.property("npk_file") is not None)
-        self.extract_button_widget.setEnabled(True)
-
-    def open_character_folders(self):
-        """Select the embedded Characters page in the main filter dropdown."""
-        combo = self.entry_category_filter_combobox
-        if combo.currentData() != "characters":
-            combo.setCurrentIndex(combo.findData("characters"))
-            return
-        page = self._character_folders_window
-        npk_file = self.app.property("npk_file")
-        if page.npk_file is not npk_file:
-            page.set_archive(
-                npk_file,
-                getattr(self.config, "character_folder_roots", None),
-                getattr(self.config, "entry_signature_name_map", {}),
-            )
-        self.left_content.setCurrentWidget(page)
-        self._sync_character_filters()
-
-    def preview_character_entry(self, index):
-        """Use the actual entry type to select the right-hand preview."""
-        npk_file = self.app.property("npk_file")
-        if npk_file is not None and index in npk_file.entries:
-            self.preview_widget.set_file(npk_file.find_entry_by_id(index))
-
-    def show_unresolved_character_asset(self, path):
-        """Do not pretend a reference's metadata source is the requested mesh."""
-        self.preview_widget.clear()
-        self.preview_widget.message_label.setText(
-            "Referenced asset is not present in the loaded archive.\n" + path
-        )
-
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         force_close = False
         for viewer_window in self._viewer_windows.values():
@@ -535,13 +396,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     event.ignore()
                     return
-        self._character_folders_window.cancel_scan(announce=False)
 
     def unload_npk(self):
         """Unload the NPK file."""
 
-        if self._character_folders_window is not None:
-            self._character_folders_window.cancel_scan(announce=False)
         if self.app.property("npk_file") is None:
             return
 
@@ -551,9 +409,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.extract_button_widget.setVisible(False)
         self.preview_widget.clear()
         self.unload_npk_action.setEnabled(False)
-        if self._character_folders_window is not None:
-            self._character_folders_window.set_archive(None)
-        self.character_folders_action.setEnabled(False)
         get_logger().info("NPK file unloaded.")
 
     def refresh_config_list(self):
@@ -622,7 +477,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.unload_npk()
 
         self._loading_cancelled = False
-        self._archive_loading = True
 
         self.setWindowTitle(f"NeoXtractor - {os.path.basename(path)}")
 
@@ -634,39 +488,35 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_bar.setRange(0, 0)
 
         self.list_widget.setDisabled(True)
-        self.entry_category_filter_combobox.setEnabled(False)
 
         read_options = self.config.read_options if self.config else None
         if read_options is None:
             # No read options set, use default
             read_options = NPKReadOptions()
 
-        ext = os.path.splitext(path)[1].lower()
         try:
-            if ext == ".npk" and resource_location(path) is not None and self.config and \
-                    "magic awakened" in self.config.name.lower() and \
-                    self.related_archives_action.isChecked():
-                archive_file = RelatedArchiveSet(path, read_options)
-                self.setWindowTitle(
-                    f"NeoXtractor - {os.path.basename(path)} ({len(archive_file.primary_sources)} same-name packs)"
-                )
-            elif ext in (".npk", ".expk"):
-                archive_file = NPKFile(path, read_options)
-            elif ext in (".idx", ".wpk"):
-                archive_file = IDXWPKFile(path, read_options)
-            else:
-                raise ValueError(f"Unsupported archive type: {path}")
+            archive_file = next(
+                (archive for archive in (opener(path, read_options) for opener in self.archive_openers) if archive),
+                None,
+            )
+            if archive_file is None:
+                ext = os.path.splitext(path)[1].lower()
+                if ext in (".npk", ".expk"):
+                    archive_file = NPKFile(path, read_options)
+                elif ext in (".idx", ".wpk"):
+                    archive_file = IDXWPKFile(path, read_options)
+                else:
+                    raise ValueError(f"Unsupported archive type: {path}")
         except Exception as exc:
             self._loading_failed(str(exc))
             return
 
         self.app.setProperty("npk_file", archive_file)
 
-        # A related-archive set reads its metadata on the worker thread first;
-        # the list model is attached when that is done, so the view does not
-        # query entries that are still being prepared.
-
-        if isinstance(archive_file, RelatedArchiveSet):
+        # An archive with prepare() reads its entries itself on the worker thread; the list gets its model once
+        # that is done, so the view never asks for entries still being prepared
+        deferred = hasattr(archive_file, "prepare")
+        if deferred:
             self.list_widget.setModel(None)
         else:
             self.list_widget.refresh_npk_file()
@@ -677,9 +527,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         def _load_entries():
             try:
-                if isinstance(archive_file, RelatedArchiveSet):
-                    archive_file.prepare(progress=self.loading_stage_signal.emit,
-                                         cancelled=lambda: self._loading_cancelled)
+                if deferred:
+                    archive_file.prepare(
+                        progress=self.loading_stage_signal.emit, cancelled=lambda: self._loading_cancelled
+                    )
                 else:
                     with open(archive_file.file_path, "rb") as f:
                         for i in range(archive_file.file_count):
@@ -692,28 +543,32 @@ class MainWindow(QtWidgets.QMainWindow):
                             self.update_model_signal.emit(i)
                             self.update_progress_signal.emit(i + 1)
                 self.loading_complete_signal.emit()
-            except CharacterScanCancelled:
-                self.loading_complete_signal.emit()
-            except Exception as exc:
-                self.loading_error_signal.emit(str(exc))
+            except Exception as exc:  # reported, so the window does not stay stuck in "loading"
+                if self._loading_cancelled:
+                    self.loading_complete_signal.emit()
+                else:
+                    self.loading_error_signal.emit(str(exc))
 
         QtCore.QThreadPool.globalInstance().start(_load_entries)
 
         self.cancel_button.setVisible(True)
 
-    @QtCore.Slot(str)
     def _loading_failed(self, error):
-        # Restore the controls before reporting the error.
+        """Give the controls back, then say why the archive could not be read."""
         self._loading_cancelled = True
         self._loading_complete()
         QtWidgets.QMessageBox.critical(self, "Could not load archive", error)
 
-    @QtCore.Slot(int)
+    def _loading_stage(self, stage, current, total):
+        """Progress of an archive that prepares itself (see load_npk)."""
+        self.progress_bar.setFormat(stage + "… (%v/%m)")
+        self.progress_bar.setRange(0, max(total, 1))
+        self.progress_bar.setValue(current)
+
     def _update_progress(self, value):
         """Update progress bar value from the signal."""
         self.progress_bar.setValue(value)
 
-    @QtCore.Slot(int)
     def _update_model(self, index):
         """Update model from the signal."""
         model = cast(NPKFileModel, self.list_widget.model())
@@ -721,21 +576,15 @@ class MainWindow(QtWidgets.QMainWindow):
         model.get_filename(idx, invalidate_cache=True)
         self.list_widget.update(idx)
 
-    @QtCore.Slot()
     def _loading_complete(self):
         """Handle completion of loading from the signal."""
-        self._archive_loading = False
-        if isinstance(self.app.property("npk_file"), RelatedArchiveSet) and not self._loading_cancelled:
+        archive_file = self.app.property("npk_file")
+        if archive_file is not None and hasattr(archive_file, "prepare") and not self._loading_cancelled:
             self.list_widget.refresh_npk_file()
-        model = self.list_widget.model()
-        if model is not None:
-            model._file_names_cache.clear()
-            model.layoutChanged.emit()
         # Restore normal selection behavior and style when loading is complete
         self.list_widget.setDisabled(False)
         self.open_file_action.setEnabled(True)
         self.active_config.setEnabled(True)
-        self.entry_category_filter_combobox.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.cancel_button.setVisible(False)
         self.extract_button_widget.setVisible(True)
@@ -744,7 +593,4 @@ class MainWindow(QtWidgets.QMainWindow):
             self.unload_npk()
         else:
             # This causes all the entries to be read. Making the cancelling not working and stuck the thread.
-            self.character_folders_action.setEnabled(True)
-            self._apply_archive_filter_if_visible()
-            if self.entry_category_filter_combobox.currentData() == "characters":
-                self.open_character_folders()
+            self.filter.apply_filter()

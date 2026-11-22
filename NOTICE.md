@@ -29,7 +29,10 @@ the compiled build; every module compiles to the same bytecode as that build.
 **2. Additions to the HPMA build** (the following commit).
 
 - Modified NeoXtractor files: `core/mesh_converter/formats/pmx.py` (MMD bone names, bone setup, fingers, rigid
-  bodies, material and tail settings; its end installs the additions below at start-up),
+  bodies, material and tail settings), `gui/__init__.py` (starts the additions below through `gui/addons.py`),
+  `gui/windows/main_window.py` (now only hooks: archive openers for add-ons, archives that prepare themselves on the
+  loading thread, and an error message when an archive can't be read; the Characters page and the same-name packs
+  switch moved to `gui/widgets/characters_page.py`),
   `gui/utils/viewer.py` (registers the newer audio and sound bank viewers),
   `gui/widgets/viewers/audio_viewer.py` (NeoXtractor's main-branch audio viewer; the info line also names the
   sound for HPMA).

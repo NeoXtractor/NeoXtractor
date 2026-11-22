@@ -13,6 +13,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from core.npk.npk_file import NPKReadOptions
 from core.npk.stage_export import PackIndex, StageExporter, game_layers, game_root_for, read_options_for, resource_dirs
+from gui import addons
 from gui.utils import scan_memory
 from gui.utils.file_list_theme import tree_icons
 from gui.utils.page_filters import watch_page_filters
@@ -446,9 +447,10 @@ def install(app) -> None:
     """Add "Stages" to the category dropdown of every main window."""
     for window in app.topLevelWidgets():
         combo = getattr(window, "entry_category_filter_combobox", None)
-        stack = getattr(window, "left_content", None)
-        if combo is None or stack is None or combo.findData(STAGES_DATA) >= 0:
+        if combo is None or combo.findData(STAGES_DATA) >= 0:
             continue
+        stack = addons.left_stack(window)
+        addons.PAGES.add(STAGES_DATA)
         page = StagesPage(window)
         stack.addWidget(page)
         window.stages_page = page

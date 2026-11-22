@@ -11,6 +11,7 @@ import threading
 
 from PySide6 import QtCore, QtWidgets
 from core.logger import get_logger
+from gui import addons
 from gui.utils.file_list_theme import tree_icons
 from gui.utils.page_filters import watch_page_filters
 
@@ -387,9 +388,10 @@ def export_animation(main_window, index, group, clip_name, model_path, kind):
 def install(window) -> None:
     """Add "Animations" to the window's category list and its page next to the file list."""
     combo = getattr(window, "entry_category_filter_combobox", None)
-    stack = getattr(window, "left_content", None)
-    if combo is None or stack is None or getattr(window, "_animations_page", None) is not None:
+    if combo is None or getattr(window, "_animations_page", None) is not None:
         return
+    stack = addons.left_stack(window)
+    addons.PAGES.add("animations")
     page = AnimationsPage(window)
     window._animations_page = page
     stack.addWidget(page)
