@@ -65,8 +65,8 @@ game's wardrobe:
 - **Wand** holds one of the game's wand skins in the right hand. **Pose** plays a standing pose in the 3D view
   (the wand follows the hand). With no pose picked, an outfit that has its own idle plays it, as in the game.
 - **Export ▼** saves the character as GLB, PMX or OBJ, without animation (**PMX options** are in the same menu).
-  **Pose as VMD… / GLB…** in the same menu save the chosen pose on its own: a VMD for the exported PMX, or a GLB
-  on the game's default character. **Save texture ▼** saves the baked face, eye, eyebrow and hair textures.
+  **Pose as VMD… / GLB…** in the same menu save the pose that plays (the picked one, or the outfit's own idle) on
+  its own: a VMD for the exported PMX, or a GLB on the game's default character. **Save texture ▼** saves the baked face, eye, eyebrow and hair textures.
   **Add to Scene Viewer** sends the character there.
 
 ### Scene Viewer
