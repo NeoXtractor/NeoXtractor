@@ -170,7 +170,12 @@ WARDROBE = (
     ("scarf", "Scarf"),
     ("brooch", "Brooch"),
     ("bag", "Bag"),
+    ("wand", "Wand"),
 )
+WAND_ITEM = (200, 101)  # item type and sub_type of wand skins
+WAND_SOCKET = "attack_point"  # the wand tip's socket: wands are modelled in the space of its bone (the hand's prop)
+POSE_ACTION = 3  # quick_action rows of standing poses (站姿)
+OUTFIT_POSE = "outfit"  # the pose list's entry for the worn outfit's own idle
 
 
 DRESS_SEXES = {1: ("male",), 2: ("female",), 3: ("male", "female")}
@@ -350,6 +355,7 @@ def _wardrobe(library, links):
                     "title": title,
                     "icon": icon,
                     "sockets": list(dress.get("socket_list") or []),
+                    "idle": dress.get("idle_action") or None,
                     "rarity": game_tables.item_rarity(tables, item.get("_id")) if item else None,
                     "traits": game_tables.item_traits(tables, item.get("_id")) if item else (),
                     "tags": game_tables.item_tags(tables, item.get("_id")) if item else (),
@@ -374,6 +380,7 @@ def _wardrobe(library, links):
                 "icon": row["icon"],
                 "texture": texture,
                 "sockets": row["sockets"],
+                "idle": row["idle"],
                 "rarity": row["rarity"],
                 "traits": row["traits"],
                 "tags": row["tags"],
@@ -404,6 +411,7 @@ def _wardrobe(library, links):
                     "icon": link.get("icon"),
                     "texture": None,
                     "sockets": [],
+                    "idle": None,
                     "rarity": game_tables.item_rarity(tables, link.get("item")),
                     "traits": game_tables.item_traits(tables, link.get("item")),
                     "tags": game_tables.item_tags(tables, link.get("item")),
@@ -413,7 +421,152 @@ def _wardrobe(library, links):
     for per_sex in found.values():
         for entries in per_sex.values():
             entries.sort(key=lambda e: e["order"])
+    wands = _wands(library, english)
+    for per_sex in found.values():
+        per_sex["wand"] = list(wands)
     return {"items": found, "masks": masks, "hidden": sorted(hidden)}
+
+
+def _gim_mesh(library, gim: str) -> str:
+    """The .mesh a .gim draws (its Mesh attribute, else the file next to it)."""
+    import xml.etree.ElementTree as ET
+
+    mesh = gim.rsplit(".", 1)[0] + ".mesh"
+    found = library.index.read(gim)
+    if found is not None:
+        try:
+            attribute = ET.fromstring(found[0]).get("Mesh")
+        except ET.ParseError:
+            attribute = None
+        if attribute and attribute.lower() != "false":
+            mesh = attribute.replace("/", "\\")
+    return mesh
+
+
+def _wands(library, english) -> list[dict]:
+    """
+    The wand skins as wardrobe entries: item -> wand row -> wand_wood row, whose .gim is the model
+    (model\\items\\mozhang\\...). Both sexes hold the same wands.
+    """
+    from core.npk import game_tables
+
+    tables = library.tables
+    wands, woods = tables.keyed_rows("wand"), tables.keyed_rows("wand_wood")
+    entries, seen = [], set()
+    for item_id, item in tables.keyed_rows("item").items():
+        if not isinstance(item, dict) or (item.get("type"), item.get("sub_type")) != WAND_ITEM:
+            continue
+        gim = (woods.get((wands.get(item.get("mini_type")) or {}).get("wood")) or {}).get("gim")
+        if not gim:
+            continue
+        mesh = _gim_mesh(library, gim.replace("/", "\\"))
+        title = english.get(item.get("name", ""), "").strip()
+        if title.lower() in ("null!", "null", "n/a"):
+            title = ""
+        stem = mesh.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
+        if (mesh.lower(), title) in seen:
+            continue
+        seen.add((mesh.lower(), title))
+        entries.append(
+            {
+                "name": f"{title}  ·  {stem}" if title else stem,
+                "path": mesh,
+                "icon": item.get("icon_path"),
+                "texture": None,
+                "sockets": [],
+                "idle": None,
+                "rarity": game_tables.item_rarity(tables, item_id),
+                "traits": game_tables.item_traits(tables, item_id),
+                "tags": game_tables.item_tags(tables, item_id),
+                "order": (mesh.lower(), False, ""),
+            }
+        )
+    entries.sort(key=lambda entry: entry["order"])
+    return entries
+
+
+def is_wand(path: str | None) -> bool:
+    return bool(path) and path.lower().startswith("model\\items\\")
+
+
+def _hold_wand(library, items, sex, report):
+    """A wand in the right hand, on the bone its tip socket hangs on."""
+    from core.npk import accessory_sockets
+
+    sockets = accessory_sockets.for_library(library)
+    socket, rest = sockets.sockets(sex).get(WAND_SOCKET), sockets.rest(sex)
+    if socket is None or socket[0] not in rest:
+        report.append("Wand: the hand's prop bone was not found on the character rig")
+        return items
+    bone = socket[0]
+    return [
+        dict(item, mesh=accessory_sockets._place(item["mesh"], rest[bone], bone, rest[bone], item["name"]))
+        for item in items
+    ]
+
+
+def poses(library) -> dict[str, list[dict]]:
+    """
+    The standing poses for each sex, from quick_action: name, clip, icon, rarity and whether everyone has it. A
+    pose is offered for a sex when its clip is in that sex's animation folder.
+    """
+    from core.mesh_converter import character_anim
+    from core.npk import game_tables
+
+    tables = library.tables
+    english = {
+        key: row.get("text_en", "")
+        for key, row in tables.keyed_rows("item_text_os_en").items()
+        if isinstance(row, dict)
+    }
+    chinese = {
+        key: row.get("text_cn", "") for key, row in tables.keyed_rows("item_text_cn").items() if isinstance(row, dict)
+    }
+    items = tables.keyed_rows("item")
+    paths = library.index.manifest()
+    clips = {sex: {name.lower() for name in character_anim.animation_names(paths, sex)} for sex in ("female", "male")}
+    found: dict[str, list[dict]] = {"female": [], "male": []}
+    seen = set()
+    for row in tables.keyed_rows("quick_action").values():
+        if not isinstance(row, dict) or row.get("action_type") != POSE_ACTION or not row.get("skill_id"):
+            continue
+        name_key = row.get("action_name") or ""
+        number = name_key.rsplit("_", 1)[-1]
+        item_id = int(number) if number.isdigit() else None
+        item = items.get(item_id) or {}
+        title = english.get(name_key, "").strip()
+        if title.lower() in ("", "n/a", "null", "null!"):
+            title = chinese.get(name_key, "") or row["skill_id"]
+        clip = row["skill_id"]
+        for sex in DRESS_SEXES.get(item.get("sex")) or ("male", "female"):
+            if clip.lower() not in clips[sex] or (sex, clip.lower()) in seen:
+                continue
+            seen.add((sex, clip.lower()))
+            found[sex].append(
+                {
+                    "name": title,
+                    "clip": clip,
+                    "icon": item.get("icon_path") or row.get("icon"),
+                    "rarity": game_tables.item_rarity(tables, item_id) if item_id else None,
+                    "traits": game_tables.item_traits(tables, item_id) if item_id else (),
+                    "tags": game_tables.item_tags(tables, item_id) if item_id else (),
+                    "default": bool(row.get("is_default")),
+                }
+            )
+    for entries in found.values():
+        entries.sort(key=lambda entry: (not entry["default"], entry["name"].lower()))
+    return found
+
+
+def load_pose_clip(library, sex: str, clip_name: str):
+    """A pose's neox_anim.Clip on the character rig, its bones named like the character meshes'."""
+    from core.mesh_converter import character_anim
+
+    def read(path):
+        found = library.index.read(path)
+        return found[0] if found else None
+
+    return character_anim.load_clip(read, sex, clip_name, character_anim.load_skeleton(read, sex))
 
 
 def _read_texture(library, texture):
@@ -642,6 +795,8 @@ def load_wardrobe_items(library, path, report, texture=None, sockets=(), sex=Non
     from core.npk.stage_export import StageLoader
 
     items = load_face_items(library, [path], [], None, report)
+    if is_wand(path):
+        return _hold_wand(library, items, sex or "female", report)
     if texture:
         items = _recolour(library, items, texture, report, path)
     items += attachment_items(library, path, sockets, report)

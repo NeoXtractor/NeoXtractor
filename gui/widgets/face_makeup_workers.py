@@ -22,8 +22,10 @@ from gui.widgets.face_makeup_data import (  # noqa: F401
     dress_wardrobe_items,
     face_presets,
     load_face_items,
+    load_pose_clip,
     load_wardrobe_items,
     offered_shapes,
+    poses,
     skin_icons,
 )
 from gui.widgets.face_makeup_widgets import (  # noqa: F401
@@ -47,6 +49,7 @@ class _Signals(QtCore.QObject):
     part = QtCore.Signal(object, object, str)
     item_icons = QtCore.Signal(object)
     ui_sprites = QtCore.Signal(object)
+    pose = QtCore.Signal(object, object, str)
 
 
 def _load(game, signals, read_options=None):
@@ -58,6 +61,7 @@ def _load(game, signals, read_options=None):
         options["shapes"] = offered_shapes(library)
         options["presets"] = face_presets(library, faces, files)
         options["skin_icons"] = skin_icons(library)
+        options["poses"] = poses(library)
         payload, error = (library, faces, files, options), ""
     except Exception as exc:
         payload, error = None, str(exc)
@@ -196,6 +200,18 @@ def _load_part_worker(library, path, texture, sockets, signals, sex=None, key=No
         items, error = None, str(exc)
     try:
         signals.part.emit(key or choice_key(path, texture), items, error)
+    except RuntimeError:
+        pass
+
+
+def _load_pose_worker(library, key, signals):
+    """key: (sex, clip name) of a standing pose."""
+    try:
+        clip, error = load_pose_clip(library, *key), ""
+    except Exception as exc:
+        clip, error = None, str(exc)
+    try:
+        signals.pose.emit(key, clip, error)
     except RuntimeError:
         pass
 

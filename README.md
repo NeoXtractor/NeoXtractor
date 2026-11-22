@@ -62,8 +62,12 @@ game's wardrobe:
   list on the right. **Filter** narrows it by rarity or trait; the search box finds items by name.
 - The **Layers** box hides single meshes from the preview and from exports. The two body buttons switch between
   the size as modelled and the grown-up size.
-- **Export ▼** saves the character as GLB, PMX or OBJ (**PMX options** are in the same menu). **Save texture ▼**
-  saves the baked face, eye, eyebrow and hair textures. **Add to Scene Viewer** sends the character there.
+- **Wand** holds one of the game's wand skins in the right hand. **Pose** plays a standing pose in the 3D view
+  (the wand follows the hand); **Outfit's own pose** plays the worn outfit's idle, as the game does.
+- **Export ▼** saves the character as GLB, PMX or OBJ, without animation (**PMX options** are in the same menu).
+  **Pose as VMD… / GLB…** in the same menu save the chosen pose on its own: a VMD for the exported PMX, or a GLB
+  on the game's default character. **Save texture ▼** saves the baked face, eye, eyebrow and hair textures.
+  **Add to Scene Viewer** sends the character there.
 
 ### Scene Viewer
 

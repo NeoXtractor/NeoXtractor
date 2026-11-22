@@ -43,9 +43,9 @@ def animation_names(paths, sex: str) -> list[str]:
     folder = RIGS[sex]["folder"].lower() + "\\"
     return sorted(
         {
-            p.rsplit("\\", 1)[-1][: -len(".rawanimation")]
+            p.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
             for p in paths
-            if p.lower().startswith(folder) and p.lower().endswith(".rawanimation")
+            if p.lower().startswith(folder) and p.lower().endswith((".rawanimation", ".animation"))
         }
     )
 
@@ -59,9 +59,9 @@ def load_skeleton(read, sex: str) -> neox_anim.Skeleton:
 
 def load_clip(read, sex: str, name: str, skeleton) -> neox_anim.Clip:
     """A clip with its bones renamed to the meshes' spelling."""
-    data = read(f"{RIGS[sex]['folder']}\\{name}.rawanimation")
-    if data is None:
-        raise FileNotFoundError(name)
+    from core.npk.anim_library import read_animation_data
+
+    _path, data = read_animation_data(read, RIGS[sex]["folder"], name)
     clip = neox_anim.Clip(name, neox_anim.Animation(data), skeleton)
     clip.bone_names = [mesh_bone_name(n) for n in skeleton.bone_names]
     return clip

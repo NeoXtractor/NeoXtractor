@@ -13,6 +13,7 @@ from core.logger import get_logger
 from core.npk.accessory_sockets import apply_bind_offsets
 from gui.widgets.face_makeup_data import (  # noqa: F401
     KINDS,
+    OUTFIT_POSE,
     WARDROBE,
     _hair_data,
     _library,
@@ -43,6 +44,7 @@ from gui.widgets.face_makeup_widgets import (  # noqa: F401
     TRAIT_ROLE,
     UI_SPRITES,
     ORDER_ROLE,
+    POSE_ROLE,
     SORT_ROLE,
     TAGS_ROLE,
     _AllTiles,
@@ -74,6 +76,7 @@ from gui.widgets.face_makeup_workers import (  # noqa: F401
     _load_item_icons,
     _load_meshes_worker,
     _load_part_worker,
+    _load_pose_worker,
     _load_ui_sprites_early,
     export_face,
 )
@@ -171,6 +174,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             "Leave on \"Same as colour 1\" for one colour."
         )
         self.wardrobe: dict[str, QtWidgets.QComboBox] = {kind: combo() for kind, _label in WARDROBE}
+        self.pose = combo("A standing pose, played in the 3D view.")
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -251,6 +255,15 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         export_menu.setObjectName("creatorPopover")
         for label, fmt in (("GLB…", "glb"), ("PMX…", "pmx"), ("OBJ…", "obj")):
             export_menu.addAction(label).triggered.connect(lambda _checked=False, fmt=fmt: self._export(fmt))
+        export_menu.addSection("Pose")
+        for label, fmt, tip in (
+            ("Pose as VMD…", "vmd", "The chosen pose as an MMD motion for the PMX this exports."),
+            ("Pose as GLB…", "glb_character", "The chosen pose on the game's default character, as GLB."),
+        ):
+            action = export_menu.addAction(label)
+            action.setToolTip(tip)
+            action.triggered.connect(lambda _checked=False, fmt=fmt: self._export_pose(fmt))
+        export_menu.setToolTipsVisible(True)
         try:  # the PMX switches only change PMX exports: in their own submenu
             from core.mesh_converter.formats.pmx import pmx_option_actions
 
@@ -419,6 +432,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             "scarf": "pic_fuzhuangdian_shaixuan_weijin",
             "brooch": "icon_huizhang",
             "bag": "icon_beibao_01",
+            "wand": "icon_yimaojian_huanmozhang",
         }
 
         def ward(kind):
@@ -453,21 +467,37 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                 None,
             ),
             "hair": ("Hairstyle", [("tiles", "Hairstyle", self.hair, None)], "pic_fuzhuangdian_shaixuan_toufa", None),
+            "pose": ("Pose", [("tiles", "Pose", self.pose, None)], "pic_fuzhuangdian_shaixuan_zhanzi", None),
         }
-        for kind in ("clothes", "hat", "bag"):
+        for kind in ("clothes", "hat", "bag", "wand"):
             if kind in self.wardrobe:
                 by_key[kind] = (wardrobe_labels[kind], [ward(kind)], wardrobe_icons[kind], None)
         for first, second in (("glasses", "earring"), ("scarf", "brooch")):
             if first in self.wardrobe:
                 rows = [ward(first)] + ([ward(second)] if second in self.wardrobe else [])
                 by_key[first] = (wardrobe_labels[first], rows, wardrobe_icons[first], None)
-        order = ("all", "clothes", "hair", "hat", "glasses", "scarf", "face", "eyes", "makeup", "lips", "brows", "bag")
+        order = (
+            "all",
+            "clothes",
+            "hair",
+            "hat",
+            "glasses",
+            "scarf",
+            "face",
+            "eyes",
+            "makeup",
+            "lips",
+            "brows",
+            "bag",
+            "wand",
+            "pose",
+        )
         categories = [(key,) + by_key[key] for key in order if key in by_key]
         all_sources = (
             [(self.wardrobe["clothes"], True), (self.hair, True)]
             + [
                 (self.wardrobe[kind], True)
-                for kind in ("hat", "glasses", "scarf", "earring", "brooch", "bag")
+                for kind in ("hat", "glasses", "scarf", "earring", "brooch", "bag", "wand")
                 if kind in self.wardrobe
             ]
             + [(self.preset, False)]
@@ -476,6 +506,8 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             "clothes": "An outfit brings the body piece it is worn with (neck, hands…) in the face's skin tone.",
             "hat": "With a hat, the hairstyle's trimmed version from the hat is used.",
             "face": "Face shapes are the game's edited versions of this face; newer faces have none.",
+            "wand": "Held in the right hand: it follows the hand when a pose plays.",
+            "pose": "Plays in the 3D view. Export ▼ saves it as VMD or GLB, apart from the model.",
         }
         self.category_buttons = QtWidgets.QButtonGroup(self)
         self.category_buttons.setExclusive(False)
@@ -700,6 +732,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._signals.part.connect(self._part_loaded)
         self._signals.item_icons.connect(self._item_icons_loaded)
         self._signals.ui_sprites.connect(self._ui_sprites_loaded)
+        self._signals.pose.connect(self._pose_loaded)
         from gui.widgets.character_anim_export import _game_options
 
         threading.Thread(target=_load, args=(game, self._signals, _game_options()), daemon=True).start()
@@ -1230,6 +1263,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             combo.currentIndexChanged.connect(self._schedule)
         for combo in self.wardrobe.values():  # no re-bake: only the changed piece reloads
             combo.currentIndexChanged.connect(self._wardrobe_changed)
+        self.pose.currentIndexChanged.connect(self._pose_changed)
         self._face_changed()
         for button in self.export_buttons:
             button.setEnabled(True)
@@ -1282,7 +1316,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             self._update_title()
 
     def _item_combos(self):
-        return [self.hair, self.preset] + list(self.wardrobe.values())
+        return [self.hair, self.preset, self.pose] + list(self.wardrobe.values())
 
     def _request_item_icons(self):
         cache = self.__dict__.setdefault("item_icons", {})
@@ -1420,6 +1454,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                     combo.setItemData(combo.count() - 1, entry.get("rarity"), RARITY_ROLE)
                     combo.setItemData(combo.count() - 1, tuple(entry.get("traits") or ()), TRAIT_ROLE)
                     combo.setItemData(combo.count() - 1, tuple(entry.get("tags") or ()), TAGS_ROLE)
+                    combo.setItemData(combo.count() - 1, entry.get("idle"), POSE_ROLE)
                 del ward_blocker
             self._wardrobe_sex = sex
         if getattr(self, "_hair_sex", None) != sex:
@@ -1435,6 +1470,8 @@ class FaceMakeupDialog(QtWidgets.QDialog):
                     self.hair.setItemData(self.hair.count() - 1, tuple(hair.get("tags") or ()), TAGS_ROLE)
             self._hair_sex = sex
             del hair_blocker
+        if getattr(self, "_pose_sex", None) != sex:
+            self._fill_poses(sex)
         self._sort_lists()
         if hasattr(self, "_icons_cache"):
             self._set_icons(self._icons_cache)
@@ -1492,11 +1529,65 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         return hair["mesh"]
 
     def _wardrobe_changed(self, _index=None):
+        if self.pose.currentData() == OUTFIT_POSE:
+            self._pose_changed()
         if self.dressed is None:
             self._schedule()
             return
         self._ensure_meshes()
         self._update_3d()
+
+    def _fill_poses(self, sex):
+        """The poses this sex has, the worn outfit's own idle first; the chosen one stays when it is offered."""
+        previous = self.pose.currentData()
+        blocker = QtCore.QSignalBlocker(self.pose)
+        self.pose.clear()
+        self.pose.addItem("None", None)
+        self.pose.addItem("Outfit's own pose", OUTFIT_POSE)
+        for entry in self.options.get("poses", {}).get(sex, []):
+            self.pose.addItem(entry["name"], entry["clip"])
+            row = self.pose.count() - 1
+            self.pose.setItemData(row, entry.get("icon"), ICON_ROLE)
+            self.pose.setItemData(row, entry.get("rarity"), RARITY_ROLE)
+            self.pose.setItemData(row, tuple(entry.get("traits") or ()), TRAIT_ROLE)
+            self.pose.setItemData(row, tuple(entry.get("tags") or ()), TAGS_ROLE)
+        self.pose.setCurrentIndex(max(0, self.pose.findData(previous)))
+        del blocker
+        self._pose_sex = sex
+        self._pose_changed()
+
+    def pose_clip_name(self) -> str | None:
+        """The chosen pose's clip: a listed pose, or the worn outfit's own idle."""
+        choice = self.pose.currentData()
+        if choice != OUTFIT_POSE:
+            return choice
+        clothes = self.wardrobe.get("clothes")
+        if clothes is None or not clothes.currentData():
+            return None
+        return clothes.itemData(clothes.currentIndex(), POSE_ROLE)
+
+    def _pose_changed(self, _index=None):
+        name = self.pose_clip_name()
+        key = (self._sex(), name) if name else None
+        if key is None or key in self.__dict__.setdefault("pose_clips", {}):
+            self._update_3d()
+            return
+        loading = self.__dict__.setdefault("_loading_poses", set())
+        if key not in loading:
+            loading.add(key)
+            threading.Thread(target=_load_pose_worker, args=(self.library, key, self._signals), daemon=True).start()
+
+    def _pose_loaded(self, key, clip, error):
+        self._loading_poses.discard(key)
+        if error:
+            self._set_notes(f"Pose {key[1]}: {error}")
+        self.pose_clips[key] = clip
+        self._update_3d()
+
+    def _shown_pose(self):
+        """The loaded clip of the chosen pose, or None (no pose, or still loading)."""
+        name = self.pose_clip_name()
+        return getattr(self, "pose_clips", {}).get((self._sex(), name)) if name else None
 
     def _ensure_parts(self):
         cache = self.__dict__.setdefault("part_items", {})
@@ -1710,13 +1801,16 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         # so the view never goes blank while one piece is swapped
         cache = self.__dict__.setdefault("_object_cache", {})
         textures = self.__dict__.setdefault("_texture_keys", {})
+        clip = self._shown_pose()
         objects, keep = [], set()
         for item in items:
             images = [part.get("image") for part in item["parts"]]
-            key = (id(item["mesh"]), item["name"], tuple(id(i) if i is not None else 0 for i in images))
+            key = (id(item["mesh"]), item["name"], tuple(id(i) if i is not None else 0 for i in images), id(clip))
             obj = cache.get(key)
             if obj is None:
                 obj = SceneObject(item["name"], item["mesh"])
+                if clip is not None:
+                    obj.set_animation(clip)
                 for number, part in enumerate(obj.parts):
                     info = item["parts"][number] if number < len(item["parts"]) else None
                     image = info.get("image") if info else None
@@ -1741,6 +1835,8 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             for image_id in [i for i in textures if i not in used]:
                 del textures[image_id]
         self.objects3d = objects
+        if clip is not None:
+            self.view3d.set_playing(True)
         if self._focused_face is None:
             # Framed once, when the first character appears; switching faces, outfits or sizes keeps the
             # camera where it is (the reset button and F frame the character again)
@@ -1949,6 +2045,16 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             fmt,
             hidden=tuple(self.layers.hidden),
         )
+
+    def _export_pose(self, fmt):
+        """The chosen pose through the character animation export (VMD for the exported PMX, or GLB)."""
+        from gui.widgets.character_anim_export import _game_options, export_animations
+
+        name = self.pose_clip_name()
+        if not name:
+            QtWidgets.QMessageBox.information(self, "Export pose", "Pick a pose first.")
+            return
+        export_animations(self.main_window, self.game, self._sex(), [name], fmt, _game_options())
 
 
 def open_dialog(main_window, folder=None) -> None:

@@ -64,6 +64,8 @@ UI_SPRITES = {
     "pic_fuzhuangdian_shaixuan_weijin",
     "icon_huizhang",
     "pic_fuzhuangdian_shaixuan_beibao",
+    "icon_yimaojian_huanmozhang",
+    "pic_fuzhuangdian_shaixuan_zhanzi",
     "pic_fushi_diban",
     "pic_xuanzhong",
     "pic_chuangjue_wu",
@@ -144,6 +146,7 @@ TRAIT_ROLE = QtCore.Qt.ItemDataRole.UserRole + 66  # the item's filter traits (g
 ORDER_ROLE = QtCore.Qt.ItemDataRole.UserRole + 67  # the item's place in the game data (ties keep it)
 SORT_ROLE = QtCore.Qt.ItemDataRole.UserRole + 68  # the sort key the lists are ordered by
 TAGS_ROLE = QtCore.Qt.ItemDataRole.UserRole + 69  # the item's tags (item.item_tags keys)
+POSE_ROLE = QtCore.Qt.ItemDataRole.UserRole + 70  # an outfit's own idle pose (a quick_action clip)
 FILTER_TRAITS = (("none", "None"),) + TRAITS  # the filter's Trait column after "All", in the game's order
 
 

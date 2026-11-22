@@ -126,28 +126,39 @@ def bone_key(name: str) -> str:
     return name.strip().replace(" ", "_").lower()
 
 
-def load_clip(read, group: Group, name: str):
+def read_animation_data(read, folder: str, name: str) -> tuple[str, bytes]:
     """
-    A neox_anim.Clip for one clip of a group; read(path) returns a file's bytes or None. Both layouts are read (ACL
-    and plain keyframes); a clip in neither raises ValueError("Unsupported animation ...").
+    (path, bytes) of a clip's .rawanimation: next to its .animation, or wherever the .animation's dependency
+    points (some clips share data stored elsewhere). Raises FileNotFoundError when neither is there.
     """
     import xml.etree.ElementTree as ET
     from core.npk import neox_anim
 
-    raw_path = f"{group.folder}{B}{name}.rawanimation"
+    raw_path = f"{folder}{B}{name}.rawanimation"
     data = read(raw_path)
-    if data is None:  # the descriptor may point elsewhere
-        descriptor = read(f"{group.folder}{B}{name}.animation")
+    if data is None:
+        descriptor = read(f"{folder}{B}{name}.animation")
         if descriptor is not None:
             try:
                 dependency = ET.fromstring(descriptor).find(".//Dependency/FileName")
                 if dependency is not None and dependency.get("Value"):
-                    raw_path = neox_anim._join(group.folder, dependency.get("Value"))
+                    raw_path = neox_anim._join(folder, dependency.get("Value"))
                     data = read(raw_path)
             except ET.ParseError:
                 data = None
     if data is None:
         raise FileNotFoundError(f"{name}: animation data not found")
+    return raw_path, data
+
+
+def load_clip(read, group: Group, name: str):
+    """
+    A neox_anim.Clip for one clip of a group; read(path) returns a file's bytes or None. Both layouts are read (ACL
+    and plain keyframes); a clip in neither raises ValueError("Unsupported animation ...").
+    """
+    from core.npk import neox_anim
+
+    raw_path, data = read_animation_data(read, group.folder, name)
     animation = neox_anim.Animation(data)
     skeleton_data = None
     if animation.skeleton_path:
