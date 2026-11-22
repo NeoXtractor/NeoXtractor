@@ -63,7 +63,7 @@ game's wardrobe:
 - The **Layers** box hides single meshes from the preview and from exports. The two body buttons switch between
   the size as modelled and the grown-up size.
 - **Wand** holds one of the game's wand skins in the right hand. **Pose** plays a standing pose in the 3D view
-  (the wand follows the hand); **Outfit's own pose** plays the worn outfit's idle, as the game does.
+  (the wand follows the hand). With no pose picked, an outfit that has its own idle plays it, as in the game.
 - **Export ▼** saves the character as GLB, PMX or OBJ, without animation (**PMX options** are in the same menu).
   **Pose as VMD… / GLB…** in the same menu save the chosen pose on its own: a VMD for the exported PMX, or a GLB
   on the game's default character. **Save texture ▼** saves the baked face, eye, eyebrow and hair textures.

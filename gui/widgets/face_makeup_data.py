@@ -175,7 +175,6 @@ WARDROBE = (
 WAND_ITEM = (200, 101)  # item type and sub_type of wand skins
 WAND_SOCKET = "attack_point"  # the wand tip's socket: wands are modelled in the space of its bone (the hand's prop)
 POSE_ACTION = 3  # quick_action rows of standing poses (站姿)
-OUTFIT_POSE = "outfit"  # the pose list's entry for the worn outfit's own idle
 
 
 DRESS_SEXES = {1: ("male",), 2: ("female",), 3: ("male", "female")}
@@ -527,7 +526,7 @@ def poses(library) -> dict[str, list[dict]]:
     clips = {sex: {name.lower() for name in character_anim.animation_names(paths, sex)} for sex in ("female", "male")}
     found: dict[str, list[dict]] = {"female": [], "male": []}
     seen = set()
-    for row in tables.keyed_rows("quick_action").values():
+    for _key, row in sorted(tables.keyed_rows("quick_action").items(), key=lambda kv: str(kv[0]).zfill(12)):
         if not isinstance(row, dict) or row.get("action_type") != POSE_ACTION or not row.get("skill_id"):
             continue
         name_key = row.get("action_name") or ""
@@ -556,8 +555,6 @@ def poses(library) -> dict[str, list[dict]]:
                     "default": bool(row.get("is_default")),
                 }
             )
-    for entries in found.values():
-        entries.sort(key=lambda entry: (not entry["default"], entry["name"].lower()))
     return found
 
 

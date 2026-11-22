@@ -13,7 +13,6 @@ from core.logger import get_logger
 from core.npk.accessory_sockets import apply_bind_offsets
 from gui.widgets.face_makeup_data import (  # noqa: F401
     KINDS,
-    OUTFIT_POSE,
     WARDROBE,
     _hair_data,
     _library,
@@ -507,7 +506,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             "hat": "With a hat, the hairstyle's trimmed version from the hat is used.",
             "face": "Face shapes are the game's edited versions of this face; newer faces have none.",
             "wand": "Held in the right hand: it follows the hand when a pose plays.",
-            "pose": "Plays in the 3D view. Export ▼ saves it as VMD or GLB, apart from the model.",
+            "pose": "Plays in the 3D view; with None, an outfit's own idle plays. Export ▼ saves either as VMD or GLB.",
         }
         self.category_buttons = QtWidgets.QButtonGroup(self)
         self.category_buttons.setExclusive(False)
@@ -946,7 +945,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             self.filter_reset.setVisible(active)
 
     def _sorted_combos(self):
-        return [self.preset, self.hair] + list(self.choices.values()) + list(self.wardrobe.values())
+        return [self.preset, self.hair, self.pose] + list(self.choices.values()) + list(self.wardrobe.values())
 
     def _sort_lists(self):
         """
@@ -1529,7 +1528,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         return hair["mesh"]
 
     def _wardrobe_changed(self, _index=None):
-        if self.pose.currentData() == OUTFIT_POSE:
+        if not self.pose.currentData():  # the outfit's own idle may have changed
             self._pose_changed()
         if self.dressed is None:
             self._schedule()
@@ -1538,12 +1537,11 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._update_3d()
 
     def _fill_poses(self, sex):
-        """The poses this sex has, the worn outfit's own idle first; the chosen one stays when it is offered."""
+        """The poses this sex has, in rarity order like the other lists; the chosen one stays when it is offered."""
         previous = self.pose.currentData()
         blocker = QtCore.QSignalBlocker(self.pose)
         self.pose.clear()
         self.pose.addItem("None", None)
-        self.pose.addItem("Outfit's own pose", OUTFIT_POSE)
         for entry in self.options.get("poses", {}).get(sex, []):
             self.pose.addItem(entry["name"], entry["clip"])
             row = self.pose.count() - 1
@@ -1554,12 +1552,13 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self.pose.setCurrentIndex(max(0, self.pose.findData(previous)))
         del blocker
         self._pose_sex = sex
+        self._sort_lists()
         self._pose_changed()
 
     def pose_clip_name(self) -> str | None:
-        """The chosen pose's clip: a listed pose, or the worn outfit's own idle."""
+        """The clip that plays: the chosen pose, or with none chosen the worn outfit's own idle (as in the game)."""
         choice = self.pose.currentData()
-        if choice != OUTFIT_POSE:
+        if choice:
             return choice
         clothes = self.wardrobe.get("clothes")
         if clothes is None or not clothes.currentData():
@@ -2052,7 +2051,9 @@ class FaceMakeupDialog(QtWidgets.QDialog):
 
         name = self.pose_clip_name()
         if not name:
-            QtWidgets.QMessageBox.information(self, "Export pose", "Pick a pose first.")
+            QtWidgets.QMessageBox.information(
+                self, "Export pose", "Pick a pose first (or an outfit that has its own idle)."
+            )
             return
         export_animations(self.main_window, self.game, self._sex(), [name], fmt, _game_options())
 
