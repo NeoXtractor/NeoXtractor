@@ -13,6 +13,7 @@ from core.logger import get_logger
 from core.npk.accessory_sockets import apply_bind_offsets
 from gui.widgets.face_makeup_data import (  # noqa: F401
     KINDS,
+    STANDARD_POSE,
     WARDROBE,
     _hair_data,
     _library,
@@ -506,7 +507,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             "hat": "With a hat, the hairstyle's trimmed version from the hat is used.",
             "face": "Face shapes are the game's edited versions of this face; newer faces have none.",
             "wand": "Held in the right hand: it follows the hand when a pose plays.",
-            "pose": "Plays in the 3D view; with None, an outfit's own idle plays. Export ▼ saves either as VMD or GLB.",
+            "pose": "Plays in the 3D view; with None, the outfit's own idle or the Standard pose. Export ▼ saves it.",
         }
         self.category_buttons = QtWidgets.QButtonGroup(self)
         self.category_buttons.setExclusive(False)
@@ -1560,14 +1561,20 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         self._pose_changed()
 
     def pose_clip_name(self) -> str | None:
-        """The clip that plays: the chosen pose, or with none chosen the worn outfit's own idle (as in the game)."""
+        """
+        The clip that plays: the chosen pose, or with none chosen the worn outfit's own idle, else the Standard pose
+        (as in the game).
+        """
         choice = self.pose.currentData()
         if choice:
             return choice
         clothes = self.wardrobe.get("clothes")
-        if clothes is None or not clothes.currentData():
-            return None
-        return clothes.itemData(clothes.currentIndex(), POSE_ROLE)
+        own = (
+            clothes.itemData(clothes.currentIndex(), POSE_ROLE)
+            if clothes is not None and clothes.currentData()
+            else None
+        )
+        return own or (STANDARD_POSE if self.pose.findData(STANDARD_POSE) >= 0 else None)
 
     def _pose_changed(self, _index=None):
         name = self.pose_clip_name()

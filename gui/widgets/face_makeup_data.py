@@ -175,6 +175,7 @@ WARDROBE = (
 WAND_ITEM = (200, 101)  # item type and sub_type of wand skins
 WAND_SOCKET = "attack_point"  # the wand tip's socket: wands are modelled in the space of its bone (the hand's prop)
 POSE_ACTION = 3  # quick_action rows of standing poses (站姿)
+STANDARD_POSE = "idle"  # the plain Standard pose (quick_action 1005), for outfits without one of their own
 
 
 DRESS_SEXES = {1: ("male",), 2: ("female",), 3: ("male", "female")}
