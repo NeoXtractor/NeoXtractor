@@ -500,7 +500,7 @@ def _hold_wand(library, items, sex, report):
         return items
     bone = socket[0]
     return [
-        dict(item, mesh=accessory_sockets._place(item["mesh"], rest[bone], bone, rest[bone], item["name"]))
+        dict(item, mesh=accessory_sockets._place(item["mesh"], rest[bone], bone, rest[bone], item["name"]), wand=True)
         for item in items
     ]
 
@@ -523,6 +523,7 @@ def poses(library) -> dict[str, list[dict]]:
         key: row.get("text_cn", "") for key, row in tables.keyed_rows("item_text_cn").items() if isinstance(row, dict)
     }
     items = tables.keyed_rows("item")
+    props = _pose_props(tables)
     paths = library.index.manifest()
     clips = {sex: {name.lower() for name in character_anim.animation_names(paths, sex)} for sex in ("female", "male")}
     found: dict[str, list[dict]] = {"female": [], "male": []}
@@ -554,9 +555,58 @@ def poses(library) -> dict[str, list[dict]]:
                     "traits": game_tables.item_traits(tables, item_id) if item_id else (),
                     "tags": game_tables.item_tags(tables, item_id) if item_id else (),
                     "default": bool(row.get("is_default")),
+                    "wand": bool(row.get("wand", 1)),
+                    "props": props.get((sex, clip.lower()), []),
                 }
             )
     return found
+
+
+def _pose_props(tables) -> dict[tuple[str, str], list[int]]:
+    """
+    {(sex, clip): attachment ids} of the props a pose shows (the doll of idle_276_sylg): those the first outfit
+    with that idle hangs on its sockets for the clip. Its colour variants may swap a prop; the first has the base one.
+    """
+    try:
+        attachments = tables.keyed_rows("attachments")
+        dresses = tables.keyed_rows("role_dress")
+    except Exception:
+        get_logger().debug("No attachments or role_dress table for pose props", exc_info=True)
+        return {}
+    found: dict[tuple[str, str], list[int]] = {}
+    for _key, dress in sorted(dresses.items(), key=lambda kv: str(kv[0]).zfill(12)):
+        if not isinstance(dress, dict) or not dress.get("idle_action"):
+            continue
+        clip = dress["idle_action"].lower()
+        for sex, limit in (("male", 1), ("female", 2)):
+            if (sex, clip) in found:
+                continue
+            ids = [
+                number
+                for number in dress.get("socket_list") or ()
+                if isinstance(attachments.get(number), dict)
+                and attachments[number].get("sex_limit") in (None, 0, limit)
+                and clip in prop_clips(attachments[number])
+                and str(attachments[number].get("path", "")).lower().endswith(".gim")
+            ]
+            if ids:
+                found[(sex, clip)] = ids
+    return found
+
+
+def pose_items(items, clip: str | None, wand: bool = True) -> list[dict]:
+    """The pieces shown while a clip plays: props of other clips are put away, and the wand when the pose has none."""
+    name = (clip or "").lower()
+    return [
+        item
+        for item in items
+        if (not name or not item.get("clips") or name in item["clips"]) and (wand or not item.get("wand"))
+    ]
+
+
+def load_pose_props(library, sex: str, ids, report) -> list[dict]:
+    """A pose's own props (the ids poses() lists), hung on the wearer's sockets."""
+    return attachment_items(library, "", ids, report, sex)
 
 
 def load_pose_clip(library, sex: str, clip_name: str):
@@ -737,10 +787,21 @@ def _recolour(library, items, texture, report, path=None):
     return items
 
 
-def attachment_items(library, path, sockets, report):
+def prop_clips(row) -> frozenset:
+    """The clips an attachment shows during (lower case; empty: always shown), from its logic_params."""
+    names = set()
+    for value in row.get("logic_params") or ():
+        for name in value if isinstance(value, list) else [value]:
+            if isinstance(name, str):
+                names.add(name.lower())
+    return frozenset(names)
+
+
+def attachment_items(library, path, sockets, report, sex=None):
     """
     The extra pieces the game hangs on rig sockets for an outfit: sockets is the dress row's socket_list (ids in
     the attachments table, each a model and a socket), e.g. the fur shawl of male_clothes_199_hgmdal on 199_pijian.
+    A piece the game shows only during some clips (the doll of idle_276_sylg) carries them as "clips".
     """
     from core.npk import accessory_sockets
     from core.npk.stage_export import StageLoader
@@ -752,7 +813,7 @@ def attachment_items(library, path, sockets, report):
         table = library.tables.keyed_rows("attachments")
     except Exception:
         return []
-    sex = "female" if "\\girl\\" in path.lower() else "male"
+    sex = sex or ("female" if "\\girl\\" in path.lower() else "male")
     sockets = accessory_sockets.for_library(library)
     socket_table, rest = sockets.sockets(sex), sockets.rest(sex)
     loader = StageLoader(library.index, max_texture_size=8192)
@@ -775,13 +836,14 @@ def attachment_items(library, path, sockets, report):
         bone, offset = socket
         place = offset @ rest[bone]
         name = gim.rsplit("\\", 1)[-1].rsplit(".", 1)[0]
-        pieces.append(
-            {
-                "name": name,
-                "mesh": accessory_sockets._place(model[0], place, bone, rest[bone], name),
-                "parts": [dict(part) for part in model[1]],
-            }
-        )
+        piece = {
+            "name": name,
+            "mesh": accessory_sockets._place(model[0], place, bone, rest[bone], name),
+            "parts": [dict(part) for part in model[1]],
+        }
+        if prop_clips(row):
+            piece["clips"] = prop_clips(row)
+        pieces.append(piece)
     report.extend(line for line in loader.report if "material taken from" not in line)
     return pieces
 

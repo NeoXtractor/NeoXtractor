@@ -25,6 +25,7 @@ from gui.widgets.face_makeup_data import (  # noqa: F401
     face_folder_of,
     load_face_items,
     load_wardrobe_items,
+    pose_items,
     without_old_eye_faces,
 )
 from gui.widgets.face_makeup_widgets import (  # noqa: F401
@@ -1585,14 +1586,40 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         loading = self.__dict__.setdefault("_loading_poses", set())
         if key not in loading:
             loading.add(key)
-            threading.Thread(target=_load_pose_worker, args=(self.library, key, self._signals), daemon=True).start()
+            props = (self._pose_entry(name) or {}).get("props", [])
+            threading.Thread(
+                target=_load_pose_worker, args=(self.library, key, self._signals, props), daemon=True
+            ).start()
 
-    def _pose_loaded(self, key, clip, error):
+    def _pose_loaded(self, key, loaded, error):
         self._loading_poses.discard(key)
         if error:
             self._set_notes(f"Pose {key[1]}: {error}")
-        self.pose_clips[key] = clip
+        self.pose_clips[key] = loaded["clip"]
+        self.__dict__.setdefault("pose_props", {})[key] = loaded["props"]
         self._update_3d()
+
+    def _pose_entry(self, name) -> dict | None:
+        """The poses() entry of a clip for the current sex, or None."""
+        entries = self.options.get("poses", {}).get(self._sex(), [])
+        return next((entry for entry in entries if entry["clip"] == name), None) if name else None
+
+    def _pose_settings(self):
+        """(clip, wand shown, prop ids) of the playing pose, as export_face takes them."""
+        name = self.pose_clip_name()
+        entry = self._pose_entry(name) or {}
+        return name, entry.get("wand", True), entry.get("props", [])
+
+    def _posed_wardrobe(self, wardrobe):
+        """
+        The worn pieces as the playing pose shows them: props of other clips and, for poses without a wand, the
+        wand put away; the pose's own props come along unless the worn outfit brings them.
+        """
+        name, wand, _props = self._pose_settings()
+        shown = pose_items(wardrobe, name, wand)
+        if name and not any(item.get("clips") for item in shown):
+            shown += [dict(item, path=None) for item in getattr(self, "pose_props", {}).get((self._sex(), name), [])]
+        return shown
 
     def _shown_pose(self):
         """The loaded clip of the chosen pose, or None (no pose, or still loading)."""
@@ -1801,7 +1828,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         if hair is not None and hair_items is not None and hair_items[0] == self.hair_path():
             hair_list = dress_hair_items(hair_items[1], hair, self.dressed.get("hair"))
             items += hair_list
-        wardrobe = self.wardrobe_items(sides, complete=False)
+        wardrobe = self._posed_wardrobe(self.wardrobe_items(sides, complete=False))
         items += wardrobe
         self._set_layers(items[:face_count], hair_list, wardrobe)
         items = apply_bind_offsets(self.library, items, self.worn_for_offsets())
@@ -2005,6 +2032,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
         for item in items:
             item["path"] = folder + "\\" + f"{item['name']}.mesh"
             item["source"] = "Main Character Creator"
+        wardrobe = self._posed_wardrobe(wardrobe)
         for item in wardrobe:
             item["source"] = "Main Character Creator"
         items += wardrobe
@@ -2062,6 +2090,7 @@ class FaceMakeupDialog(QtWidgets.QDialog):
             self._face_texture(folder),
             fmt,
             hidden=tuple(self.layers.hidden),
+            pose=self._pose_settings(),
         )
 
     def _export_pose(self, fmt):

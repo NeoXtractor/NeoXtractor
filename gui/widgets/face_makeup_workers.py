@@ -23,8 +23,10 @@ from gui.widgets.face_makeup_data import (  # noqa: F401
     face_presets,
     load_face_items,
     load_pose_clip,
+    load_pose_props,
     load_wardrobe_items,
     offered_shapes,
+    pose_items,
     poses,
     skin_icons,
 )
@@ -204,14 +206,17 @@ def _load_part_worker(library, path, texture, sockets, signals, sex=None, key=No
         pass
 
 
-def _load_pose_worker(library, key, signals):
-    """key: (sex, clip name) of a standing pose."""
+def _load_pose_worker(library, key, signals, props=()):
+    """key: (sex, clip name) of a standing pose; props: the attachment ids of its own props."""
+    report: list[str] = []
     try:
-        clip, error = load_pose_clip(library, *key), ""
+        loaded, error = {"clip": load_pose_clip(library, *key), "props": []}, ""
+        loaded["props"] = load_pose_props(library, key[0], props, report)
+        error = "; ".join(report)
     except Exception as exc:
-        clip, error = None, str(exc)
+        loaded, error = {"clip": None, "props": []}, str(exc)
     try:
-        signals.pose.emit(key, clip, error)
+        signals.pose.emit(key, loaded, error)
     except RuntimeError:
         pass
 
@@ -285,8 +290,12 @@ def export_face(
     face_texture,
     fmt,
     hidden=(),
+    pose=None,
 ):
-    """Write <output>/<face>_makeup/model.<fmt>: face (+ eyes, lashes, eyebrows) with the makeup baked in."""
+    """
+    Write <output>/<face>_makeup/model.<fmt>: face (+ eyes, lashes, eyebrows) with the makeup baked in.
+    pose: (clip, wand shown, prop ids) of the playing pose, whose props come along as they are shown.
+    """
     from gui.widgets.character_exports import start_export
 
     face = folder.rsplit("\\", 1)[-1]
@@ -336,6 +345,11 @@ def export_face(
                 raise InterruptedError
             progress(f"Loading {ntpath.basename(path)}", len(mesh_paths), len(mesh_paths) + 2)
             output += dress_wardrobe_items(load_wardrobe_items(library, path, report, texture, sockets, sex), skin)
+        if pose is not None:
+            clip, wand, props = pose
+            output = pose_items(output, clip, wand)
+            if not any(item.get("clips") for item in output):
+                output += load_pose_props(library, sex, props, report)
         from gui.widgets.character_exports import with_body_size
         from core.npk.accessory_sockets import apply_bind_offsets
 

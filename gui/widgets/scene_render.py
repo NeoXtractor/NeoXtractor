@@ -223,6 +223,7 @@ class SceneObject:
         skeleton_index = {name: i for i, name in enumerate(clip.bone_names)}
         self.clip = clip
         self._skeleton_of_bone = np.array([skeleton_index.get(name, -1) for name in mesh.bone_name])
+        self._carried_by = self._nearest_animated(mesh)
         binds = np.array([np.asarray(m, float).T for m in skin_bind(mesh)])  # row-vector -> column-vector
         self._inverse_binds = np.linalg.inv(binds)
         bones = len(mesh.bone_name)
@@ -237,12 +238,33 @@ class SceneObject:
         self._rest_normals = self.vertices[:, 3:6].astype(float) * np.array([-1.0, 1.0, 1.0])
         return True
 
+    def _nearest_animated(self, mesh) -> np.ndarray:
+        """
+        For each bone the clip does not move, its nearest ancestor that it does (-1: none). A prop's own bones
+        (the ribbons of a pose's prop, hung on a socket) are carried along rigidly by the bone they hang from.
+        """
+        parents = list(mesh.bone_parent or [])
+        carried = np.full(len(self._skeleton_of_bone), -1)
+        for bone in np.where(self._skeleton_of_bone < 0)[0]:
+            parent, steps = bone, 0
+            while steps < 64:
+                parent = parents[parent] if parent < len(parents) else -1
+                if not 0 <= parent < len(carried):
+                    break
+                if self._skeleton_of_bone[parent] >= 0:
+                    carried[bone] = parent
+                    break
+                steps += 1
+        return carried
+
     def pose(self, time_seconds: float) -> np.ndarray:
         """Interleaved vertex data (viewer space) skinned to the clip at a time; also updates bone lines."""
         world = self.clip.world_matrices(time_seconds)
         skin = np.tile(np.eye(4), (len(self._inverse_binds), 1, 1))
         mapped = self._skeleton_of_bone >= 0
         skin[mapped] = world[self._skeleton_of_bone[mapped]] @ self._inverse_binds[mapped]
+        carried = self._carried_by >= 0
+        skin[carried] = skin[self._carried_by[carried]]
         # One blended 3x4 matrix per vertex, then one product: same result as weighting four transformed points,
         # about five times faster
         blend = np.einsum("nk,nkij->nij", self._weights, skin[self._joints, :3, :])
