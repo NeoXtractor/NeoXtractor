@@ -211,7 +211,15 @@ def apply_shape(mesh, bones: dict[str, np.ndarray]):
         normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-9)
         shaped.normal = [tuple(n) for n in normals]
     shaped.bone_matrix = [m.astype(np.float32) for m in new_bind]
+    # The bind the pieces were modelled in: a pose skins against it, so each bone's shape change rides along as a
+    # local offset instead of being undone by the clip putting the bone back where the unshaped face has it
+    shaped.skin_bind = skin_bind(mesh)
     return shaped
+
+
+def skin_bind(mesh) -> list:
+    """The bind a pose skins against: the unshaped one for a reshaped face, else the mesh's own."""
+    return getattr(mesh, "skin_bind", None) or mesh.bone_matrix
 
 
 EYE_BONES = ("e_lbone_000", "e_rbone_000")
@@ -253,4 +261,5 @@ def apply_shape_to_eyes(mesh, bones: dict[str, np.ndarray]):
         shaped.normal = [tuple(n) for n in normals]
     reshaped = apply_shape(mesh, bones)
     shaped.bone_matrix = reshaped.bone_matrix
+    shaped.skin_bind = skin_bind(mesh)
     return shaped

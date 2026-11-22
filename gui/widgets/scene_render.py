@@ -14,6 +14,7 @@ import time
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from core.logger import get_logger
+from core.mesh_converter.face_shapes import skin_bind
 from core.utils import get_application_path
 from gui.utils.rendering import grid
 from gui.widgets.viewers.mesh_viewer.camera_controller import CameraController
@@ -222,7 +223,7 @@ class SceneObject:
         skeleton_index = {name: i for i, name in enumerate(clip.bone_names)}
         self.clip = clip
         self._skeleton_of_bone = np.array([skeleton_index.get(name, -1) for name in mesh.bone_name])
-        binds = np.array([np.asarray(m, float).T for m in mesh.bone_matrix])  # row-vector -> column-vector
+        binds = np.array([np.asarray(m, float).T for m in skin_bind(mesh)])  # row-vector -> column-vector
         self._inverse_binds = np.linalg.inv(binds)
         bones = len(mesh.bone_name)
         joints = np.array([list(b)[:4] + [bones] * (4 - len(b)) for b in mesh.vertex_bone], np.int64)
