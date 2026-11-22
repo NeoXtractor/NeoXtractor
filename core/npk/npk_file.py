@@ -150,7 +150,6 @@ class NPKFile:
     def _read_indices(self, file: io.BufferedReader) -> None:
         """Read all the index entries from the NPK file."""
         self.indices = []
-        logger = get_logger(__name__)
 
         file.seek(self.index_offset)
         index_data = file.read(self.file_count * self.info_size)
@@ -201,7 +200,7 @@ class NPKFile:
                 else:
                     index.file_structure = None
 
-                logger.debug("Index %d: %s", i, index)
+                get_logger().debug("Index %d: %s", i, index)
 
                 # Generate a filename
                 if index.file_structure:
@@ -366,4 +365,4 @@ class NPKFile:
         entry.extension = get_ext(entry.data, entry.data_flags)
         entry.category = get_file_category(entry.extension)
 
-        get_logger(__name__).debug("Entry %s: %s", entry.filename, entry.category)
+        get_logger().debug("Entry %s: %s", entry.filename, entry.category)

@@ -19,7 +19,7 @@ the compiled build; every module compiles to the same bytecode as that build.
   in `res`, `res2`, ...), `core/npk/character_catalog.py`, `character_folders.py`, `scan_control.py`,
   `core/process_memory.py`, `gui/windows/character_folders_window.py`, `gui/utils/character_scan.py`,
   `character_tree_index.py`, `file_list_theme.py` (the Characters page).
-- Modified NeoXtractor files: `core/config.py`, `core/npk/npk_file.py`, `core/mesh_converter/formats/pmx.py`,
+- Modified NeoXtractor files: `core/config.py`, `core/mesh_converter/formats/pmx.py`,
   `gui/models/npk_file_model.py`, `gui/npk_entry_filter.py`, `gui/renderers/mesh_renderer.py`,
   `gui/renderers/point_renderer.py`, `gui/theme/theme_manager.py`, `gui/utils/viewer.py`,
   `gui/widgets/managed_rhi_widget.py`, `gui/widgets/npk_file_list.py`, `gui/widgets/preview_widget.py`,

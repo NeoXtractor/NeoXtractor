@@ -1,8 +1,4 @@
-"""
-Viewer utility functions for viewers.
-
-Modified from NeoXtractor (AGPL-3.0) in 2026: see NOTICE.md.
-"""
+"""Viewer utility functions for viewers."""
 
 from gui.widgets.viewer import Viewer
 from gui.widgets.viewers.audio_viewer import AudioViewer
@@ -17,8 +13,8 @@ from gui.widgets.viewers.texture_viewer import TextureViewer
 ALL_VIEWERS: list[type[Viewer]] = [
     HexViewer,
     CodeEditor,
-    MeshViewer,
     TextureViewer,
+    MeshViewer,
     BnkViewer,
     AudioViewer,
     CocosViewer,
@@ -26,20 +22,23 @@ ALL_VIEWERS: list[type[Viewer]] = [
 ]
 
 
-def find_best_viewer(extension: str, is_text: bool = False) -> type[Viewer]:
+def find_best_viewer(extension: str, is_text=False) -> type[Viewer]:
     """
-    The viewer for a file extension: the first one that lists it, else the code editor for text and the
-    hex viewer for anything else.
+    Finds and selects the most appropriate previewer widget for the given NPK entry.
+    This method iterates through available previewers and selects one based on the file extension
+    of the NPK entry. If a previewer declares compatibility with the entry's extension through
+    its 'accepted_extensions' attribute, that previewer is selected. If no specialized previewer
+    is found, it defaults to a code editor for text files or a hex viewer for binary files.
+    Args:
+        extension (str): The file extension to find a previewer for
+        is_text (bool): Whether the file is a text file or not
+    Returns:
+        Type[QtWidgets.QWidget]: The class of the selected previewer widget
     """
-    normalized_extension = str(extension or "").lower().lstrip(".")
-    if normalized_extension == "mesh":
-        return MeshViewer
+
     for previewer in ALL_VIEWERS:
-        if not hasattr(previewer, "accepted_extensions"):
-            continue
-        accepted_extensions = {str(value).lower().lstrip(".") for value in getattr(previewer, "accepted_extensions")}
-        if normalized_extension in accepted_extensions:
-            return previewer
-    if is_text:
-        return CodeEditor
-    return HexViewer
+        if hasattr(previewer, "accepted_extensions"):
+            if extension in getattr(previewer, "accepted_extensions"):
+                return previewer
+
+    return CodeEditor if is_text else HexViewer
