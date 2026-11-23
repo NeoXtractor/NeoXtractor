@@ -1,6 +1,6 @@
 # NeoXtractor
 
-![Python versions](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)
+![Python versions](https://img.shields.io/badge/python-3.13%20%7C%203.14-blue)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/MarcosVLl2/NeoXtractor/ci.yml)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white)](https://discord.gg/eedXVqzmfn)
 
