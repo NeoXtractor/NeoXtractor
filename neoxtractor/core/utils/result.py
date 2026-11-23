@@ -33,7 +33,8 @@ class Category(StrEnum):
     MESH = "Mesh"
     TEXTURE = "Texture"
     CHARACTER = "Character"
-    BANK = "Bank"
+    BANK = "Audio Bank"
+    AUDIO = "Audio"
     SKIN = "Skin"
     BXML = "NeoX XML"  # NeoX binary XML, not generic XML
     CSB = "Cocos2D UI"
@@ -71,7 +72,7 @@ class ReadResult(NamedTuple):
     format: str = ""
     ext: str = ""
     category: str = ""
-    metadata: "dict | None" = None
+    metadata: Any = None
 
 
 # Contract range for a probe score, enforced at the coercion boundary below.
@@ -132,9 +133,11 @@ def as_read_result(
 ) -> ReadResult:
     """Wrap a module's ``read`` return into a :class:`ReadResult`.
 
-    A module may return the canonical object directly (most common) or an
-    already-built ``ReadResult`` (when it wants to attach metadata).  Empty
-    provenance fields are backfilled from the detection that won.
+    A module may return the canonical object directly (most common), an
+    already-built ``ReadResult``, or an ``(ext, data, metadata)`` triple
+    (when the repacked container extension is decided per payload rather
+    than per format).  Empty provenance fields are backfilled from the
+    detection that won.
     """
     if isinstance(value, ReadResult):
         return ReadResult(
@@ -143,5 +146,18 @@ def as_read_result(
             ext=value.ext or ext,
             category=value.category or category,
             metadata=value.metadata,
+        )
+    if (
+        isinstance(value, tuple)
+        and len(value) == 3
+        and isinstance(value[0], str)
+    ):
+        module_ext, module_data, module_metadata = value
+        return ReadResult(
+            data=module_data,
+            format=format,
+            ext=module_ext or ext,
+            category=category,
+            metadata=module_metadata,
         )
     return ReadResult(data=value, format=format, ext=ext, category=category)

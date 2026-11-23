@@ -32,7 +32,7 @@ __all__ = [
 # FORMAT + probe are the hard requirements; everything else is optional and
 # probed with getattr at call time.
 REQUIRED_ATTRS = ("FORMAT", "probe")
-OPTIONAL_ATTRS = ("read", "convert", "TARGETS", "CANONICAL_TYPE", "EXT_HINT")
+OPTIONAL_ATTRS = ("read", "convert", "TARGETS", "CANONICAL_TYPE")
 
 
 def is_format_module(module: ModuleType) -> bool:

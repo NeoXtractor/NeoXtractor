@@ -34,6 +34,9 @@ _SNIFF_WINDOW = 64 * 1024
 _TEXTURE_EXTS = frozenset({"pkm"})
 # Plain-text NeoX XML descriptors.
 _XML_TEXT_EXTS = frozenset({"mtl", "mtg", "gim"})
+# Audio payload magics this table can identify but has no decoder for; they
+# group with the decoded WEM under the Audio category.
+_AUDIO_EXTS = frozenset({"fev", "fsb", "ogg"})
 
 
 def _category_for(ext: str) -> str:
@@ -43,6 +46,8 @@ def _category_for(ext: str) -> str:
         return Category.BXML
     if ext == "bnk":
         return Category.BANK
+    if ext in _AUDIO_EXTS:
+        return Category.AUDIO
     if ext == "csb":
         return Category.CSB
     return Category.OTHER
@@ -65,8 +70,6 @@ def _binary_ext(head: bytes) -> str:
     if _starts(d, 0, b"RIFF"):
         if b"FEV" in d:
             return "fev"
-        if b"WAVE" in d:
-            return "wem"
     if d[0x34:0x3B] == b"2.1.0.0" or _starts(
         d, 0, bytes([0x38, 0x00, 0x00, 0x00, 0x34, 0x00, 0x64, 0x00])
     ):
