@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 required-markers = [
     "platform_machine == 'arm64' and platform_release <= '22' and sys_platform == 'darwin'",
@@ -273,8 +273,8 @@ wheels = [
 
 [[package]]
 name = "neoxtractor"
-version = "3.0.1"
-source = { virtual = "." }
+version = "4.0a0"
+source = { editable = "." }
 dependencies = [
     { name = "arc4" },
     { name = "bitstring" },

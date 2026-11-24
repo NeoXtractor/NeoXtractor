@@ -24,16 +24,16 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             arch: x64
             asset_name: neoxtractor-linux
-          - os: windows-latest
+          - os: windows-2025
             arch: x64
             asset_name: neoxtractor-windows
           - os: macos-15-intel
             arch: x64
             asset_name: neoxtractor-macos-x64
-          - os: macos-latest
+          - os: macos-26
             arch: arm64
             asset_name: neoxtractor-macos-arm64
 

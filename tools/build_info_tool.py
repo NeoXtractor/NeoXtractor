@@ -5,11 +5,23 @@ import os
 import subprocess
 import sys
 import json
+import tomllib
 
 project_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 
 if __name__ != "__main__":
     raise ImportError("This script is not meant to be imported.")
+
+def _version_from_pyproject():
+    """Read the project version from pyproject.toml, or None if unavailable."""
+    path = os.path.join(project_dir, "pyproject.toml")
+    try:
+        with open(path, "rb") as file:
+            data = tomllib.load(file)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    version = data.get("project", {}).get("version")
+    return version if isinstance(version, str) else None
 
 def _generate():
     try:
@@ -39,9 +51,18 @@ def _generate():
         if tag.startswith("v"):
             version = tag[1:]
         else:
-            print("No version found.")
+            print("Tag does not look like a version.")
     except subprocess.CalledProcessError:
         print("No tag found for the current commit.")
+
+    if version is None:
+        # Fall back to the declared project version
+        version = _version_from_pyproject()
+        if version is not None:
+            print(f"Using version {version} from pyproject.toml.")
+
+    if version is None:
+        print("No version found.")
 
     time = datetime.datetime.now().timestamp()
 
