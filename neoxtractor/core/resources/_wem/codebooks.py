@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from neoxtractor.core.utils.app import get_application_path
+
 from .bitio import (
     BitReader,
     BitWriter,
@@ -15,9 +17,12 @@ from .bitio import (
 )
 
 
-PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+# The codebook blob ships in the resource root's data/codebooks, beside the
+# other runtime data (fonts, shaders, themes); get_application_path resolves
+# that root across a PyInstaller bundle, an installed wheel, and a dev
+# checkout alike.
 DEFAULT_CODEBOOK_FILE = os.path.join(
-    PACKAGE_DIR, "data", "packed_codebooks_aoTuV_603.bin"
+    get_application_path(), "data", "codebooks", "packed_codebooks_aoTuV_603.bin"
 )
 
 

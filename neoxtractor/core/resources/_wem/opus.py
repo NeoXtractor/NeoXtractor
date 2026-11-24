@@ -8,6 +8,11 @@ from __future__ import annotations
 
 from .bitio import ParseErrorStr
 
+from neoxtractor.core.resources._ogg import (  # noqa: F401  (re-export)
+    last_granule,
+    parse_opus_head,
+)
+
 
 def _read16(data: bytes, offset: int, little_endian: bool) -> int:
     return int.from_bytes(
@@ -133,36 +138,3 @@ class WwiseRiffOpus:
 
     def generate_ogg(self) -> bytes:
         return self.ogg_data
-
-
-def parse_opus_head(ogg_data: bytes) -> tuple[int, int, int]:
-    """Return (channels, pre_skip, input_sample_rate) from a BOS page."""
-    pos = ogg_data.find(b"OpusHead")
-    if pos < 0 or pos + 19 > len(ogg_data):
-        return 0, 0, 0
-    channels = ogg_data[pos + 9]
-    pre_skip = int.from_bytes(ogg_data[pos + 10:pos + 12], "little")
-    input_rate = int.from_bytes(ogg_data[pos + 12:pos + 16], "little")
-    return channels, pre_skip, input_rate
-
-
-def last_granule(ogg_data: bytes) -> int:
-    """Best-effort final granule position by walking the Ogg pages."""
-    pos = 0
-    granule = 0
-    data_len = len(ogg_data)
-    while pos + 27 <= data_len:
-        if ogg_data[pos:pos + 4] != b"OggS":
-            break
-        segments = ogg_data[pos + 26]
-        if pos + 27 + segments > data_len:
-            break
-        payload = sum(ogg_data[pos + 27:pos + 27 + segments])
-        page_end = pos + 27 + segments + payload
-        if page_end > data_len:
-            break
-        page_granule = int.from_bytes(ogg_data[pos + 6:pos + 14], "little")
-        if page_granule != 0xFFFFFFFFFFFFFFFF:
-            granule = page_granule
-        pos = page_end
-    return granule

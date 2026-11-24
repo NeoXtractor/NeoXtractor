@@ -1,7 +1,7 @@
 Portions of this package (the pure-Python Wwise Vorbis -> Ogg Vorbis
 converter in vorbis.py, bitio.py and codebooks.py) are a port of ww2ogg
 (https://github.com/hcs64/ww2ogg), and the bundled codebook libraries
-(data/packed_codebooks_aoTuV_603.bin) come from the same project.
+(data/codebooks/packed_codebooks_aoTuV_603.bin) come from the same project.
 
 Copyright (c) 2002, Xiph.org Foundation
 Copyright (c) 2009-2016, Adam Gashlin

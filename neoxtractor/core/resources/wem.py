@@ -10,8 +10,9 @@ read    -> ``(ext, data, metadata)``: the entry repacked into a directly
            final product, so viewers save ``data`` as-is.
 
 Vorbis WEM payloads store stripped setup headers and rewritten packet
-boundaries, so repacking needs the packed aoTuV codebook database shipped in
-``_wem/data`` -- raw streams are not decodable by generic players.
+boundaries, so repacking needs the packed aoTuV codebook database shipped
+in the resource root's ``data/codebooks`` -- raw streams are not decodable
+by generic players.
 
 File-like input contract (shared by probe/read): seekable binary stream or
 plain bytes; ``probe`` reads only a header.  All codec work lives in the

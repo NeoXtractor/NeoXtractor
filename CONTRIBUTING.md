@@ -25,12 +25,16 @@ neoxtractor/
         models/             archive source, list model, entry filter
         windows/ widgets/ renderers/ ...
 plugins/                    user plugin drop folder
-data/                       shaders, fonts, syntax definitions
+data/                       runtime data: shaders, fonts, themes, syntax
+                            definitions, codebooks (see coding rule 4)
 tools/                      build helpers (shaders, build info)
 ```
 
 Every package directory has an `__init__.py` whose one-line docstring states
 the directory's responsibility. Keep it that way.
+
+Runtime data lives in the top-level `data/` tree only -- the `neoxtractor/`
+package holds code and nothing else.
 
 ## Development setup
 
@@ -83,6 +87,19 @@ invariants.
    `ignore_missing_imports` for stub-less third-party libraries (already
    listed there). An inline suppression needs a comment proving an upstream
    stub defect, not a workaround for our own typing.
+4. **Runtime data files live in the top-level `data/` directory**, never
+   inside the `neoxtractor/` package. The resource root is resolved at
+   runtime by `neoxtractor.core.utils.app.get_application_path()`, which
+   probes the layouts a PyInstaller bundle, an installed wheel, and a dev
+   checkout each produce; the packaging config (`pyproject.toml`
+   force-include, `main.spec` datas) ships `data/` and `configs/` as a unit.
+   Load such a file as `os.path.join(get_application_path(), "data",
+   <subdir>, <name>)` -- a `__file__`-relative path breaks in frozen builds,
+   and a package-internal blob needs its own special-casing in every
+   packaging config. Pick the subdirectory by kind (`fonts`, `shaders`,
+   `themes`, `codebooks`, ...); add a new one when a new data class appears.
+   License texts that must travel with the code they cover are the one
+   exception: keep them beside their module (e.g. `_wem/LICENSE.ww2ogg.md`).
 
 ## Acceptance standards
 
