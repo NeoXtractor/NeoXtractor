@@ -10,7 +10,7 @@ rename action: name resolution belongs to the naming layer, not this widget.
 
 from __future__ import annotations
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from neoxtractor.gui.models.archive_list_model import ArchiveListModel
 from neoxtractor.gui.models.archive_source import ArchiveSource
@@ -49,6 +49,29 @@ class ArchiveList(QtWidgets.QListView):
         self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.doubleClicked.connect(self._on_double_clicked)
+
+    # --- click handling -------------------------------------------------------
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        """Click-select without Qt's delayed scroll-to-pressed-row.
+
+        QAbstractItemView arms a ``doubleClickInterval + 100 ms`` timer on
+        every press and then calls ``scrollTo(pressedIndex, EnsureVisible)``
+        when it fires.  With hidden rows (an active filter), QListView's
+        logical-vs-visual index bookkeeping disagrees across that path's
+        geometry math, so rows that are already fully visible jump a little
+        -- in an arbitrary direction, one second after the click.
+
+        The timer is gated by the same ``autoScroll`` flag that drives the
+        useful edge auto-scroll during drag selection, so the flag is
+        flipped only around the base press handler: the delayed timer never
+        starts, while drag-selection scrolling stays enabled.
+        """
+        self.setAutoScroll(False)
+        try:
+            super().mousePressEvent(event)
+        finally:
+            self.setAutoScroll(True)
 
     # --- binding ------------------------------------------------------------
 
