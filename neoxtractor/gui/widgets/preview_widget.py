@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from typing import cast
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from neoxtractor.core.packages.base import Archive
 from neoxtractor.core.packages.errors import PackageError
@@ -25,9 +25,83 @@ from neoxtractor.gui.viewers.base import ViewerBase, ViewSource, make_entry_sour
 SELECT_ENTRY_TEXT = "Select an entry to preview."
 WAITING_TEXT = "Waiting for content detection..."
 
+WRAP_ALIGNMENT = QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.TextFlag.TextWrapAnywhere
+
+# Preferred (not minimum) width for the wrapped header label: a long path
+# caps here so it never sets the window's default wide, while the Expanding
+# policy still fills any width the layout actually grants.
+_PREFERRED_MAX_WIDTH = 600
+
 
 def _extension_of(name: str) -> str:
     return os.path.splitext(name)[1].lstrip(".").lower()
+
+
+class _WrappedLabel(QtWidgets.QLabel):
+    """A label that breaks text at any character, not only word boundaries.
+
+    Entry paths are one unbroken token, so wrapping happens mid-word.  Both
+    painting and height-for-width carry ``TextWrapAnywhere``; the height is
+    driven from ``resizeEvent`` because a horizontal layout does not
+    propagate height-for-width.
+    """
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Preferred,
+        )
+        self._wrapped_height = 0
+
+    def hasHeightForWidth(self) -> bool:
+        # Layouts query this virtual; QLabel's own returns its word-wrap
+        # flag, which is off here.  True makes the layout read heightForWidth.
+        return True
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+        del event
+        option = QtWidgets.QStyleOption()
+        option.initFrom(self)
+        painter = QtGui.QPainter(self)
+        self.style().drawPrimitive(
+            QtWidgets.QStyle.PrimitiveElement.PE_Widget, option, painter, self
+        )
+        self.style().drawItemText(
+            painter,
+            self.rect(),
+            WRAP_ALIGNMENT,
+            self.palette(),
+            self.isEnabled(),
+            self.text(),
+        )
+
+    def heightForWidth(self, width: int) -> int:
+        metrics = QtGui.QFontMetrics(self.font())
+        return metrics.boundingRect(
+            0, 0, max(width, 1), 0, WRAP_ALIGNMENT, self.text()
+        ).height()
+
+    def sizeHint(self) -> QtCore.QSize:
+        metrics = QtGui.QFontMetrics(self.font())
+        natural = metrics.horizontalAdvance(self.text())
+        width = max(1, min(natural, _PREFERRED_MAX_WIDTH))
+        return QtCore.QSize(width, self.heightForWidth(width))
+
+    def minimumSizeHint(self) -> QtCore.QSize:
+        return QtCore.QSize(0, 0)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+        # A horizontal layout stretches its row instead of propagating
+        # height-for-width, so the height is fixed to the wrapped count at
+        # the current width; the stored count guards the re-entrant resize.
+        if self.width() <= 0:
+            return
+        height = self.heightForWidth(self.width())
+        if height != self._wrapped_height:
+            self._wrapped_height = height
+            self.setFixedHeight(height)
 
 
 class PreviewWidget(QtWidgets.QWidget):
@@ -49,9 +123,8 @@ class PreviewWidget(QtWidgets.QWidget):
 
         self.control_bar_layout = QtWidgets.QHBoxLayout()
 
-        self.status_label = QtWidgets.QLabel()
+        self.status_label = _WrappedLabel()
         self.control_bar_layout.addWidget(self.status_label)
-        self.control_bar_layout.addStretch()
 
         self.previewer_selector = QtWidgets.QComboBox(self)
         for info in registry.list_viewers():

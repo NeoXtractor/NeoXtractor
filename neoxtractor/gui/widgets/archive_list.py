@@ -16,6 +16,10 @@ from neoxtractor.gui.models.archive_list_model import ArchiveListModel
 from neoxtractor.gui.models.archive_source import ArchiveSource
 from neoxtractor.gui.viewers import registry
 
+# Pixel distance for one full wheel notch (120 angle units).  Sub-notch
+# deltas accumulate their fraction across events.
+_WHEEL_PIXELS_PER_NOTCH = 60.0
+
 
 def _open_handler(widget: "ArchiveList", viewer_name: str, rows: list[int]):
     """Bind one viewer name + row set into a no-arg menu callback."""
@@ -24,6 +28,26 @@ def _open_handler(widget: "ArchiveList", viewer_name: str, rows: list[int]):
         widget._open_with(viewer_name, rows)
 
     return handler
+
+
+class _UniformWidthDelegate(QtWidgets.QStyledItemDelegate):
+    """Report every row at the model's widest natural width.
+
+    With ``uniformItemSizes`` QListView sizes all rows from one sampled
+    hint, so this returns the model's tracked maximum as that width, leaving
+    no visible name truncated.  Height comes from the base style hint.
+    """
+
+    def sizeHint(
+        self,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
+    ) -> QtCore.QSize:
+        size = super().sizeHint(option, index)
+        model = index.model()
+        if isinstance(model, ArchiveListModel):
+            size.setWidth(max(size.width(), model.content_width()))
+        return size
 
 
 class ArchiveList(QtWidgets.QListView):
@@ -37,6 +61,9 @@ class ArchiveList(QtWidgets.QListView):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._source: ArchiveSource | None = None
+        # Fractional pixels carried between wheel events, per axis
+        # (0 = horizontal, 1 = vertical).
+        self._wheel_remainder = [0.0, 0.0]
 
         self.setSelectionMode(
             QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
@@ -44,6 +71,15 @@ class ArchiveList(QtWidgets.QListView):
         # Uniform row heights: without this, every setRowHidden/dataChanged
         # makes QListView re-measure the whole column.
         self.setUniformItemSizes(True)
+        # Scroll by pixels, not rows: the scrollbar value is a pixel offset,
+        # so wheelEvent's per-notch pixel math maps directly instead of one
+        # step jumping a whole row.
+        self.setVerticalScrollMode(
+            QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+        self.setHorizontalScrollMode(
+            QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
         self.setDragEnabled(False)
         self.setAcceptDrops(False)
         self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
@@ -73,6 +109,58 @@ class ArchiveList(QtWidgets.QListView):
         finally:
             self.setAutoScroll(True)
 
+    # --- scrolling ----------------------------------------------------------
+
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        """Scroll by pixels on the ScrollPerPixel bars, from either channel.
+
+        Windows reports wheels and trackpads alike through ``angleDelta`` (a
+        wheel's a multiple of 120, a trackpad's fine-grained); ``pixelDelta``
+        appears only on platforms with a pixel API such as macOS.  Here
+        ``pixelDelta`` maps 1:1 per axis and ``angleDelta`` scales by
+        ``_WHEEL_PIXELS_PER_NOTCH`` per 120 units, carrying its fraction per
+        axis so small deltas glide instead of jumping rows.  A direction flip
+        drops the stale fraction; a null delta falls through to the base.
+        """
+        pixels = event.pixelDelta()
+        if not pixels.isNull():
+            dx, dy = pixels.x(), pixels.y()
+            if event.inverted():
+                dx, dy = -dx, -dy
+            self._scroll_pixels(dx, dy)
+            event.accept()
+            return
+
+        angle = event.angleDelta()
+        if angle.isNull():
+            super().wheelEvent(event)
+            return
+
+        scale = _WHEEL_PIXELS_PER_NOTCH / 120.0
+        if event.inverted():
+            scale = -scale
+        steps = [0, 0]
+        for axis, delta in enumerate((angle.x(), angle.y())):
+            if delta == 0:
+                continue
+            remainder = self._wheel_remainder[axis]
+            if remainder and delta * remainder < 0:
+                remainder = 0.0
+            remainder += delta * scale
+            steps[axis] = int(remainder)
+            self._wheel_remainder[axis] = remainder - steps[axis]
+        self._scroll_pixels(steps[0], steps[1])
+        event.accept()
+
+    def _scroll_pixels(self, dx: int, dy: int) -> None:
+        """Move the pixel-valued scrollbars by a signed pixel offset."""
+        if dx:
+            bar = self.horizontalScrollBar()
+            bar.setValue(bar.value() - dx)
+        if dy:
+            bar = self.verticalScrollBar()
+            bar.setValue(bar.value() - dy)
+
     # --- binding ------------------------------------------------------------
 
     def set_source(self, source: ArchiveSource | None) -> None:
@@ -81,11 +169,32 @@ class ArchiveList(QtWidgets.QListView):
         if source is None:
             self.setModel(None)
             return
-        self.setModel(ArchiveListModel(source, self))
+        model = ArchiveListModel(source, self)
+        model.max_width_changed.connect(self._relayout_uniform_width)
+        self.setItemDelegate(_UniformWidthDelegate(self))
+        self.setModel(model)
         # setModel builds the selection model; connect only after it exists.
         selection = self.selectionModel()
         if selection is not None:
             selection.currentChanged.connect(self._on_current_changed)
+
+    def _relayout_uniform_width(self) -> None:
+        """Re-sample the uniform row width after the tracked maximum moves.
+
+        ``doItemsLayout`` clears QListView's cached item size, so the next
+        layout re-reads the delegate hint -- now the model's new widest
+        width -- and the horizontal range follows.
+        """
+        self.doItemsLayout()
+        self.viewport().update()
+
+    def changeEvent(self, event: QtCore.QEvent) -> None:
+        """Re-measure every row width when the view's font changes."""
+        if event.type() == QtCore.QEvent.Type.FontChange:
+            model = self.model()
+            if isinstance(model, ArchiveListModel):
+                model.remeasure_all()
+        super().changeEvent(event)
 
     def _key_name(self, row: int) -> tuple[int, str]:
         assert self._source is not None

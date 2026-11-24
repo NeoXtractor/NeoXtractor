@@ -96,7 +96,7 @@ class MainWindow(QtWidgets.QMainWindow):
     # --- UI construction ----------------------------------------------------
 
     def _build_ui(self) -> None:
-        main_layout = QtWidgets.QHBoxLayout()
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         control_layout = QtWidgets.QVBoxLayout()
 
         config_row = QtWidgets.QHBoxLayout()
@@ -121,15 +121,57 @@ class MainWindow(QtWidgets.QMainWindow):
 
         control_widget = QtWidgets.QWidget()
         control_widget.setLayout(control_layout)
-        control_widget.setMaximumWidth(500)
-        main_layout.addWidget(control_widget, stretch=1)
+        control_widget.setMinimumWidth(260)
+        splitter.addWidget(control_widget)
 
         self.preview_widget = PreviewWidget(self)
-        main_layout.addWidget(self.preview_widget, stretch=2)
+        self.preview_widget.setMinimumWidth(300)
+        splitter.addWidget(self.preview_widget)
+
+        # Dragging the handle only redistributes the two panes inside the
+        # window: neither collapses to nothing and the window itself never
+        # grows to fit a pane.
+        splitter.setChildrenCollapsible(False)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+        splitter.setSizes([400, 800])
+        splitter.setHandleWidth(6)
+        self._splitter = splitter
+        self._apply_splitter_handle_color()
 
         central = QtWidgets.QWidget()
-        central.setLayout(main_layout)
+        central_layout = QtWidgets.QHBoxLayout()
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.addWidget(splitter)
+        central.setLayout(central_layout)
         self.setCentralWidget(central)
+
+    def _apply_splitter_handle_color(self) -> None:
+        """Draw a thin tinted line in the middle of the splitter handle."""
+        base = self.palette().color(QtGui.QPalette.ColorRole.Window)
+        tinted = QtGui.QColor(
+            (base.red() + ((base.red() + 128) & 0xFF)) // 2,
+            (base.green() + ((base.green() + 128) & 0xFF)) // 2,
+            (base.blue() + ((base.blue() + 128) & 0xFF)) // 2,
+        )
+        self._splitter.setStyleSheet(
+            f"QSplitter::handle {{"
+            f" background-color: {base.name()};"
+            f" border-image: none;"
+            f" border-right: none;"
+            f" border-left: none;"
+            f" }}"
+            f" QSplitter::handle:horizontal {{"
+            f" margin: 2px 2px;"
+            f" background-color: {tinted.name()};"
+            f" }}"
+        )
+
+    def changeEvent(self, event: QtCore.QEvent) -> None:
+        """Re-tint the splitter handle when the theme repaints the palette."""
+        if event.type() == QtCore.QEvent.Type.PaletteChange:
+            self._apply_splitter_handle_color()
+        super().changeEvent(event)
 
     def _build_filter_section(self) -> QtWidgets.QVBoxLayout:
         section = QtWidgets.QVBoxLayout()
