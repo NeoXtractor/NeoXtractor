@@ -8,6 +8,14 @@ on:
         required: false
         default: ""
         type: string
+  workflow_dispatch:
+    inputs:
+      asset_suffix:
+        description: "Suffix to append to asset names"
+        required: false
+        default: "-manual"
+        type: string
+  pull_request:
 
 jobs:
   build:
