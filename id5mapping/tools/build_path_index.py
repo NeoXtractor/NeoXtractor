@@ -40,9 +40,20 @@ def cstr(buf: bytes, off: int) -> bytes:
     return buf[off:buf.find(b"\x00", off)]
 
 
+def map_paths(vmap: dict) -> list[str]:
+    """Flatten the map values; one content md5 may name several VFS paths."""
+    paths = []
+    for value in vmap.values():
+        if isinstance(value, list):
+            paths.extend(str(path) for path in value if path)
+        else:
+            paths.append(str(value))
+    return paths
+
+
 def build(map_path: str, out_path: str) -> None:
     vmap = json.load(open(map_path, encoding="utf-8"))
-    build_from_paths(list(vmap.values()), out_path)
+    build_from_paths(map_paths(vmap), out_path)
 
 
 def build_from_paths(paths: list[str], out_path: str) -> None:
@@ -224,10 +235,10 @@ def verify(map_path: str, out_path: str, samples: int) -> None:
     t0 = time.time()
     idx = PathHashIndex(out_path)
     vmap = json.load(open(map_path, encoding="utf-8"))
-    items = list(vmap.items())
+    items = map_paths(vmap)
     rnd = random.Random(1)
     ok = bad = 0
-    for _, path in rnd.sample(items, min(samples, len(items))):
+    for path in rnd.sample(items, min(samples, len(items))):
         rel = rel_of(path)
         got = idx.lookup(h32(rel.encode(), SEED_KEY), h32(rel.encode(), SEED_ITEM))
         if got == path:
