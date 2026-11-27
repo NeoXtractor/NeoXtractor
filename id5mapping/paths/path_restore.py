@@ -19,6 +19,7 @@ Wwise event mapping instead.
 from __future__ import annotations
 
 import array
+import copy
 import marshal
 import os
 import struct
@@ -379,7 +380,7 @@ def restore_archive_paths(reader, thy_paths=None) -> int:
     if index is not None:
         candidates = list(thy_paths) if thy_paths else _thy_candidates(idx_path)
 
-        by_md5: dict[str, str] = {}
+        by_md5: dict[str, list[str]] = {}
         for thy_path in candidates:
             try:
                 rows = _read_thy_rows(thy_path)
@@ -392,7 +393,9 @@ def restore_archive_paths(reader, thy_paths=None) -> int:
                     continue
                 path = index.lookup(key, item)
                 if path:
-                    by_md5[md5] = path
+                    paths = by_md5.setdefault(md5, [])
+                    if path not in paths:
+                        paths.append(path)
                     found += 1
             get_logger().info(
                 "Path restore: %d/%d rows resolved from %s",
@@ -401,11 +404,42 @@ def restore_archive_paths(reader, thy_paths=None) -> int:
                 os.path.basename(thy_path),
             )
 
-        for record in getattr(reader, "indices", ()):
-            path = by_md5.get(getattr(record, "raw_hash_hex", ""))
-            if path and record.filename != path:
-                record.filename = path
+        new_indices = []
+        positions: dict[int, int] = {}
+        alias_rows = 0
+        for old_row, record in enumerate(getattr(reader, "indices", ())):
+            paths = by_md5.get(getattr(record, "raw_hash_hex", ""))
+            new_row = len(new_indices)
+            positions[old_row] = new_row
+            new_indices.append(record)
+            if not paths:
+                continue
+            if record.filename != paths[0]:
+                record.filename = paths[0]
                 restored += 1
+            # One content md5 can be referenced by several VFS paths; list each
+            # of them so both names are visible and exported.
+            for alias in paths[1:]:
+                duplicate = copy.copy(record)
+                duplicate.filename = alias
+                new_indices.append(duplicate)
+                alias_rows += 1
+
+        if alias_rows:
+            reader.indices = new_indices
+            entries = getattr(reader, "entries", None)
+            if entries:
+                reader.entries = {
+                    positions[row]: entry
+                    for row, entry in entries.items()
+                    if row in positions
+                }
+            if hasattr(reader, "file_count"):
+                reader.file_count = len(new_indices)
+            get_logger().info(
+                "Path restore: %d alias row(s) added for shared content md5",
+                alias_rows,
+            )
 
     # `script` modules carry their own path; use it where the tables did not.
     if stem == "script":
